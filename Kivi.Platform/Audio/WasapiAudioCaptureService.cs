@@ -56,6 +56,7 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService, IDisposabl
     private void InitCaptureWithBackoff()
     {
         int delay = 100;
+        Exception? lastError = null;
         for (int attempt = 0; attempt < 5; attempt++)
         {
             try
@@ -65,13 +66,17 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService, IDisposabl
                 _capture = new WasapiCapture(device) { WaveFormat = Format };
                 return;
             }
-            catch when (attempt < 4)
+            catch (Exception ex)
             {
-                Thread.Sleep(delay);
-                delay = Math.Min(delay * 2, 2000);
+                lastError = ex;
+                if (attempt < 4)
+                {
+                    Thread.Sleep(delay);
+                    delay = Math.Min(delay * 2, 2000);
+                }
             }
         }
-        throw new InvalidOperationException("No usable capture device after retries");
+        throw new InvalidOperationException("No usable capture device after retries", lastError);
     }
 
     private async Task DeviceWorkerAsync()
