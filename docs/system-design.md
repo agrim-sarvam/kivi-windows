@@ -257,17 +257,29 @@ mirroring FreeFlow's `_pipeline_lock` / `AppState`.
 
 ## 9. Traceability to the POA
 
+*Last verified against the actual codebase on `feat/non-ui-build` (Tasks 1–16 + final review,
+2026-07-17). "Built" means real, tested, reviewed code exists — not just a design doc.*
+
 | POA # | Deliverable | Where it lives | Status |
 |---|---|---|---|
-| 1 | Core dictation pipeline | `Kivi.Core` (+ Platform hotkey/audio/paste) | designed (research doc); impl doc TBD |
-| 2 | Screen context capture | `Kivi.Platform/Context` | **impl-01** ✅ |
-| 3 | Driver-update resilience | `Kivi.Platform/Audio` | **impl-02** ✅ |
-| 4 | Kivi UI skin | `Kivi.App` | **impl-03** ✅ |
-| 5 | CPU/memory optimization | `Kivi.App` build + Core streaming | designed (impl-03 §8); validate empirically |
-| 6 | Installer | WiX + `Kivi.App` publish | designed; impl doc TBD |
+| 1 | Core dictation pipeline | `Kivi.Core` (+ Platform hotkey/audio/paste) | ✅ **Built** — `Kivi.Core`+`Kivi.Platform` complete, 40/40 tests, reviewed |
+| 2 | Screen context capture | `Kivi.Platform/Context` | ✅ **Built** — `UiaScreenContextProvider`; password-skip verified fail-closed, before any text read |
+| 3 | Driver-update resilience | `Kivi.Platform/Audio` | ✅ **Built** — `WasapiAudioCaptureService`+`DeviceNotificationClient`; retry/backoff, no cached handle, non-blocking callbacks |
+| 4 | Kivi UI skin | `Kivi.App` | ❌ **Not started** — no `.xaml` files exist; blocked on the Kivi visual design link (see impl-03 §9 for the token-swap workflow once it arrives) |
+| 5 | CPU/memory optimization | `Kivi.App` build + Core streaming | ⚠️ **Instrumented, not validated** — OTel `--metrics` (RSS/CPU/per-stage latency) is built and working; no actual `dotnet-counters` profiling run or <100MB confirmation has been done yet |
+| 6 | Installer | WiX + `Kivi.App` publish | ❌ **Not started** — no `.wxs` file, no installer project; low priority until the UI exists |
 
-**Remaining doc gaps:** a dedicated impl doc for **POA #1 (core pipeline / `Kivi.Core`)** and
-**POA #6 (WiX installer)**. Everything else is specified.
+**Also not yet built (gap vs. this doc's own §7):** JSON settings persistence at
+`%APPDATA%\Kivi\` — `AppConfig` currently only has in-memory defaults; only the API key (via
+`DpapiSecretStore`) persists across runs.
+
+**Remaining doc gaps:** a dedicated impl doc for **POA #6 (WiX installer)**. POA #1 now has real
+code (see the plan at `docs/superpowers/plans/2026-07-17-kivi-non-ui-build.md`) so it no longer
+needs a separate impl doc the way #2/#3 did.
+
+**Manual verification still pending (Task 17, requires a Windows desktop + mic + `GROQ_API_KEY`):**
+real end-to-end dictation, password-field skip in practice, and the `--metrics` output — see the
+plan's Task 17 and the final whole-branch review's watch-list.
 
 ---
 

@@ -5,7 +5,8 @@
       "WebFetch(domain:api.github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebSearch",
-      "mcp__plugin_microsoft-docs_microsoft-learn__microsoft_docs_search"
+      "mcp__plugin_microsoft-docs_microsoft-learn__microsoft_docs_search",
+      "Bash"
     ]
   }
 }
