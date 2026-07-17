@@ -128,6 +128,35 @@ key (not even truncated). Mirrors FreeFlow's privacy promise ("only API calls le
   secondary to env/user-secrets for dev.
 - `Interop/NativeMethods.txt` — CsWin32 generation manifest.
 
+### 4.2b Observability — embedded metrics (OpenTelemetry, simple)
+
+Goal: while running the app, **see CPU / memory / per-stage latency live** and catch spikes —
+especially against the <100 MB RSS budget — without standing up Prometheus/Grafana infrastructure.
+
+Design (OTel-standard but zero-infra by default):
+- **Instrument with a plain `System.Diagnostics.Metrics.Meter("Kivi")`** in `Kivi.Core`
+  (dependency-free at the instrumentation layer):
+  - `kivi.dictation.stage.duration` (histogram, ms) tagged by stage (`record`/`stt`/`cleanup`/`paste`)
+    and `kivi.dictation.total.duration` — emitted by the orchestrator around each stage.
+  - A small background sampler emits **`kivi.process.rss`** (MB) and **`kivi.process.cpu`** (%)
+    from `Process.GetCurrentProcess()` (`WorkingSet64`, `TotalProcessorTime` delta) every ~2 s.
+- **Collect/display in `Kivi.App`** via an OpenTelemetry `MeterProvider`:
+  - `Sdk.CreateMeterProviderBuilder().AddMeter("Kivi").AddRuntimeInstrumentation()` — the
+    `OpenTelemetry.Instrumentation.Runtime` package adds CPU/GC/heap/thread counters for free.
+  - Default reader = **`AddConsoleExporter()`** → metrics print to the same console you're watching.
+    No dashboard, no server.
+  - **Escape hatch (no code rewrite):** swapping `AddConsoleExporter()` for `AddOtlpExporter()`
+    points at the free **.NET Aspire dashboard** (a single container) if graphs are ever wanted.
+- **Toggleable** (protects the perf budget): metrics off by default; enabled by an
+  `--metrics` arg or `KIVI_METRICS=1` / config flag. When off, no `MeterProvider` is built and the
+  sampler doesn't run, so a clean RSS measurement isn't polluted by the observability overhead.
+- **Also works with zero app config:** because instrumentation uses the standard `Meter`,
+  `dotnet-counters monitor --name Kivi.App --counters Kivi` attaches live regardless of the toggle.
+- **Privacy:** metrics are **numbers and stage names only** — never transcript/audio/context/key
+  content (consistent with the logging rule).
+- Packages (Platform/App): `OpenTelemetry`, `OpenTelemetry.Extensions.Hosting`,
+  `OpenTelemetry.Instrumentation.Runtime`, `OpenTelemetry.Exporter.Console`.
+
 ### 4.3 `Kivi.App` — headless console host
 - Console app that builds the DI container (Core + Platform), constructs the orchestrator, logs
   pipeline state to the console, and runs real dictations. Replaced by the WinUI 3 shell in the UI plan.
@@ -163,6 +192,11 @@ Console logs each state transition in place of the overlay.
 - **Manual E2E:** run console host → hold right-Ctrl, speak, release → observe console state log +
   text pasted into focused Notepad. **Password-skip check:** dictate into a password field, confirm
   no field content appears in the captured context.
+
+- **Observability check:** run `Kivi.App --metrics`, perform a dictation, and confirm the console
+  shows RSS/CPU samples + per-stage latency (`record`/`stt`/`cleanup`/`paste`) and runtime counters;
+  confirm RSS stays within sight of the <100 MB target and no stage latency spikes unexpectedly.
+  Also confirm `dotnet-counters monitor --name Kivi.App --counters Kivi` attaches.
 
 **Privacy checklist (verify before this plan is done):**
 - [ ] Only outbound traffic is API calls to the configured Groq (transcription + chat) endpoints —
