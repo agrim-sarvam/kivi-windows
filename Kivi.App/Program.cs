@@ -22,6 +22,10 @@ public class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        // Load a local .env (KEY=VALUE per line) into process env vars, if present, so
+        // AddEnvironmentVariables() below picks them up. .env is git-ignored (never committed).
+        DotEnv.Load();
+
         bool metricsEnabled = args.Contains("--metrics") || Environment.GetEnvironmentVariable("KIVI_METRICS") == "1";
 
         var configuration = new ConfigurationBuilder()
@@ -29,13 +33,15 @@ public class Program
             .AddUserSecrets(typeof(Program).Assembly, optional: true)
             .Build();
 
-        var appConfig = AppConfig.Default();
+        var configStore = new JsonAppConfigStore();
+        var appConfig = configStore.Load();
         appConfig.MetricsEnabled = metricsEnabled;
         appConfig.Validate();
 
         var services = new ServiceCollection();
         services.AddLogging(b => b.AddSimpleConsole());
         services.AddSingleton(appConfig);
+        services.AddSingleton<IAppConfigStore>(configStore);
         services.AddSingleton(new HttpClient());
         services.AddSingleton<OpenAiCompatibleClient>();
         services.AddSingleton(new KiviMetrics());
