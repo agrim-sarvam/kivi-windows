@@ -60,7 +60,8 @@ perf pass to <100 MB (POA #5); WiX installer (POA #6).
 - Packages: `Microsoft.Windows.CsWin32` (build-time source generator, Platform),
   `NAudio` (Platform), `Microsoft.Extensions.DependencyInjection` +
   `Microsoft.Extensions.Hosting` (App composition root), `Microsoft.Extensions.Configuration`
-  (+ `.UserSecrets`, `.EnvironmentVariables`) for the dev key. Tests: `xunit`,
+  (+ `.UserSecrets`, `.EnvironmentVariables`) for the dev key, `Microsoft.Extensions.Logging`
+  (+ `.Console`) for the no-sensitive-data logging. Tests: `xunit`,
   `xunit.runner.visualstudio`, `Microsoft.NET.Test.Sdk`.
 
 ---
@@ -102,6 +103,14 @@ everything via DI. Only `Kivi.Platform` and `Kivi.App` target `-windows`. Layout
 - `Abstractions/` — `IAudioCaptureService`, `IHotkeyService`, `IPasteService`,
   `IScreenContextProvider`, `ISecretStore`.
 - `Config/AppConfig` — base URLs, model IDs, hotkey, mic, timeouts, vocab, macros.
+  **baseURL validation:** transcription/chat base URLs are user-configurable, so validate each is a
+  well-formed **HTTPS** absolute URI before use (reject non-https / malformed) — basic SSRF/open-
+  redirect hygiene.
+
+**Logging / no-sensitive-data rule (applies across all projects):** use
+`Microsoft.Extensions.Logging`. Log only **state transitions, latencies, model IDs, and error
+codes/messages**. **Never** log transcript text, audio bytes, captured screen-context, or the API
+key (not even truncated). Mirrors FreeFlow's privacy promise ("only API calls leave the machine").
 
 ### 4.2 `Kivi.Platform` — OS glue, fully hardened (POA #1/#2/#3)
 - `Hotkey/LowLevelKeyboardHookService` — `SetWindowsHookEx(WH_KEYBOARD_LL)`, **hardcoded right-Ctrl
@@ -154,6 +163,14 @@ Console logs each state transition in place of the overlay.
 - **Manual E2E:** run console host → hold right-Ctrl, speak, release → observe console state log +
   text pasted into focused Notepad. **Password-skip check:** dictate into a password field, confirm
   no field content appears in the captured context.
+
+**Privacy checklist (verify before this plan is done):**
+- [ ] Only outbound traffic is API calls to the configured Groq (transcription + chat) endpoints —
+      nothing else leaves the machine.
+- [ ] API key encrypted at rest via DPAPI (`DpapiSecretStore`); never in plaintext config, never logged.
+- [ ] No audio, transcript, or captured context persisted to disk or logs.
+- [ ] Backend base URLs validated (HTTPS + well-formed) before any request.
+- [ ] Password/secure fields never read by the context provider.
 
 ---
 
