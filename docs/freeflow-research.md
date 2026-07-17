@@ -34,7 +34,7 @@ C#), and reimplement only the OS glue** (hotkey, mic, paste, context capture, ke
 
 ### 1. `zachlatta/freeflow` (original, macOS/Swift) — the source of truth
 - **Backend:** Groq OpenAI-compatible REST. STT `whisper-large-v3` (verbose_json), cleanup
-  `openai/gpt-oss-20b` (fallback `qwen/qwen3.6-27b`), `temperature 0`.
+  `openai/gpt-oss-20b` (fallback `qwen/qwen3-32b`), `temperature 0`.
 - **The prompts are load-bearing and portable** — 3 system prompts (cleanup / command-edit /
   verbatim-translate) + a context-synthesis prompt, all plain strings. Copy verbatim into C#.
 - **Robustness logic worth porting:** hallucination filter (`no_speech_prob >= 0.1` + known

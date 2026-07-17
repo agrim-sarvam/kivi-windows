@@ -40,7 +40,7 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService, IDisposabl
     public async Task<byte[]> StopRecordingAsync()
     {
         if (_capture is null || _writer is null || _stream is null) return Array.Empty<byte>();
-        _stopped = new TaskCompletionSource();
+        _stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _capture.StopRecording();
         await _stopped.Task;
         _writer.Flush();

@@ -7,7 +7,7 @@ public sealed class AppConfig
     public string ChatBaseUrl { get; set; } = "https://api.groq.com/openai/v1";
     public string TranscriptionModel { get; set; } = "whisper-large-v3";
     public string CleanupModel { get; set; } = "openai/gpt-oss-20b";
-    public string FallbackModel { get; set; } = "qwen/qwen3.6-27b";
+    public string FallbackModel { get; set; } = "qwen/qwen3-32b";
     public string? OutputLanguage { get; set; }
     public string? TranscriptionLanguage { get; set; }
     public int TimeoutSeconds { get; set; } = 20;
