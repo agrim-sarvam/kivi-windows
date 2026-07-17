@@ -52,6 +52,17 @@ perf pass to <100 MB (POA #5); WiX installer (POA #6).
 - Dev secret: `GROQ_API_KEY` via environment variable or `dotnet user-secrets` on `Kivi.App`.
   Never committed, never hardcoded.
 
+**Target frameworks & NuGet packages (pin these — CsWin32/UIA won't generate otherwise):**
+- `Kivi.Core`, `Kivi.Core.Tests`: **`net8.0`**.
+- `Kivi.Platform`, `Kivi.App`: **`net8.0-windows10.0.19041.0`** (an explicit
+  `TargetPlatformVersion` is required for CsWin32 to generate the Windows/UIA APIs; bare
+  `net8.0-windows` is not enough).
+- Packages: `Microsoft.Windows.CsWin32` (build-time source generator, Platform),
+  `NAudio` (Platform), `Microsoft.Extensions.DependencyInjection` +
+  `Microsoft.Extensions.Hosting` (App composition root), `Microsoft.Extensions.Configuration`
+  (+ `.UserSecrets`, `.EnvironmentVariables`) for the dev key. Tests: `xunit`,
+  `xunit.runner.visualstudio`, `Microsoft.NET.Test.Sdk`.
+
 ---
 
 ## 3. Solution structure
@@ -111,6 +122,11 @@ everything via DI. Only `Kivi.Platform` and `Kivi.App` target `-windows`. Layout
 ### 4.3 `Kivi.App` — headless console host
 - Console app that builds the DI container (Core + Platform), constructs the orchestrator, logs
   pipeline state to the console, and runs real dictations. Replaced by the WinUI 3 shell in the UI plan.
+- **Message-loop requirement:** a `WH_KEYBOARD_LL` low-level hook only delivers callbacks on a
+  thread that **pumps a Windows message loop**. A plain console `Main` does not, so the hotkey would
+  silently never fire. The host must run a message pump on the hook's thread (e.g. an STA thread
+  calling `GetMessage`/`TranslateMessage`/`DispatchMessage`, or a hidden-window pump) and keep the
+  process alive until quit. This same STA thread is a natural home for the clipboard/paste work.
 
 ---
 
@@ -130,6 +146,11 @@ Console logs each state transition in place of the overlay.
   state transitions, config defaults.
 - **Integration test:** canned WAV → **real Groq** → assert non-empty cleaned text. Gated on
   `GROQ_API_KEY`; skipped (not failed) when absent.
+- **Orchestrator integration test (no hardware):** drive `DictationOrchestrator` with **real Core +
+  fake Platform services** (fake hotkey trigger, fake audio returning a canned WAV, fake context,
+  spy paste service) and assert the full state sequence `Idle → Listening → Transcribing → Pasting →
+  Idle` and that the paste service received the cleaned text. This covers orchestration logic
+  automatically so manual E2E only has to prove the real OS glue.
 - **Manual E2E:** run console host → hold right-Ctrl, speak, release → observe console state log +
   text pasted into focused Notepad. **Password-skip check:** dictate into a password field, confirm
   no field content appears in the captured context.
@@ -150,7 +171,27 @@ Console logs each state transition in place of the overlay.
 
 ---
 
-## 8. Out of scope (future plans)
+## 8. Definition of done
+
+This plan is complete when:
+1. `git` repo initialized; `_reference/` cloned (3 repos) and git-ignored; `dotnet build` of the
+   solution succeeds on a clean checkout.
+2. `Kivi.Core` and `Kivi.Platform` implement every component in §4; `Kivi.Core` has **zero**
+   Windows/UI dependencies.
+3. `dotnet test` passes: unit tests (fake HTTP) + the orchestrator integration test (fake Platform)
+   green; the real-Groq integration test green when `GROQ_API_KEY` is set, skipped otherwise.
+4. **Manual E2E verified:** holding right-Ctrl, speaking, and releasing pastes cleaned text into a
+   focused Notepad, and the password-skip check passes (no secure-field content captured).
+5. Build-time caveats in §7 are resolved (not merely noted) in the actual code.
+
+**Suggested build order** (writing-plans will detail): repo/toolchain → `Kivi.Core` abstractions +
+config → Groq client + STT/cleanup + PolishPipeline + prompts + macros/vocab (TDD) → orchestrator
+(+ orchestrator integration test) → `Kivi.Platform` services (hotkey → audio+resilience → paste →
+UIA context → DPAPI) → console host + message pump → manual E2E.
+
+---
+
+## 9. Out of scope (future plans)
 
 - **POA #4 — Kivi UI skin** (overlay pill, tray, settings): awaits the Claude/Kivi design link;
   token-swap workflow already specified in [`impl-03` §9](../../impl-03-winui3-kivi-ui.md).
