@@ -1,0 +1,28 @@
+## .NET
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+*.user
+*.suo
+*.userprefs
+publish/
+artifacts/
+
+## Rider / VS
+.idea/
+.vs/
+
+## .NET user secrets & local env
+secrets.json
+*.env
+.env
+
+## FreeFlow reference clones (read-only, never committed)
+_reference/
+
+## OS
+Thumbs.db
+.DS_Store
