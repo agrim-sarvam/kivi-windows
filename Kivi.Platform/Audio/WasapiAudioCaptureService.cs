@@ -51,7 +51,7 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService, IDisposabl
             _stream = new MemoryStream();
             _writer = new WaveFileWriter(_stream, Format);
             _capture.DataAvailable += OnData;
-            _capture.RecordingStopped += (_, __) => _stopped?.TrySetResult();
+            _capture.RecordingStopped += OnRecordingStopped;
             _capture.StartRecording();
             _isRecording = true;
         }
@@ -90,6 +90,7 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService, IDisposabl
             if (_capture is not null)
             {
                 _capture.DataAvailable -= OnData;
+                _capture.RecordingStopped -= OnRecordingStopped;
                 _capture.Dispose();
                 _capture = null;
             }
@@ -112,6 +113,12 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService, IDisposabl
             _writer?.Write(e.Buffer, 0, e.BytesRecorded);
         }
     }
+
+    // Named (rather than a lambda per call site) so it can be unsubscribed with -= wherever it
+    // was subscribed with += (StartRecordingAsync, TryReconnect's new-capture wiring, and old-
+    // capture teardown in TryReconnect/Dispose), preventing a stray RecordingStopped from a
+    // torn-down capture object from resolving _stopped after a newer capture has taken over.
+    private void OnRecordingStopped(object? sender, StoppedEventArgs e) => _stopped?.TrySetResult();
 
     // Acquires a fresh MMDevice + WasapiCapture for the current default capture endpoint, with
     // retry/backoff for transient device-busy/not-found conditions. Returns the MMDevice (caller
@@ -147,12 +154,20 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService, IDisposabl
         await foreach (var ev in _deviceEvents.Reader.ReadAllAsync())
         {
             // Dedupe the OnDefaultDeviceChanged storm (fires once per role -- up to 3x per user
-            // change) and ignore events about endpoints that aren't the one we're bound to.
+            // change) and ignore events about endpoints that aren't the one we're bound to. Read
+            // under _gate for consistency with every writer of _currentEndpointId; this is off
+            // the hot audio path (device-change events are rare) so the extra lock is free.
+            string? currentEndpointId;
+            lock (_gate)
+            {
+                currentEndpointId = _currentEndpointId;
+            }
+
             bool affectsUs = ev.Kind switch
             {
-                DeviceEventKind.DefaultChanged => !string.Equals(ev.DeviceId, _currentEndpointId, StringComparison.Ordinal),
-                DeviceEventKind.Removed => string.Equals(ev.DeviceId, _currentEndpointId, StringComparison.Ordinal),
-                DeviceEventKind.StateChanged => string.Equals(ev.DeviceId, _currentEndpointId, StringComparison.Ordinal),
+                DeviceEventKind.DefaultChanged => !string.Equals(ev.DeviceId, currentEndpointId, StringComparison.Ordinal),
+                DeviceEventKind.Removed => string.Equals(ev.DeviceId, currentEndpointId, StringComparison.Ordinal),
+                DeviceEventKind.StateChanged => string.Equals(ev.DeviceId, currentEndpointId, StringComparison.Ordinal),
                 _ => false,
             };
 
@@ -184,6 +199,7 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService, IDisposabl
             if (old is not null)
             {
                 old.DataAvailable -= OnData;
+                old.RecordingStopped -= OnRecordingStopped;
                 try { old.StopRecording(); } catch { /* device may already be gone */ }
                 old.Dispose();
             }
@@ -217,7 +233,7 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService, IDisposabl
                 _capture = newCapture;
                 _currentEndpointId = newDevice.ID;
                 _capture.DataAvailable += OnData;
-                _capture.RecordingStopped += (_, __) => _stopped?.TrySetResult();
+                _capture.RecordingStopped += OnRecordingStopped;
                 _capture.StartRecording();
             }
         }
@@ -226,6 +242,26 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService, IDisposabl
     public void Dispose()
     {
         try { _enumerator.UnregisterEndpointNotificationCallback(_notify); } catch { }
-        _capture?.Dispose(); _writer?.Dispose(); _stream?.Dispose(); _enumerator.Dispose();
+
+        // Same _gate as StopRecordingAsync/TryReconnect so a reconnect in flight on the device
+        // worker can't touch _capture/_writer/_stream concurrently with shutdown -- whichever
+        // side wins the lock finishes its teardown before the other proceeds, so the same
+        // WasapiCapture is never disposed from two threads.
+        lock (_gate)
+        {
+            if (_capture is not null)
+            {
+                _capture.DataAvailable -= OnData;
+                _capture.RecordingStopped -= OnRecordingStopped;
+                _capture.Dispose();
+                _capture = null;
+            }
+            _writer?.Dispose();
+            _stream?.Dispose();
+            _writer = null;
+            _stream = null;
+        }
+
+        _enumerator.Dispose();
     }
 }
