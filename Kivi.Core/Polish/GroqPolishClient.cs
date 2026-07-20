@@ -24,6 +24,8 @@ public sealed class GroqPolishClient : IPolishClient
     private readonly ISecretStore _secrets;
     private readonly Dictionary<string, DateTimeOffset> _cooldownUntil = new();
 
+    public event Action<string>? EnteringCooldown;
+
     public GroqPolishClient(OpenAiCompatibleClient http, AppConfig config, ISecretStore secrets)
         => (_http, _config, _secrets) = (http, config, secrets);
 
@@ -53,6 +55,7 @@ public sealed class GroqPolishClient : IPolishClient
             catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
             {
                 _cooldownUntil[model] = DateTimeOffset.UtcNow.AddSeconds(30);
+                EnteringCooldown?.Invoke(model);
             }
         }
         return transcript; // all models failed -> safe fallback to raw

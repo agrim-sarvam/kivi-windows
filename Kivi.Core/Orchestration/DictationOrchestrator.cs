@@ -28,8 +28,11 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
 
     public DictationOrchestrator(IHotkeyService hotkey, IAudioCaptureService audio, IScreenContextProvider context,
         ISttEngine stt, IPolishClient polish, IPasteService paste, AppConfig config, KiviMetrics metrics)
-        => (_hotkey, _audio, _context, _stt, _polish, _paste, _config, _metrics)
+    {
+        (_hotkey, _audio, _context, _stt, _polish, _paste, _config, _metrics)
            = (hotkey, audio, context, stt, polish, paste, config, metrics);
+        _polish.EnteringCooldown += _ => SetState(RecordingState.Waiting);
+    }
 
     public void Start()
     {

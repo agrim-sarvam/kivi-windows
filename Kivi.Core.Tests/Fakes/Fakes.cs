@@ -36,6 +36,18 @@ public sealed class StubStt : Kivi.Core.Stt.ISttEngine
 
 public sealed class StubPolish : Kivi.Core.Polish.IPolishClient
 {
+    public event Action<string>? EnteringCooldown;
     public Task<string> CleanupAsync(string transcript, string context, CancellationToken ct)
         => Task.FromResult("Hello there.");
+}
+
+public sealed class CooldownStubPolish : Kivi.Core.Polish.IPolishClient
+{
+    public event Action<string>? EnteringCooldown;
+    public async Task<string> CleanupAsync(string transcript, string context, CancellationToken ct)
+    {
+        EnteringCooldown?.Invoke("primary-model");
+        await Task.Delay(10, ct);
+        return "Hello there.";
+    }
 }

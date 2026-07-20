@@ -46,4 +46,27 @@ public class OrchestratorTests
 
         Assert.Equal("MACRO PAYLOAD", paste.Pasted);
     }
+
+    [Fact]
+    public async Task RateLimitedPolish_EmitsWaitingState_BeforeProcessingResumes()
+    {
+        var hotkey = new FakeHotkey();
+        var paste = new SpyPaste();
+        using var metrics = new KiviMetrics();
+        var polish = new CooldownStubPolish();
+        var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
+            new StubStt(), polish, paste, AppConfig.Default(), metrics);
+
+        var states = new List<RecordingState>();
+        orch.StateChanged += s => states.Add(s);
+        orch.Start();
+
+        hotkey.FireStart();
+        await Task.Delay(20);
+        hotkey.FireEnd();
+        await Task.Delay(200);
+
+        Assert.Contains(RecordingState.Waiting, states);
+        Assert.Equal("Hello there.", paste.Pasted);
+    }
 }
