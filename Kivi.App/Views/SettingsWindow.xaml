@@ -1,0 +1,26 @@
+<!-- Kivi.App/Views/SettingsWindow.xaml -->
+<Window
+    x:Class="Kivi.App.Views.SettingsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <NavigationView x:Name="Nav"
+                    PaneDisplayMode="Left"
+                    IsSettingsVisible="False"
+                    IsBackButtonVisible="Collapsed"
+                    PaneTitle="Kivi"
+                    SelectionChanged="Nav_SelectionChanged"
+                    Background="{ThemeResource KiviSurfaceBrush}">
+        <NavigationView.MenuItems>
+            <NavigationViewItem Content="Record"    Tag="record"    IsSelected="True"/>
+            <NavigationViewItem Content="History"   Tag="history"/>
+            <NavigationViewItem Content="Personas"  Tag="personas"/>
+            <NavigationViewItem Content="Presets"   Tag="presets"/>
+            <NavigationViewItem Content="Memory"    Tag="memory"/>
+            <NavigationViewItem Content="Analytics" Tag="analytics"/>
+            <NavigationViewItem Content="Settings"  Tag="settings"/>
+        </NavigationView.MenuItems>
+
+        <Frame x:Name="ContentFrame" Padding="{ThemeResource KiviSpaceS12}"/>
+    </NavigationView>
+</Window>

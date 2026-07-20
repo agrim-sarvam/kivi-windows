@@ -1,0 +1,18 @@
+<!-- Kivi.App/Views/Settings/RecordPage.xaml -->
+<Page
+    x:Class="Kivi.App.Views.Settings.RecordPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{ThemeResource KiviSpaceS4}">
+        <TextBlock Text="Hold Right Ctrl anywhere to dictate."
+                   Foreground="{ThemeResource KiviTextPrimaryBrush}"
+                   FontFamily="{ThemeResource KiviFontFamily}"
+                   FontSize="{ThemeResource KiviFontSizeBody}"
+                   HorizontalAlignment="Center"/>
+        <TextBlock Text="The orb appears at the bottom of your screen while dictating."
+                   Foreground="{ThemeResource KiviTextSecondaryBrush}"
+                   FontSize="{ThemeResource KiviFontSizeCaption}"
+                   HorizontalAlignment="Center"/>
+    </StackPanel>
+</Page>

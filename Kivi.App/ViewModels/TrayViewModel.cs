@@ -10,11 +10,13 @@ public partial class TrayViewModel : ObservableObject
 {
     private readonly IDictationOrchestrator _orch;
     private readonly DispatcherQueue _ui;
+    private readonly Action _openSettings;
 
-    public TrayViewModel(IDictationOrchestrator orch, DispatcherQueue ui)
+    public TrayViewModel(IDictationOrchestrator orch, DispatcherQueue ui, Action openSettings)
     {
         _orch = orch;
         _ui = ui;
+        _openSettings = openSettings;
         _orch.StateChanged += s => _ui.TryEnqueue(() => Apply(s));
         Apply(_orch.State);
     }
@@ -43,4 +45,7 @@ public partial class TrayViewModel : ObservableObject
 
     [RelayCommand]
     private void Quit() => Microsoft.UI.Xaml.Application.Current.Exit();
+
+    [RelayCommand]
+    private void OpenSettings() => _openSettings();
 }

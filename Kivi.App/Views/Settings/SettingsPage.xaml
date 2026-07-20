@@ -1,0 +1,63 @@
+<!-- Kivi.App/Views/Settings/SettingsPage.xaml -->
+<Page
+    x:Class="Kivi.App.Views.Settings.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer>
+        <StackPanel Spacing="{ThemeResource KiviSpaceS8}" MaxWidth="520" HorizontalAlignment="Left"
+                    Padding="{ThemeResource KiviSpaceS12}">
+
+            <TextBlock Text="Settings"
+                       Foreground="{ThemeResource KiviTextPrimaryBrush}"
+                       FontFamily="{ThemeResource KiviFontFamily}"
+                       FontSize="{ThemeResource KiviFontSizeTitle}"
+                       FontWeight="{ThemeResource KiviFontWeightSemibold}"/>
+
+            <StackPanel Spacing="{ThemeResource KiviSpaceS4}">
+                <TextBlock Text="API key" Foreground="{ThemeResource KiviTextSecondaryBrush}"
+                           FontSize="{ThemeResource KiviFontSizeCaption}"/>
+                <PasswordBox x:Name="ApiKeyBox" PlaceholderText="gsk_…" PasswordChanged="ApiKeyBox_PasswordChanged"/>
+            </StackPanel>
+
+            <StackPanel Spacing="{ThemeResource KiviSpaceS4}">
+                <TextBlock Text="Transcription base URL" Foreground="{ThemeResource KiviTextSecondaryBrush}"
+                           FontSize="{ThemeResource KiviFontSizeCaption}"/>
+                <TextBox Text="{x:Bind ViewModel.SttBaseUrl, Mode=TwoWay}"/>
+            </StackPanel>
+
+            <StackPanel Spacing="{ThemeResource KiviSpaceS4}">
+                <TextBlock Text="Cleanup base URL" Foreground="{ThemeResource KiviTextSecondaryBrush}"
+                           FontSize="{ThemeResource KiviFontSizeCaption}"/>
+                <TextBox Text="{x:Bind ViewModel.CleanupBaseUrl, Mode=TwoWay}"/>
+            </StackPanel>
+
+            <StackPanel Spacing="{ThemeResource KiviSpaceS4}">
+                <TextBlock Text="Transcription model" Foreground="{ThemeResource KiviTextSecondaryBrush}"
+                           FontSize="{ThemeResource KiviFontSizeCaption}"/>
+                <TextBox Text="{x:Bind ViewModel.TranscriptionModel, Mode=TwoWay}"/>
+            </StackPanel>
+
+            <StackPanel Spacing="{ThemeResource KiviSpaceS4}">
+                <TextBlock Text="Cleanup model" Foreground="{ThemeResource KiviTextSecondaryBrush}"
+                           FontSize="{ThemeResource KiviFontSizeCaption}"/>
+                <TextBox Text="{x:Bind ViewModel.CleanupModel, Mode=TwoWay}"/>
+            </StackPanel>
+
+            <StackPanel Spacing="{ThemeResource KiviSpaceS4}">
+                <TextBlock Text="Custom vocabulary (comma or newline separated)"
+                           Foreground="{ThemeResource KiviTextSecondaryBrush}"
+                           FontSize="{ThemeResource KiviFontSizeCaption}"/>
+                <TextBox Text="{x:Bind ViewModel.CustomVocabulary, Mode=TwoWay}" AcceptsReturn="True" Height="80" TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <ToggleSwitch Header="Press Enter after paste" IsOn="{x:Bind ViewModel.PressEnterEnabled, Mode=TwoWay}"/>
+
+            <TextBlock Text="Hotkey: hold Right Ctrl to dictate"
+                       Foreground="{ThemeResource KiviTextSecondaryBrush}"
+                       FontSize="{ThemeResource KiviFontSizeCaption}"/>
+
+            <Button Content="Save" Command="{x:Bind ViewModel.SaveCommand}"/>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

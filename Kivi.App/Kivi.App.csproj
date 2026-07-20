@@ -62,6 +62,18 @@
     <Page Include="Views\OverlayWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="Views\SettingsWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\Settings\RecordPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\Settings\SettingsPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\Settings\ComingSoonPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Compile Update="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
@@ -70,6 +82,18 @@
     </Compile>
     <Compile Update="Views\OverlayWindow.xaml.cs">
       <DependentUpon>Views\OverlayWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\SettingsWindow.xaml.cs">
+      <DependentUpon>Views\SettingsWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\Settings\RecordPage.xaml.cs">
+      <DependentUpon>Views\Settings\RecordPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\Settings\SettingsPage.xaml.cs">
+      <DependentUpon>Views\Settings\SettingsPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\Settings\ComingSoonPage.xaml.cs">
+      <DependentUpon>Views\Settings\ComingSoonPage.xaml</DependentUpon>
     </Compile>
   </ItemGroup>
 

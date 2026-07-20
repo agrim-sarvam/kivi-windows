@@ -14,6 +14,8 @@
                 <MenuFlyout>
                     <MenuFlyoutItem Text="{x:Bind ViewModel.StartStopLabel, Mode=OneWay}"
                                     Command="{x:Bind ViewModel.ToggleDictationCommand}"/>
+                    <MenuFlyoutItem Text="Settings…"
+                                    Command="{x:Bind ViewModel.OpenSettingsCommand}"/>
                     <MenuFlyoutSeparator/>
                     <MenuFlyoutItem Text="Quit Kivi"
                                     Command="{x:Bind ViewModel.QuitCommand}"/>

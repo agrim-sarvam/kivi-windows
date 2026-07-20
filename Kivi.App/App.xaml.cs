@@ -26,6 +26,7 @@ public partial class App : Application
     private IDisposable? _obs;
     private Views.TrayWindow? _trayWindow;
     private Views.OverlayWindow? _overlayWindow;
+    private Views.SettingsWindow? _settingsWindow;
 
     public App()
     {
@@ -88,7 +89,20 @@ public partial class App : Application
         logger.LogInformation("Kivi ready. Hold RIGHT-CTRL to dictate. Metrics={Metrics}.", metricsEnabled);
 
         var dispatcher = DispatcherQueue.GetForCurrentThread();
-        var trayVm = new ViewModels.TrayViewModel(orchestrator, dispatcher);
+
+        var settingsVm = new ViewModels.SettingsViewModel(
+            appConfig,
+            Services.GetRequiredService<IAppConfigStore>(),
+            Services.GetRequiredService<ISecretStore>());
+
+        var trayVm = new ViewModels.TrayViewModel(orchestrator, dispatcher, () =>
+        {
+            if (_settingsWindow is null)
+            {
+                _settingsWindow = new Views.SettingsWindow(settingsVm);
+            }
+            _settingsWindow.Activate();
+        });
         _trayWindow = new Views.TrayWindow(trayVm);
         _trayWindow.Activate();
 
