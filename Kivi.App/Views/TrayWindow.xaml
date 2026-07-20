@@ -1,0 +1,24 @@
+<!-- Kivi.App/Views/TrayWindow.xaml -->
+<Window
+    x:Class="Kivi.App.Views.TrayWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:tb="using:H.NotifyIcon">
+
+    <Grid>
+        <tb:TaskbarIcon x:Name="Tray"
+                        ToolTipText="Kivi"
+                        IconSource="{x:Bind ViewModel.TrayIcon, Mode=OneWay}"
+                        LeftClickCommand="{x:Bind ViewModel.ToggleDictationCommand}">
+            <tb:TaskbarIcon.ContextFlyout>
+                <MenuFlyout>
+                    <MenuFlyoutItem Text="{x:Bind ViewModel.StartStopLabel, Mode=OneWay}"
+                                    Command="{x:Bind ViewModel.ToggleDictationCommand}"/>
+                    <MenuFlyoutSeparator/>
+                    <MenuFlyoutItem Text="Quit Kivi"
+                                    Command="{x:Bind ViewModel.QuitCommand}"/>
+                </MenuFlyout>
+            </tb:TaskbarIcon.ContextFlyout>
+        </tb:TaskbarIcon>
+    </Grid>
+</Window>

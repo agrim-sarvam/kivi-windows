@@ -14,6 +14,7 @@ using Kivi.Platform.Secrets;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 
 namespace Kivi.App;
@@ -23,6 +24,7 @@ public partial class App : Application
     public static IServiceProvider Services { get; private set; } = null!;
 
     private IDisposable? _obs;
+    private Views.TrayWindow? _trayWindow;
 
     public App()
     {
@@ -84,6 +86,9 @@ public partial class App : Application
 
         logger.LogInformation("Kivi ready. Hold RIGHT-CTRL to dictate. Metrics={Metrics}.", metricsEnabled);
 
-        // No window shown yet - overlay/tray added in Task 3 (3a-3d).
+        var dispatcher = DispatcherQueue.GetForCurrentThread();
+        var trayVm = new ViewModels.TrayViewModel(orchestrator, dispatcher);
+        _trayWindow = new Views.TrayWindow(trayVm);
+        _trayWindow.Activate();
     }
 }
