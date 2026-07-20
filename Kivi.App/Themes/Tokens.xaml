@@ -1,0 +1,166 @@
+<!-- Kivi.App/Themes/Tokens.xaml -->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- LAYER 1 - PRIMITIVE TOKENS (theme-agnostic raw values) -->
+    <!-- Transcribed verbatim from ui/components/fig-tokens.css -->
+
+    <!-- Light-mode color primitives (from :root) -->
+    <Color x:Key="KiviColorPaper">#F1F4EC</Color>
+    <Color x:Key="KiviColorPaper2">#FFFFFF</Color>
+    <Color x:Key="KiviColorWarmTint">#E7EEDD</Color>
+    <Color x:Key="KiviColorLegGreen">#41691E</Color>
+    <Color x:Key="KiviColorFg1">#14180E</Color>
+    <Color x:Key="KiviColorFg2">#5C6454</Color>
+    <Color x:Key="KiviColorFg3">#929A8A</Color>
+    <Color x:Key="KiviColorFg4">#B2B8A8</Color>
+    <Color x:Key="KiviColorFgInverse">#FFFFFF</Color>
+    <Color x:Key="KiviColorBorder1">#EDF0E6</Color>
+    <Color x:Key="KiviColorBorder2">#E1E6D8</Color>
+    <Color x:Key="KiviColorBorder3">#ACB4A0</Color>
+    <Color x:Key="KiviColorBrandInk">#161E10</Color>
+    <Color x:Key="KiviColorStateIdle">#929A8A</Color>
+    <Color x:Key="KiviColorStateIdleBg">#E7EEDD</Color>
+    <Color x:Key="KiviColorStateListening">#E96C2F</Color>
+    <Color x:Key="KiviColorStateListeningBg">#FEEDE6</Color>
+    <Color x:Key="KiviColorStateProcessing">#4250D5</Color>
+    <Color x:Key="KiviColorStateProcessingBg">#E8EFFC</Color>
+    <Color x:Key="KiviColorStateSpeaking">#4B7D28</Color>
+    <Color x:Key="KiviColorStateSpeakingBg">#E3F1D8</Color>
+    <Color x:Key="KiviColorStateWaiting">#D2962D</Color>
+    <Color x:Key="KiviColorStateWaitingBg">#FFF2D2</Color>
+    <Color x:Key="KiviColorStateError">#B81514</Color>
+    <Color x:Key="KiviColorStateErrorBg">#FAD7CD</Color>
+    <Color x:Key="KiviColorPositive">#6EA335</Color>
+    <Color x:Key="KiviColorPositiveBg">#F2F8EB</Color>
+    <Color x:Key="KiviColorWarning">#A27224</Color>
+    <Color x:Key="KiviColorWarningBg">#FFF8E6</Color>
+    <Color x:Key="KiviColorDanger">#B81514</Color>
+    <Color x:Key="KiviColorDangerBg">#FDE7E2</Color>
+
+    <!-- Dark-mode color primitives (from :root[data-theme="dark"]) -->
+    <Color x:Key="KiviColorPaperDark">#14180F</Color>
+    <Color x:Key="KiviColorPaper2Dark">#1C2116</Color>
+    <Color x:Key="KiviColorWarmTintDark">#21271B</Color>
+    <Color x:Key="KiviColorLegGreenDark">#6EA335</Color>
+    <Color x:Key="KiviColorFg1Dark">#E0E6D8</Color>
+    <Color x:Key="KiviColorFg2Dark">#929989</Color>
+    <Color x:Key="KiviColorFg3Dark">#626959</Color>
+    <Color x:Key="KiviColorFg4Dark">#404737</Color>
+    <Color x:Key="KiviColorFgInverseDark">#14180E</Color>
+    <Color x:Key="KiviColorBorder1Dark">#32382B</Color>
+    <Color x:Key="KiviColorBorder2Dark">#424939</Color>
+    <Color x:Key="KiviColorBorder3Dark">#5C6351</Color>
+    <Color x:Key="KiviColorBrandInkDark">#E0E6D8</Color>
+    <Color x:Key="KiviColorStateIdleDark">#626959</Color>
+    <Color x:Key="KiviColorStateIdleBgDark">#21271B</Color>
+    <Color x:Key="KiviColorStateListeningDark">#F59666</Color>
+    <Color x:Key="KiviColorStateListeningBgDark">#33200F</Color>
+    <Color x:Key="KiviColorStateProcessingDark">#7C96E6</Color>
+    <Color x:Key="KiviColorStateProcessingBgDark">#171E3A</Color>
+    <Color x:Key="KiviColorStateSpeakingDark">#82AF5A</Color>
+    <Color x:Key="KiviColorStateSpeakingBgDark">#1D2B10</Color>
+    <Color x:Key="KiviColorStateWaitingDark">#F0B95A</Color>
+    <Color x:Key="KiviColorStateWaitingBgDark">#33270F</Color>
+    <Color x:Key="KiviColorStateErrorDark">#F85149</Color>
+    <Color x:Key="KiviColorStateErrorBgDark">#3A1211</Color>
+    <Color x:Key="KiviColorPositiveDark">#3FB981</Color>
+    <Color x:Key="KiviColorPositiveBgDark">#0E231B</Color>
+    <Color x:Key="KiviColorWarningDark">#D29922</Color>
+    <Color x:Key="KiviColorWarningBgDark">#271F00</Color>
+    <Color x:Key="KiviColorDangerDark">#F85149</Color>
+    <Color x:Key="KiviColorDangerBgDark">#2A0C13</Color>
+
+    <!-- Radii (radius-* tokens from fig-tokens.css) -->
+    <CornerRadius x:Key="KiviRadiusXs">4</CornerRadius>
+    <CornerRadius x:Key="KiviRadiusSm">8</CornerRadius>
+    <CornerRadius x:Key="KiviRadiusMd">12</CornerRadius>
+    <CornerRadius x:Key="KiviRadiusLg">20</CornerRadius>
+    <CornerRadius x:Key="KiviRadiusXl">28</CornerRadius>
+    <CornerRadius x:Key="KiviRadiusFull">9999</CornerRadius>
+
+    <!-- Spacing (space-s* tokens from fig-tokens.css, 2px base) -->
+    <x:Double x:Key="KiviSpaceS1">2</x:Double>
+    <x:Double x:Key="KiviSpaceS2">4</x:Double>
+    <x:Double x:Key="KiviSpaceS3">6</x:Double>
+    <x:Double x:Key="KiviSpaceS4">8</x:Double>
+    <x:Double x:Key="KiviSpaceS6">12</x:Double>
+    <x:Double x:Key="KiviSpaceS8">16</x:Double>
+    <x:Double x:Key="KiviSpaceS10">20</x:Double>
+    <x:Double x:Key="KiviSpaceS12">24</x:Double>
+    <x:Double x:Key="KiviSpaceS16">32</x:Double>
+    <x:Double x:Key="KiviSpaceS20">40</x:Double>
+    <x:Double x:Key="KiviSpaceS24">48</x:Double>
+    <x:Double x:Key="KiviSpaceS32">64</x:Double>
+
+    <!-- Typography (font sourcing per spec S3 — Inter, not Matter/Season Mix) -->
+    <x:String x:Key="KiviFontFamily">/Assets/Fonts/Inter-Regular.ttf#Inter</x:String>
+    <x:String x:Key="KiviWordmarkFontFamily">/Assets/Fonts/SpaceGrotesk-Medium.ttf#Space Grotesk</x:String>
+    <x:String x:Key="KiviMonoFontFamily">/Assets/Fonts/SpaceMono-Regular.ttf#Space Mono</x:String>
+    <x:Double x:Key="KiviFontSizeCaption">11.5</x:Double>
+    <x:Double x:Key="KiviFontSizeBody">14</x:Double>
+    <x:Double x:Key="KiviFontSizeTitle">20</x:Double>
+    <FontWeight x:Key="KiviFontWeightRegular">Normal</FontWeight>
+    <FontWeight x:Key="KiviFontWeightMedium">Medium</FontWeight>
+    <FontWeight x:Key="KiviFontWeightSemibold">SemiBold</FontWeight>
+
+    <!-- LAYER 2 - SEMANTIC TOKENS (role -> primitive, theme-aware) -->
+    <!-- Views bind ONLY to these, via {ThemeResource}. -->
+    <ResourceDictionary.ThemeDictionaries>
+
+        <!-- LIGHT -->
+        <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="KiviSurfaceBrush"       Color="{StaticResource KiviColorPaper2}"/>
+            <SolidColorBrush x:Key="KiviSurfaceAltBrush"    Color="{StaticResource KiviColorPaper}"/>
+            <SolidColorBrush x:Key="KiviTextPrimaryBrush"   Color="{StaticResource KiviColorFg1}"/>
+            <SolidColorBrush x:Key="KiviTextSecondaryBrush" Color="{StaticResource KiviColorFg2}"/>
+            <SolidColorBrush x:Key="KiviStrokeBrush"        Color="{StaticResource KiviColorBorder2}"/>
+            <SolidColorBrush x:Key="KiviAccentBrush"        Color="{StaticResource KiviColorLegGreen}"/>
+            <SolidColorBrush x:Key="KiviDangerBrush"        Color="{StaticResource KiviColorDanger}"/>
+            <SolidColorBrush x:Key="OverlayIdleBrush"       Color="{StaticResource KiviColorStateIdle}"/>
+            <SolidColorBrush x:Key="OverlayListeningBrush"  Color="{StaticResource KiviColorStateListening}"/>
+            <SolidColorBrush x:Key="OverlayProcessingBrush" Color="{StaticResource KiviColorStateProcessing}"/>
+            <SolidColorBrush x:Key="OverlaySpeakingBrush"   Color="{StaticResource KiviColorStateSpeaking}"/>
+            <SolidColorBrush x:Key="OverlayWaitingBrush"    Color="{StaticResource KiviColorStateWaiting}"/>
+            <SolidColorBrush x:Key="OverlayDoneBrush"       Color="{StaticResource KiviColorPositive}"/>
+            <SolidColorBrush x:Key="OverlayErrorBrush"      Color="{StaticResource KiviColorStateError}"/>
+        </ResourceDictionary>
+
+        <!-- DARK -->
+        <ResourceDictionary x:Key="Dark">
+            <SolidColorBrush x:Key="KiviSurfaceBrush"       Color="{StaticResource KiviColorPaper2Dark}"/>
+            <SolidColorBrush x:Key="KiviSurfaceAltBrush"    Color="{StaticResource KiviColorPaperDark}"/>
+            <SolidColorBrush x:Key="KiviTextPrimaryBrush"   Color="{StaticResource KiviColorFg1Dark}"/>
+            <SolidColorBrush x:Key="KiviTextSecondaryBrush" Color="{StaticResource KiviColorFg2Dark}"/>
+            <SolidColorBrush x:Key="KiviStrokeBrush"        Color="{StaticResource KiviColorBorder2Dark}"/>
+            <SolidColorBrush x:Key="KiviAccentBrush"        Color="{StaticResource KiviColorLegGreenDark}"/>
+            <SolidColorBrush x:Key="KiviDangerBrush"        Color="{StaticResource KiviColorDangerDark}"/>
+            <SolidColorBrush x:Key="OverlayIdleBrush"       Color="{StaticResource KiviColorStateIdleDark}"/>
+            <SolidColorBrush x:Key="OverlayListeningBrush"  Color="{StaticResource KiviColorStateListeningDark}"/>
+            <SolidColorBrush x:Key="OverlayProcessingBrush" Color="{StaticResource KiviColorStateProcessingDark}"/>
+            <SolidColorBrush x:Key="OverlaySpeakingBrush"   Color="{StaticResource KiviColorStateSpeakingDark}"/>
+            <SolidColorBrush x:Key="OverlayWaitingBrush"    Color="{StaticResource KiviColorStateWaitingDark}"/>
+            <SolidColorBrush x:Key="OverlayDoneBrush"       Color="{StaticResource KiviColorPositiveDark}"/>
+            <SolidColorBrush x:Key="OverlayErrorBrush"      Color="{StaticResource KiviColorStateErrorDark}"/>
+        </ResourceDictionary>
+
+        <!-- HIGHCONTRAST - map to system colors, never hard-code -->
+        <ResourceDictionary x:Key="HighContrast">
+            <SolidColorBrush x:Key="KiviSurfaceBrush"       Color="{ThemeResource SystemColorWindowColor}"/>
+            <SolidColorBrush x:Key="KiviSurfaceAltBrush"    Color="{ThemeResource SystemColorWindowColor}"/>
+            <SolidColorBrush x:Key="KiviTextPrimaryBrush"   Color="{ThemeResource SystemColorWindowTextColor}"/>
+            <SolidColorBrush x:Key="KiviTextSecondaryBrush" Color="{ThemeResource SystemColorGrayTextColor}"/>
+            <SolidColorBrush x:Key="KiviStrokeBrush"        Color="{ThemeResource SystemColorWindowTextColor}"/>
+            <SolidColorBrush x:Key="KiviAccentBrush"        Color="{ThemeResource SystemColorHighlightColor}"/>
+            <SolidColorBrush x:Key="KiviDangerBrush"        Color="{ThemeResource SystemColorWindowTextColor}"/>
+            <SolidColorBrush x:Key="OverlayIdleBrush"       Color="{ThemeResource SystemColorGrayTextColor}"/>
+            <SolidColorBrush x:Key="OverlayListeningBrush"  Color="{ThemeResource SystemColorHighlightColor}"/>
+            <SolidColorBrush x:Key="OverlayProcessingBrush" Color="{ThemeResource SystemColorHighlightColor}"/>
+            <SolidColorBrush x:Key="OverlaySpeakingBrush"   Color="{ThemeResource SystemColorHighlightColor}"/>
+            <SolidColorBrush x:Key="OverlayWaitingBrush"    Color="{ThemeResource SystemColorHighlightColor}"/>
+            <SolidColorBrush x:Key="OverlayDoneBrush"       Color="{ThemeResource SystemColorHighlightColor}"/>
+            <SolidColorBrush x:Key="OverlayErrorBrush"      Color="{ThemeResource SystemColorWindowTextColor}"/>
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>
