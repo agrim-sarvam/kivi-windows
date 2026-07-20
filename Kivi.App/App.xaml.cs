@@ -25,6 +25,7 @@ public partial class App : Application
 
     private IDisposable? _obs;
     private Views.TrayWindow? _trayWindow;
+    private Views.OverlayWindow? _overlayWindow;
 
     public App()
     {
@@ -90,5 +91,8 @@ public partial class App : Application
         var trayVm = new ViewModels.TrayViewModel(orchestrator, dispatcher);
         _trayWindow = new Views.TrayWindow(trayVm);
         _trayWindow.Activate();
+
+        var overlayVm = new ViewModels.OverlayViewModel(orchestrator, dispatcher);
+        _overlayWindow = new Views.OverlayWindow(overlayVm);
     }
 }

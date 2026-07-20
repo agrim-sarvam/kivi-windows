@@ -59,11 +59,17 @@
     <Page Include="Views\TrayWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="Views\OverlayWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Compile Update="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
     <Compile Update="Views\TrayWindow.xaml.cs">
       <DependentUpon>Views\TrayWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\OverlayWindow.xaml.cs">
+      <DependentUpon>Views\OverlayWindow.xaml</DependentUpon>
     </Compile>
   </ItemGroup>
 
