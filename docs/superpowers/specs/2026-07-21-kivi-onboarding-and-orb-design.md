@@ -199,6 +199,61 @@ code) so it survives restarts (re-applied via `SetHotkey` on next launch).
 
 ---
 
+## 4a. Visual fidelity requirement (match `ui/` exactly)
+
+The implementation must match the Figma exports in `ui/` — not merely "in the
+spirit of," but reproducing exact layout, spacing, typography, color, corner
+radii, and component shapes. The relevant frames in `ui/04 - mockups.png`:
+
+- **Login page** — the centered frame (bottom row): dot-matrix "kivi" wordmark
+  centered, "Your voice, polished." tagline beneath, then the dark
+  "Continue with Google" pill button (with Google glyph), then a lighter
+  "Use work email instead" text link. **Pixel-faithful**, with the agreed
+  Windows adjustments: the "Continue with Apple" button is removed (not
+  rendered), and the freebie footer line ("free & unlimited during launch…")
+  is kept as designed.
+- **Permissions page** — the "two permissions, then you talk" card: heading,
+  subcopy, a Microphone row (icon + label + "to hear you" subtext + a
+  granted state chip), an Accessibility row (icon + label + subtext + action
+  chip), and the hotkey badge at the bottom with "next: hold [key] and say
+  anything — we'll polish it live". **Pixel-faithful**, with agreed
+  adjustments: the hotkey badge reads "Right Ctrl" not `fn`; the Accessibility
+  row's action chip reads as informational/granted (not the design's "Grant
+  in Settings", since Windows needs no such grant) and its subtext uses the
+  Windows wording from §2.2.
+- **Config (settings) page** — reproduce the design's visual system exactly:
+  the same card grid layout, card corner radii, section headers, label/subtext
+  typography, and toggle/picker component styling shown in the settings frame.
+  **However, per the agreed scope, controls we are not building are omitted
+  entirely rather than shown disabled** — so the page renders fewer controls
+  than the Figma frame, but every control it *does* render (hotkey, language
+  picker, orb accent color, launch-at-login toggle, screen-context toggle)
+  matches the design's styling, spacing, and card grouping faithfully. The
+  page must not look like a different design — it looks like the design's
+  settings screen with the not-yet-supported rows left out, laid out on the
+  same grid/card system.
+- **Orb** — the postures and dot-matrix silhouette match `ui/02 - brand.png`
+  and the "kivi on the desktop" frame of `ui/04 - mockups.png` (already the
+  case in the recovered orb code).
+
+All exact color/spacing/radius/type values come from the design tokens in
+`Kivi.App/Themes/Tokens.xaml` (transcribed from `ui/components/fig-tokens.css`)
+and the type roles on `ui/01 - foundation.png` — never hand-picked literals.
+
+**Honest limitation on verifying "pixel-faithful":** the implementer/agent
+environment in this project has repeatedly had no screenshot or UI-automation
+capability, so an automated pixel-diff against the exports is not guaranteed
+to be possible during implementation. Where it isn't, fidelity is built by
+transcribing exact token values and matching the exports' measured
+layout/spacing by inspection, and **final visual confirmation against the
+`ui/` frames is a human step** (the same manual-verification gate the plan's
+last task already uses). This is not a license to approximate — it is a
+statement that the last-mile "does it truly match the pixels" check is done
+by a person comparing the running screens to the exports, since the tooling
+can't self-verify it.
+
+---
+
 ## 5. What does NOT change
 
 - `Kivi.Core`'s Groq HTTP clients, prompts, polish pipeline, orchestrator
@@ -225,3 +280,8 @@ code) so it survives restarts (re-applied via `SetHotkey` on next launch).
   spec's own scope.
 - Memory/incognito dictation/clear-history — blocked on transcript-history
   storage, which doesn't exist yet; same gap noted in the previous spec.
+- Hey-kivi hotkey + press-and-hold delay controls (shown on the Figma settings
+  frame) — omitted from the Config page this pass; they map to command-mode /
+  timing features not wired up yet.
+- Per §4a, all omitted Config controls are left out of the rendered page
+  entirely, not shown as disabled placeholders.
