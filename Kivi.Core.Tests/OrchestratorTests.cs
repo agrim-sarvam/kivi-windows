@@ -21,7 +21,7 @@ public class OrchestratorTests
         hotkey.FireStart();
         await Task.Delay(50);
         hotkey.FireEnd();
-        await Task.Delay(200); // allow the async pipeline to complete
+        await Task.Delay(1500); // allow the async pipeline + Done->Idle delay to complete
 
         Assert.Equal("Hello there.", paste.Pasted);
         Assert.Contains(RecordingState.Listening, states);
@@ -42,7 +42,7 @@ public class OrchestratorTests
             new StubStt(), new StubPolish(), paste, cfg, metrics);
         orch.Start();
 
-        hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(200);
+        hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
 
         Assert.Equal("MACRO PAYLOAD", paste.Pasted);
     }
@@ -68,5 +68,30 @@ public class OrchestratorTests
 
         Assert.Contains(RecordingState.Waiting, states);
         Assert.Equal("Hello there.", paste.Pasted);
+    }
+
+    [Fact]
+    public async Task SuccessfulDictation_PassesThroughDone_BeforeIdle()
+    {
+        var hotkey = new FakeHotkey();
+        var paste = new SpyPaste();
+        using var metrics = new KiviMetrics();
+        var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
+            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics);
+
+        var states = new List<RecordingState>();
+        orch.StateChanged += s => states.Add(s);
+        orch.Start();
+
+        hotkey.FireStart();
+        await Task.Delay(20);
+        hotkey.FireEnd();
+        await Task.Delay(1500); // allow pipeline + Done->Idle delay to complete
+
+        Assert.Contains(RecordingState.Done, states);
+        // Done must occur before the final Idle in the sequence.
+        var doneIndex = states.LastIndexOf(RecordingState.Done);
+        var lastIdleIndex = states.LastIndexOf(RecordingState.Idle);
+        Assert.True(doneIndex < lastIdleIndex, "Done must precede the final Idle transition.");
     }
 }

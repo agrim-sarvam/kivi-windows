@@ -19,6 +19,7 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     private readonly AppConfig _config;
     private readonly KiviMetrics _metrics;
     private readonly object _lock = new();
+    private const int DoneDisplayMs = 1200;
 
     private Task<string> _contextTask = Task.FromResult("");
     private CancellationTokenSource _cts = new();
@@ -102,6 +103,8 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
             await _paste.InjectTextAsync(textToPaste, cmd.ShouldPressEnter);
             _metrics.RecordStage("paste", pasteSw.Elapsed.TotalMilliseconds);
 
+            SetState(RecordingState.Done);
+            await Task.Delay(DoneDisplayMs, _cts.Token);
             SetState(RecordingState.Idle);
         }
         catch
