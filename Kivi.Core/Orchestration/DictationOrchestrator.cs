@@ -66,7 +66,7 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
         var total = Stopwatch.StartNew();
         try
         {
-            SetState(RecordingState.Transcribing);
+            SetState(RecordingState.Processing);
             var recSw = Stopwatch.StartNew();
             var wav = await _audio.StopRecordingAsync();
             _metrics.RecordStage("record", recSw.Elapsed.TotalMilliseconds);
@@ -94,7 +94,7 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
                 textToPaste = cleaned;
             }
 
-            SetState(RecordingState.Pasting);
+            SetState(RecordingState.Speaking);
             var pasteSw = Stopwatch.StartNew();
             await _paste.InjectTextAsync(textToPaste, cmd.ShouldPressEnter);
             _metrics.RecordStage("paste", pasteSw.Elapsed.TotalMilliseconds);

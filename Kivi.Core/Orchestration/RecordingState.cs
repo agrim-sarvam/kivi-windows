@@ -1,2 +1,2 @@
 namespace Kivi.Core.Orchestration;
-public enum RecordingState { Idle, Listening, Transcribing, Pasting, Error }
+public enum RecordingState { Idle, Listening, Processing, Speaking, Waiting, Done, Error }

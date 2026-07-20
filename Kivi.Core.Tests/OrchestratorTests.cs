@@ -25,8 +25,8 @@ public class OrchestratorTests
 
         Assert.Equal("Hello there.", paste.Pasted);
         Assert.Contains(RecordingState.Listening, states);
-        Assert.Contains(RecordingState.Transcribing, states);
-        Assert.Contains(RecordingState.Pasting, states);
+        Assert.Contains(RecordingState.Processing, states);
+        Assert.Contains(RecordingState.Speaking, states);
         Assert.Equal(RecordingState.Idle, orch.State);
     }
 
