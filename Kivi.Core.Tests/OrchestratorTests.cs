@@ -94,4 +94,23 @@ public class OrchestratorTests
         var lastIdleIndex = states.LastIndexOf(RecordingState.Idle);
         Assert.True(doneIndex < lastIdleIndex, "Done must precede the final Idle transition.");
     }
+
+    [Fact]
+    public async Task ScreenContextDisabled_SkipsContextCapture()
+    {
+        var cfg = AppConfig.Default();
+        cfg.ScreenContextEnabled = false;
+        var ctx = new SpyContext();
+        var hotkey = new FakeHotkey();
+        var paste = new SpyPaste();
+        using var metrics = new KiviMetrics();
+        var orch = new DictationOrchestrator(hotkey, new FakeAudio(), ctx,
+            new StubStt(), new StubPolish(), paste, cfg, metrics);
+        orch.Start();
+
+        hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
+
+        Assert.Equal(0, ctx.Calls);
+        Assert.Equal("Hello there.", paste.Pasted);
+    }
 }

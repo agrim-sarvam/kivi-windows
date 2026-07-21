@@ -8,7 +8,7 @@ namespace Kivi.Platform.Hotkey;
 
 public sealed class LowLevelKeyboardHookService : IHotkeyService, IDisposable
 {
-    private const uint VK_RCONTROL = 0xA3;
+    private uint _boundVk = 0xA3; // VK_RCONTROL default; changeable via SetHotkey
     private const uint WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101, WM_SYSKEYUP = 0x0105;
 
     public event Action? HoldStarted;
@@ -33,12 +33,19 @@ public sealed class LowLevelKeyboardHookService : IHotkeyService, IDisposable
 
     public void Dispose() => Stop();
 
+    public void SetHotkey(uint virtualKeyCode)
+    {
+        _boundVk = virtualKeyCode;
+        // If a hold was in progress on the old key, clear it so state doesn't stick.
+        if (_held) { _held = false; HoldEnded?.Invoke(); }
+    }
+
     private LRESULT HookCallback(int nCode, WPARAM wParam, LPARAM lParam)
     {
         if (nCode >= 0)
         {
             var data = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
-            if (data.vkCode == VK_RCONTROL)
+            if (data.vkCode == _boundVk)
             {
                 uint msg = (uint)wParam.Value;
                 if (msg == WM_KEYDOWN && !_held)

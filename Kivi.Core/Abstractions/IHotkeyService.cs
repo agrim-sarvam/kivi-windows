@@ -6,4 +6,5 @@ public interface IHotkeyService
     event Action HoldEnded;
     void Start();
     void Stop();
+    void SetHotkey(uint virtualKeyCode);
 }

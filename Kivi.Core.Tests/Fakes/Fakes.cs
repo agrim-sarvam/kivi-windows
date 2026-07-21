@@ -5,6 +5,7 @@ public sealed class FakeHotkey : IHotkeyService
     public event Action? HoldStarted;
     public event Action? HoldEnded;
     public void Start() { } public void Stop() { }
+    public void SetHotkey(uint virtualKeyCode) { }
     public void FireStart() => HoldStarted?.Invoke();
     public void FireEnd() => HoldEnded?.Invoke();
 }
@@ -20,6 +21,12 @@ public sealed class FakeAudio : IAudioCaptureService
 public sealed class FakeContext : IScreenContextProvider
 {
     public Task<string> CaptureContextAsync(CancellationToken ct) => Task.FromResult("App: Notepad");
+}
+
+public sealed class SpyContext : IScreenContextProvider
+{
+    public int Calls;
+    public Task<string> CaptureContextAsync(CancellationToken ct) { Calls++; return Task.FromResult("App: Notepad"); }
 }
 
 public sealed class SpyPaste : IPasteService

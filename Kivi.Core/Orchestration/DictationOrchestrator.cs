@@ -59,7 +59,9 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     {
         _cts = new CancellationTokenSource();
         SetState(RecordingState.Listening);
-        _contextTask = _context.CaptureContextAsync(_cts.Token);
+        _contextTask = _config.ScreenContextEnabled
+            ? _context.CaptureContextAsync(_cts.Token)
+            : Task.FromResult("");
         _ = _audio.StartRecordingAsync(_cts.Token);
     }
 

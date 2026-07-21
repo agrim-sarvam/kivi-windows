@@ -15,6 +15,10 @@ public sealed class AppConfig
     public List<VoiceMacro> Macros { get; set; } = new();
     public bool PressEnterCommandEnabled { get; set; } = true;
     public bool MetricsEnabled { get; set; }
+    public bool OnboardingCompleted { get; set; }
+    public string OrbAccentColor { get; set; } = "#41691E";
+    public bool ScreenContextEnabled { get; set; } = true;
+    public uint HotkeyVirtualKeyCode { get; set; } = 0xA3; // VK_RCONTROL (Right Ctrl)
 
     public static AppConfig Default() => new();
 

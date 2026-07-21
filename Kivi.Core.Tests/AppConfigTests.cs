@@ -23,4 +23,14 @@ public class AppConfigTests
         cfg.ChatBaseUrl = bad;
         Assert.Throws<ArgumentException>(() => cfg.Validate());
     }
+
+    [Fact]
+    public void Default_HasOnboardingAndOrbAndContextAndHotkeyDefaults()
+    {
+        var c = AppConfig.Default();
+        Assert.False(c.OnboardingCompleted);
+        Assert.Equal("#41691E", c.OrbAccentColor);
+        Assert.True(c.ScreenContextEnabled);
+        Assert.Equal(0xA3u, c.HotkeyVirtualKeyCode);
+    }
 }
