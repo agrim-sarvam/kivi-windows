@@ -37,8 +37,12 @@ public sealed class KiviOrbControl : Canvas
 
     private async Task LoadMaskAndBuildDotsAsync()
     {
-        var uri = new Uri("ms-appx:///Assets/Icons/kivi-mask.png");
-        var file = await Windows.Storage.StorageFile.GetFileFromApplicationUriAsync(uri);
+        // Unpackaged app (WindowsPackageType=None): ms-appx:// URIs and
+        // StorageFile.GetFileFromApplicationUriAsync are NOT available and throw
+        // ArgumentException. Load the mask from its physical path on disk instead - the
+        // Content build item copies it next to the exe under Assets/Icons/.
+        var path = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "Icons", "kivi-mask.png");
+        var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
         using var stream = await file.OpenAsync(Windows.Storage.FileAccessMode.Read);
         var decoder = await BitmapDecoder.CreateAsync(stream);
         _mask = await decoder.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Straight);

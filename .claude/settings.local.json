@@ -6,7 +6,10 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebSearch",
       "mcp__plugin_microsoft-docs_microsoft-learn__microsoft_docs_search",
-      "Bash"
+      "Bash",
+      "Python",
+      "Curl",
+      "Skill(run)"
     ]
   }
 }

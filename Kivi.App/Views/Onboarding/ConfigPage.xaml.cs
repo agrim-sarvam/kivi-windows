@@ -117,7 +117,7 @@ public sealed partial class ConfigPage : Page
             var text = new TextBlock
             {
                 Text = label,
-                FontFamily = (Microsoft.UI.Xaml.Media.FontFamily)Application.Current.Resources["KiviFontFamily"],
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily((string)Application.Current.Resources["KiviFontFamily"]),
                 FontSize = (double)Application.Current.Resources["KiviFontSizeCaption"],
                 Foreground = code == ViewModel.TranscriptionLanguage
                     ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["KiviSurfaceBrush"]

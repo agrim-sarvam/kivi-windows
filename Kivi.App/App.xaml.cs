@@ -29,6 +29,21 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+
+        // Log any unhandled UI-thread exception to a file so a crash surfaces a real stack
+        // trace instead of the process silently vanishing (WinUI swallows these into a
+        // combase/XAML 0xc000027b fast-fail with no managed detail on stdout/stderr).
+        UnhandledException += (_, e) =>
+        {
+            try
+            {
+                var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Kivi");
+                Directory.CreateDirectory(dir);
+                File.AppendAllText(Path.Combine(dir, "crash.log"),
+                    $"{DateTime.Now:o}\n{e.Exception}\n\n");
+            }
+            catch { /* last resort: nothing more we can do */ }
+        };
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
