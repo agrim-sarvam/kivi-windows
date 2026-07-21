@@ -142,16 +142,32 @@ fixed and the tray dependency removed entirely:
    Config page later is wanted, that's a future addition — out of scope here,
    consistent with "just the orb, like Wispr Flow.")
 
-**Behavior (unchanged from the reverted design, since it was sound):**
+**Behavior (revised per the approved HTML mockup — the bare-bird correction):**
 - Persistent, bottom-center anchored, borderless, always-on-top, click-through
   (`WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW`).
-- Full posture system: rest pill (39×15), woken (61×61), satellites (23×23),
-  box (322×108), sized via `AppWindow.Resize()` per `RecordingState`.
+- **The orb is the bare dot-matrix kiwi silhouette itself — no pill/box/rounded
+  container, no background fill behind it.** Just the dots, floating directly
+  on the desktop. The reverted design's "4-posture container system" (rest
+  pill / woken / satellites / box as sized rounded rectangles) was **wrong**
+  and is dropped — the approved mockup confirmed the mark stands alone.
+- The bird **scales in size** and **recolors** per `RecordingState` — it does
+  not morph into different container shapes. A small resting size when idle,
+  a larger size while active (listening/processing/speaking). The overlay
+  window still resizes via `AppWindow.Resize()` to fit the bird's current
+  drawn size, but the window is transparent — only the dots are visible.
 - Full 7-state color mapping (Idle/Listening/Processing/Speaking/Waiting/Done/Error)
-  via the existing semantic `Overlay*Brush` tokens in `Tokens.xaml`.
+  via the existing semantic `Overlay*Brush` tokens in `Tokens.xaml`, tinting
+  the dots directly (no container to color).
 - Dot-matrix kiwi silhouette, procedurally sampled from the recovered
   `kivi-mask.png` trace onto a 24-column grid (the sampling algorithm's
   aspect-ratio bug found and fixed during the reverted Task 3 is kept fixed).
+- **Transcript surface is separate.** While listening/speaking, a transcript
+  card floats *above* the bird as its own distinct surface (matching the
+  Figma "kivi on the desktop" frame and the approved mockup) — the bird never
+  becomes the transcript box. Whether this transcript card is built in this
+  pass or deferred is a plan-level decision (it needs live/final transcript
+  text piped from the orchestrator, which may be more than "UI only"); at
+  minimum the bare bird + its scaling/recoloring is in scope.
 
 **New in this pass:** the orb's accent color is tinted by
 `AppConfig.OrbAccentColor` (from the Config page) rather than always the
