@@ -7,11 +7,12 @@
     Background="{ThemeResource KiviSurfaceAltBrush}">
     <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
         <Border Background="{ThemeResource KiviSurfaceBrush}"
+                BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
                 CornerRadius="{ThemeResource KiviRadiusLg}"
                 Width="420"
                 Padding="40,40,40,32">
             <StackPanel Spacing="0">
-                <controls:KiviOrbControl Width="54" Height="73" HorizontalAlignment="Center" State="Idle"/>
+                <controls:KiviOrbControl Width="60" Height="81" HorizontalAlignment="Center" State="Idle"/>
 
                 <TextBlock Text="two permissions, then you talk" HorizontalAlignment="Center"
                            TextAlignment="Center"
@@ -111,16 +112,9 @@
                 </StackPanel>
 
                 <Button x:Name="ContinueButton" Click="OnContinue" IsEnabled="False"
-                        HorizontalAlignment="Stretch" Margin="0,20,0,0"
-                        Background="{ThemeResource KiviBrandInkBrush}"
-                        Foreground="{ThemeResource KiviSurfaceBrush}"
-                        CornerRadius="{ThemeResource KiviRadiusFull}"
-                        Padding="16,12"
-                        HorizontalContentAlignment="Center">
-                    <TextBlock Text="Continue" FontFamily="{ThemeResource KiviFontFamily}"
-                               FontSize="{ThemeResource KiviFontSizeBody}"
-                               FontWeight="{ThemeResource KiviFontWeightMedium}"/>
-                </Button>
+                        HorizontalAlignment="Stretch" Margin="0,24,0,0"
+                        Style="{StaticResource KiviPrimaryButtonStyle}"
+                        Content="Continue"/>
             </StackPanel>
         </Border>
     </Grid>

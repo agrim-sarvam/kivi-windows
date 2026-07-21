@@ -105,9 +105,12 @@ public sealed partial class ConfigPage : Page
         {
             var chip = new Border
             {
-                CornerRadius = (CornerRadius)Application.Current.Resources["KiviRadiusFull"],
+                // Fixed height with radius = half height => a true stadium pill. (A blanket
+                // KiviRadiusFull/9999 turns short, wide elements into ellipses.)
+                Height = 34,
+                CornerRadius = new CornerRadius(17),
                 BorderThickness = new Thickness(1),
-                Padding = new Thickness(14, 8, 14, 8),
+                Padding = new Thickness(16, 0, 16, 0),
                 Background = code == ViewModel.TranscriptionLanguage
                     ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["KiviBrandInkBrush"]
                     : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["KiviSurfaceAltBrush"],
@@ -117,8 +120,10 @@ public sealed partial class ConfigPage : Page
             var text = new TextBlock
             {
                 Text = label,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
                 FontFamily = new Microsoft.UI.Xaml.Media.FontFamily((string)Application.Current.Resources["KiviFontFamily"]),
-                FontSize = (double)Application.Current.Resources["KiviFontSizeCaption"],
+                FontSize = (double)Application.Current.Resources["KiviFontSizeBody"],
                 Foreground = code == ViewModel.TranscriptionLanguage
                     ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["KiviSurfaceBrush"]
                     : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["KiviTextPrimaryBrush"],

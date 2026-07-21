@@ -106,6 +106,73 @@
     <FontWeight x:Key="KiviFontWeightMedium">Medium</FontWeight>
     <FontWeight x:Key="KiviFontWeightSemibold">SemiBold</FontWeight>
 
+    <!-- CONTROL STYLES -->
+
+    <!-- Primary pill button. A custom template is used deliberately: the stock Button
+         template swaps Background to its own ThemeResources on hover/press, and a large
+         CornerRadius (9999) on a wide, short control makes BOTH axes fully arc into an
+         ELLIPSE. Here the corner radius is exactly half the fixed 48px height, giving a
+         true stadium pill with straight top/bottom edges, and hover/press/disabled are
+         expressed as opacity so the brand-ink fill is never overridden. -->
+    <Style x:Key="KiviPrimaryButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="{ThemeResource KiviBrandInkBrush}"/>
+        <Setter Property="Foreground" Value="{ThemeResource KiviOnBrandBrush}"/>
+        <Setter Property="FontFamily" Value="{ThemeResource KiviFontFamily}"/>
+        <Setter Property="FontSize" Value="{ThemeResource KiviFontSizeBody}"/>
+        <Setter Property="FontWeight" Value="{ThemeResource KiviFontWeightMedium}"/>
+        <Setter Property="Height" Value="48"/>
+        <Setter Property="CornerRadius" Value="24"/>
+        <Setter Property="Padding" Value="20,0"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <ContentPresenter x:Name="CP"
+                                          Foreground="{TemplateBinding Foreground}"
+                                          Padding="{TemplateBinding Padding}"
+                                          HorizontalContentAlignment="Center"
+                                          VerticalContentAlignment="Center"/>
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal"/>
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Opacity" Value="0.90"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Opacity" Value="0.78"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Disabled">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Opacity" Value="0.35"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Card container: white surface, hairline stroke, medium radius. -->
+    <Style x:Key="KiviCardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource KiviSurfaceBrush}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource KiviStrokeBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{ThemeResource KiviRadiusMd}"/>
+        <Setter Property="Padding" Value="20"/>
+    </Style>
+
     <!-- LAYER 2 - SEMANTIC TOKENS (role -> primitive, theme-aware) -->
     <!-- Views bind ONLY to these, via {ThemeResource}. -->
     <ResourceDictionary.ThemeDictionaries>
@@ -122,6 +189,15 @@
             <SolidColorBrush x:Key="KiviBrandInkBrush"      Color="{StaticResource KiviColorBrandInk}"/>
             <SolidColorBrush x:Key="KiviTextTertiaryBrush"  Color="{StaticResource KiviColorFg3}"/>
             <SolidColorBrush x:Key="KiviPositiveBrush"      Color="{StaticResource KiviColorPositive}"/>
+            <!-- Text/glyphs sitting ON the dark brand-ink pill: light in light theme. -->
+            <SolidColorBrush x:Key="KiviOnBrandBrush"       Color="{StaticResource KiviColorFgInverse}"/>
+            <!-- ToggleSwitch "on" track tinted to the brand leaf green (default is system blue). -->
+            <SolidColorBrush x:Key="ToggleSwitchFillOn"            Color="{StaticResource KiviColorLegGreen}"/>
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="{StaticResource KiviColorLegGreen}"/>
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPressed"     Color="{StaticResource KiviColorLegGreen}"/>
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOn"            Color="{StaticResource KiviColorLegGreen}"/>
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="{StaticResource KiviColorLegGreen}"/>
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed"     Color="{StaticResource KiviColorLegGreen}"/>
             <SolidColorBrush x:Key="OverlayIdleBrush"       Color="{StaticResource KiviColorStateIdle}"/>
             <SolidColorBrush x:Key="OverlayListeningBrush"  Color="{StaticResource KiviColorStateListening}"/>
             <SolidColorBrush x:Key="OverlayProcessingBrush" Color="{StaticResource KiviColorStateProcessing}"/>
@@ -143,6 +219,14 @@
             <SolidColorBrush x:Key="KiviBrandInkBrush"      Color="{StaticResource KiviColorBrandInkDark}"/>
             <SolidColorBrush x:Key="KiviTextTertiaryBrush"  Color="{StaticResource KiviColorFg3Dark}"/>
             <SolidColorBrush x:Key="KiviPositiveBrush"      Color="{StaticResource KiviColorPositiveDark}"/>
+            <!-- brand-ink in dark theme is LIGHT (#E0E6D8), so on-brand text is dark. -->
+            <SolidColorBrush x:Key="KiviOnBrandBrush"       Color="{StaticResource KiviColorFgInverseDark}"/>
+            <SolidColorBrush x:Key="ToggleSwitchFillOn"            Color="{StaticResource KiviColorLegGreenDark}"/>
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="{StaticResource KiviColorLegGreenDark}"/>
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPressed"     Color="{StaticResource KiviColorLegGreenDark}"/>
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOn"            Color="{StaticResource KiviColorLegGreenDark}"/>
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="{StaticResource KiviColorLegGreenDark}"/>
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed"     Color="{StaticResource KiviColorLegGreenDark}"/>
             <SolidColorBrush x:Key="OverlayIdleBrush"       Color="{StaticResource KiviColorStateIdleDark}"/>
             <SolidColorBrush x:Key="OverlayListeningBrush"  Color="{StaticResource KiviColorStateListeningDark}"/>
             <SolidColorBrush x:Key="OverlayProcessingBrush" Color="{StaticResource KiviColorStateProcessingDark}"/>
@@ -164,6 +248,7 @@
             <SolidColorBrush x:Key="KiviBrandInkBrush"      Color="{ThemeResource SystemColorWindowTextColor}"/>
             <SolidColorBrush x:Key="KiviTextTertiaryBrush"  Color="{ThemeResource SystemColorGrayTextColor}"/>
             <SolidColorBrush x:Key="KiviPositiveBrush"      Color="{ThemeResource SystemColorHighlightColor}"/>
+            <SolidColorBrush x:Key="KiviOnBrandBrush"       Color="{ThemeResource SystemColorWindowColor}"/>
             <SolidColorBrush x:Key="OverlayIdleBrush"       Color="{ThemeResource SystemColorGrayTextColor}"/>
             <SolidColorBrush x:Key="OverlayListeningBrush"  Color="{ThemeResource SystemColorHighlightColor}"/>
             <SolidColorBrush x:Key="OverlayProcessingBrush" Color="{ThemeResource SystemColorHighlightColor}"/>

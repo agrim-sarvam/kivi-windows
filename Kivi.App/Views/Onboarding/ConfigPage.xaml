@@ -26,10 +26,7 @@
             </StackPanel>
 
             <!-- Hotkey card -->
-            <Border Background="{ThemeResource KiviSurfaceBrush}"
-                    BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
-                    CornerRadius="{ThemeResource KiviRadiusMd}"
-                    Padding="20">
+            <Border Style="{StaticResource KiviCardStyle}">
                 <Grid ColumnSpacing="16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -56,10 +53,7 @@
             </Border>
 
             <!-- Orb accent color card -->
-            <Border Background="{ThemeResource KiviSurfaceBrush}"
-                    BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
-                    CornerRadius="{ThemeResource KiviRadiusMd}"
-                    Padding="20">
+            <Border Style="{StaticResource KiviCardStyle}">
                 <StackPanel Spacing="12">
                     <StackPanel Spacing="2">
                         <TextBlock Text="Orb color" FontFamily="{ThemeResource KiviFontFamily}"
@@ -75,10 +69,7 @@
             </Border>
 
             <!-- Language card -->
-            <Border Background="{ThemeResource KiviSurfaceBrush}"
-                    BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
-                    CornerRadius="{ThemeResource KiviRadiusMd}"
-                    Padding="20">
+            <Border Style="{StaticResource KiviCardStyle}">
                 <StackPanel Spacing="12">
                     <StackPanel Spacing="2">
                         <TextBlock Text="Transcription language" FontFamily="{ThemeResource KiviFontFamily}"
@@ -94,10 +85,7 @@
             </Border>
 
             <!-- Behaviour card -->
-            <Border Background="{ThemeResource KiviSurfaceBrush}"
-                    BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
-                    CornerRadius="{ThemeResource KiviRadiusMd}"
-                    Padding="20">
+            <Border Style="{StaticResource KiviCardStyle}">
                 <StackPanel Spacing="16">
                     <Grid ColumnSpacing="16">
                         <Grid.ColumnDefinitions>
@@ -142,16 +130,9 @@
             </Border>
 
             <Button x:Name="DoneButton" Click="OnDone"
-                    HorizontalAlignment="Stretch" Margin="0,4,0,0"
-                    Background="{ThemeResource KiviBrandInkBrush}"
-                    Foreground="{ThemeResource KiviSurfaceBrush}"
-                    CornerRadius="{ThemeResource KiviRadiusFull}"
-                    Padding="16,12"
-                    HorizontalContentAlignment="Center">
-                <TextBlock Text="Done" FontFamily="{ThemeResource KiviFontFamily}"
-                           FontSize="{ThemeResource KiviFontSizeBody}"
-                           FontWeight="{ThemeResource KiviFontWeightMedium}"/>
-            </Button>
+                    HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                    Style="{StaticResource KiviPrimaryButtonStyle}"
+                    Content="Done"/>
         </StackPanel>
     </ScrollViewer>
 </Page>

@@ -1,12 +1,10 @@
 <!-- Kivi.App/Views/OverlayWindow.xaml -->
+<!-- Invisible: this WinUI window only anchors app lifetime; the visible orb is a separate
+     Win32 layered window (Controls/LayeredOrb) because WinUI can't render a transparent,
+     free-floating, glowing shape. -->
 <Window
     x:Class="Kivi.App.Views.OverlayWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:Kivi.App.Controls">
-
-    <Grid x:Name="Root" Background="Transparent">
-        <controls:KiviOrbControl x:Name="Orb"
-                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
-    </Grid>
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid/>
 </Window>

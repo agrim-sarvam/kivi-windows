@@ -123,7 +123,7 @@ public partial class App : Application
         void ShowOrb()
         {
             var overlayVm = new ViewModels.OverlayViewModel(orchestrator, dispatcher);
-            _overlayWindow = new Views.OverlayWindow(overlayVm);
+            _overlayWindow = new Views.OverlayWindow(overlayVm, GdiColorFromHex(appConfig.OrbAccentColor));
         }
 
         try
@@ -131,7 +131,9 @@ public partial class App : Application
             if (!appConfig.OnboardingCompleted)
             {
                 var win = new Views.Onboarding.OnboardingWindow(startAtPermissions: false);
-                win.Completed += () => { win.Close(); ShowOrb(); };
+                // Show the orb BEFORE closing onboarding: a WinUI app exits when its last
+                // window closes, so a live overlay window must already exist at that moment.
+                win.Completed += () => { ShowOrb(); win.Close(); };
                 win.Activate();
                 return;
             }
@@ -141,7 +143,9 @@ public partial class App : Application
             if (!micOk)
             {
                 var win = new Views.Onboarding.OnboardingWindow(startAtPermissions: true);
-                win.Completed += () => { win.Close(); ShowOrb(); };
+                // Show the orb BEFORE closing onboarding: a WinUI app exits when its last
+                // window closes, so a live overlay window must already exist at that moment.
+                win.Completed += () => { ShowOrb(); win.Close(); };
                 win.Activate();
                 return;
             }
@@ -162,5 +166,14 @@ public partial class App : Application
         byte g = Convert.ToByte(hex.Substring(2, 2), 16);
         byte b = Convert.ToByte(hex.Substring(4, 2), 16);
         return Windows.UI.Color.FromArgb(255, r, g, b);
+    }
+
+    private static System.Drawing.Color GdiColorFromHex(string hex)
+    {
+        hex = hex.TrimStart('#');
+        byte r = Convert.ToByte(hex.Substring(0, 2), 16);
+        byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+        byte b = Convert.ToByte(hex.Substring(4, 2), 16);
+        return System.Drawing.Color.FromArgb(255, r, g, b);
     }
 }

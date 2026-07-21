@@ -28,6 +28,8 @@
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.*" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.*" />
     <PackageReference Include="H.NotifyIcon.WinUI" Version="2.3.2" />
+    <!-- GDI+ rendering for the per-pixel-alpha layered desktop orb (Win32 UpdateLayeredWindow). -->
+    <PackageReference Include="System.Drawing.Common" Version="9.0.*" />
   </ItemGroup>
 
   <PropertyGroup>
