@@ -56,11 +56,35 @@
     <Page Include="Views\OverlayWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="Views\Onboarding\OnboardingWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\Onboarding\LoginPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\Onboarding\PermissionsPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\Onboarding\ConfigPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Compile Update="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
     <Compile Update="Views\OverlayWindow.xaml.cs">
       <DependentUpon>OverlayWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\Onboarding\OnboardingWindow.xaml.cs">
+      <DependentUpon>OnboardingWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\Onboarding\LoginPage.xaml.cs">
+      <DependentUpon>LoginPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\Onboarding\PermissionsPage.xaml.cs">
+      <DependentUpon>PermissionsPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\Onboarding\ConfigPage.xaml.cs">
+      <DependentUpon>ConfigPage.xaml</DependentUpon>
     </Compile>
   </ItemGroup>
 

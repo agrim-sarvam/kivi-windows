@@ -1,0 +1,36 @@
+<!-- Kivi.App/Views/Onboarding/LoginPage.xaml -->
+<Page
+    x:Class="Kivi.App.Views.Onboarding.LoginPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Kivi.App.Controls"
+    Background="{ThemeResource KiviSurfaceAltBrush}">
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="0">
+        <controls:KiviOrbControl x:Name="Mark" Width="72" Height="98" HorizontalAlignment="Center" State="Idle"/>
+        <TextBlock Text="kivi" HorizontalAlignment="Center"
+                   FontFamily="{ThemeResource KiviWordmarkFontFamily}"
+                   FontSize="{StaticResource KiviFontSizeDisplay}" FontWeight="{ThemeResource KiviFontWeightMedium}"
+                   Foreground="{ThemeResource KiviTextPrimaryBrush}"
+                   Margin="0,22,0,0"/>
+        <TextBlock Text="Your voice, polished." HorizontalAlignment="Center"
+                   FontFamily="{ThemeResource KiviFontFamily}" FontSize="{ThemeResource KiviFontSizeBody}"
+                   Foreground="{ThemeResource KiviTextSecondaryBrush}" Margin="0,6,0,0"/>
+        <Button x:Name="GoogleButton" Click="OnGoogle" Margin="0,40,0,0"
+                HorizontalAlignment="Stretch" Width="300"
+                Background="{ThemeResource KiviBrandInkBrush}"
+                Foreground="{ThemeResource KiviSurfaceBrush}"
+                CornerRadius="{ThemeResource KiviRadiusFull}"
+                Padding="16,12"
+                HorizontalContentAlignment="Center">
+            <TextBlock Text="Continue with Google" FontFamily="{ThemeResource KiviFontFamily}"
+                       FontSize="{ThemeResource KiviFontSizeBody}" FontWeight="{ThemeResource KiviFontWeightMedium}"/>
+        </Button>
+        <HyperlinkButton x:Name="EmailButton" Click="OnEmail" HorizontalAlignment="Center"
+                         Content="Use work email instead" Margin="0,20,0,0"
+                         Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+        <TextBlock Text="free &amp; unlimited during launch — your words stay yours"
+                   HorizontalAlignment="Center" FontFamily="{ThemeResource KiviMonoFontFamily}"
+                   FontSize="{ThemeResource KiviFontSizeCaption}" Foreground="{ThemeResource KiviTextTertiaryBrush}"
+                   Margin="0,32,0,0"/>
+    </StackPanel>
+</Page>

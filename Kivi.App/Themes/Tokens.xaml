@@ -101,6 +101,7 @@
     <x:Double x:Key="KiviFontSizeCaption">11.5</x:Double>
     <x:Double x:Key="KiviFontSizeBody">14</x:Double>
     <x:Double x:Key="KiviFontSizeTitle">20</x:Double>
+    <x:Double x:Key="KiviFontSizeDisplay">46</x:Double>
     <FontWeight x:Key="KiviFontWeightRegular">Normal</FontWeight>
     <FontWeight x:Key="KiviFontWeightMedium">Medium</FontWeight>
     <FontWeight x:Key="KiviFontWeightSemibold">SemiBold</FontWeight>
@@ -118,6 +119,9 @@
             <SolidColorBrush x:Key="KiviStrokeBrush"        Color="{StaticResource KiviColorBorder2}"/>
             <SolidColorBrush x:Key="KiviAccentBrush"        Color="{StaticResource KiviColorLegGreen}"/>
             <SolidColorBrush x:Key="KiviDangerBrush"        Color="{StaticResource KiviColorDanger}"/>
+            <SolidColorBrush x:Key="KiviBrandInkBrush"      Color="{StaticResource KiviColorBrandInk}"/>
+            <SolidColorBrush x:Key="KiviTextTertiaryBrush"  Color="{StaticResource KiviColorFg3}"/>
+            <SolidColorBrush x:Key="KiviPositiveBrush"      Color="{StaticResource KiviColorPositive}"/>
             <SolidColorBrush x:Key="OverlayIdleBrush"       Color="{StaticResource KiviColorStateIdle}"/>
             <SolidColorBrush x:Key="OverlayListeningBrush"  Color="{StaticResource KiviColorStateListening}"/>
             <SolidColorBrush x:Key="OverlayProcessingBrush" Color="{StaticResource KiviColorStateProcessing}"/>
@@ -136,6 +140,9 @@
             <SolidColorBrush x:Key="KiviStrokeBrush"        Color="{StaticResource KiviColorBorder2Dark}"/>
             <SolidColorBrush x:Key="KiviAccentBrush"        Color="{StaticResource KiviColorLegGreenDark}"/>
             <SolidColorBrush x:Key="KiviDangerBrush"        Color="{StaticResource KiviColorDangerDark}"/>
+            <SolidColorBrush x:Key="KiviBrandInkBrush"      Color="{StaticResource KiviColorBrandInkDark}"/>
+            <SolidColorBrush x:Key="KiviTextTertiaryBrush"  Color="{StaticResource KiviColorFg3Dark}"/>
+            <SolidColorBrush x:Key="KiviPositiveBrush"      Color="{StaticResource KiviColorPositiveDark}"/>
             <SolidColorBrush x:Key="OverlayIdleBrush"       Color="{StaticResource KiviColorStateIdleDark}"/>
             <SolidColorBrush x:Key="OverlayListeningBrush"  Color="{StaticResource KiviColorStateListeningDark}"/>
             <SolidColorBrush x:Key="OverlayProcessingBrush" Color="{StaticResource KiviColorStateProcessingDark}"/>
@@ -154,6 +161,9 @@
             <SolidColorBrush x:Key="KiviStrokeBrush"        Color="{ThemeResource SystemColorWindowTextColor}"/>
             <SolidColorBrush x:Key="KiviAccentBrush"        Color="{ThemeResource SystemColorHighlightColor}"/>
             <SolidColorBrush x:Key="KiviDangerBrush"        Color="{ThemeResource SystemColorWindowTextColor}"/>
+            <SolidColorBrush x:Key="KiviBrandInkBrush"      Color="{ThemeResource SystemColorWindowTextColor}"/>
+            <SolidColorBrush x:Key="KiviTextTertiaryBrush"  Color="{ThemeResource SystemColorGrayTextColor}"/>
+            <SolidColorBrush x:Key="KiviPositiveBrush"      Color="{ThemeResource SystemColorHighlightColor}"/>
             <SolidColorBrush x:Key="OverlayIdleBrush"       Color="{ThemeResource SystemColorGrayTextColor}"/>
             <SolidColorBrush x:Key="OverlayListeningBrush"  Color="{ThemeResource SystemColorHighlightColor}"/>
             <SolidColorBrush x:Key="OverlayProcessingBrush" Color="{ThemeResource SystemColorHighlightColor}"/>
