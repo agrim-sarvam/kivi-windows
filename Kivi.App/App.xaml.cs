@@ -73,6 +73,7 @@ public partial class App : Application
         services.AddSingleton<IScreenContextProvider, UiaScreenContextProvider>();
         services.AddSingleton<IPasteService, SendInputPasteService>();
         services.AddSingleton<IDictationOrchestrator, DictationOrchestrator>();
+        services.AddTransient<ViewModels.ConfigViewModel>();
 
         Services = services.BuildServiceProvider();
 

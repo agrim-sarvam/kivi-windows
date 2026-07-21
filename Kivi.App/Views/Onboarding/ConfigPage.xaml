@@ -1,10 +1,157 @@
 <!-- Kivi.App/Views/Onboarding/ConfigPage.xaml -->
-<!-- Empty shell so PermissionsPage's NavigateTo(typeof(ConfigPage)) resolves at compile
-     time. Task 4 fills in the real hotkey/persona/config content. -->
+<!-- Final onboarding screen: settings card grid with only the controls that have real
+     backing (hotkey capture, orb accent color, transcription language, launch-at-login,
+     screen context). The Hey-kivi hotkey, press-and-hold delay, memory, incognito,
+     clear-history and sound-on-paste controls from the Figma frame are intentionally
+     omitted — no backend exists for them yet. -->
 <Page
     x:Class="Kivi.App.Views.Onboarding.ConfigPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Kivi.App.Controls"
     Background="{ThemeResource KiviSurfaceAltBrush}">
-    <Grid/>
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                  HorizontalContentAlignment="Center" Padding="0,40,0,40">
+        <StackPanel Width="460" Spacing="16">
+
+            <StackPanel Spacing="4" Margin="4,0,4,4">
+                <TextBlock Text="you're set up" FontFamily="{ThemeResource KiviFontFamily}"
+                           FontSize="{ThemeResource KiviFontSizeTitle}"
+                           FontWeight="{ThemeResource KiviFontWeightSemibold}"
+                           Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
+                <TextBlock Text="a few quick preferences — change these anytime later"
+                           FontFamily="{ThemeResource KiviFontFamily}"
+                           FontSize="{ThemeResource KiviFontSizeBody}"
+                           Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+            </StackPanel>
+
+            <!-- Hotkey card -->
+            <Border Background="{ThemeResource KiviSurfaceBrush}"
+                    BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
+                    CornerRadius="{ThemeResource KiviRadiusMd}"
+                    Padding="20">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="Dictation hotkey" FontFamily="{ThemeResource KiviFontFamily}"
+                                   FontSize="{ThemeResource KiviFontSizeBody}"
+                                   FontWeight="{ThemeResource KiviFontWeightMedium}"
+                                   Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
+                        <TextBlock Text="hold this key to dictate" FontFamily="{ThemeResource KiviFontFamily}"
+                                   FontSize="{ThemeResource KiviFontSizeCaption}"
+                                   Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+                    </StackPanel>
+                    <controls:HotkeyCaptureBox x:Name="HotkeyBox" Grid.Column="1"
+                            Background="{ThemeResource KiviSurfaceAltBrush}"
+                            BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
+                            CornerRadius="{ThemeResource KiviRadiusSm}"
+                            Foreground="{ThemeResource KiviTextPrimaryBrush}"
+                            FontFamily="{ThemeResource KiviMonoFontFamily}"
+                            FontSize="{ThemeResource KiviFontSizeBody}"
+                            Padding="16,10"/>
+                </Grid>
+            </Border>
+
+            <!-- Orb accent color card -->
+            <Border Background="{ThemeResource KiviSurfaceBrush}"
+                    BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
+                    CornerRadius="{ThemeResource KiviRadiusMd}"
+                    Padding="20">
+                <StackPanel Spacing="12">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Orb color" FontFamily="{ThemeResource KiviFontFamily}"
+                                   FontSize="{ThemeResource KiviFontSizeBody}"
+                                   FontWeight="{ThemeResource KiviFontWeightMedium}"
+                                   Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
+                        <TextBlock Text="the accent color for your persistent orb" FontFamily="{ThemeResource KiviFontFamily}"
+                                   FontSize="{ThemeResource KiviFontSizeCaption}"
+                                   Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+                    </StackPanel>
+                    <StackPanel x:Name="ColorSwatchPanel" Orientation="Horizontal" Spacing="12"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Language card -->
+            <Border Background="{ThemeResource KiviSurfaceBrush}"
+                    BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
+                    CornerRadius="{ThemeResource KiviRadiusMd}"
+                    Padding="20">
+                <StackPanel Spacing="12">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Transcription language" FontFamily="{ThemeResource KiviFontFamily}"
+                                   FontSize="{ThemeResource KiviFontSizeBody}"
+                                   FontWeight="{ThemeResource KiviFontWeightMedium}"
+                                   Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
+                        <TextBlock Text="auto-detects by default" FontFamily="{ThemeResource KiviFontFamily}"
+                                   FontSize="{ThemeResource KiviFontSizeCaption}"
+                                   Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+                    </StackPanel>
+                    <StackPanel x:Name="LanguageChipPanel" Orientation="Horizontal" Spacing="8"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Behaviour card -->
+            <Border Background="{ThemeResource KiviSurfaceBrush}"
+                    BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
+                    CornerRadius="{ThemeResource KiviRadiusMd}"
+                    Padding="20">
+                <StackPanel Spacing="16">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="Launch at login" FontFamily="{ThemeResource KiviFontFamily}"
+                                       FontSize="{ThemeResource KiviFontSizeBody}"
+                                       FontWeight="{ThemeResource KiviFontWeightMedium}"
+                                       Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
+                            <TextBlock Text="start kivi automatically when you sign in" FontFamily="{ThemeResource KiviFontFamily}"
+                                       FontSize="{ThemeResource KiviFontSizeCaption}"
+                                       Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+                        </StackPanel>
+                        <ToggleSwitch x:Name="LaunchAtLoginToggle" Grid.Column="1"
+                                      OnContent="" OffContent=""
+                                      Toggled="OnLaunchAtLoginToggled"/>
+                    </Grid>
+
+                    <Rectangle Height="1" Fill="{ThemeResource KiviStrokeBrush}"/>
+
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="Screen context" FontFamily="{ThemeResource KiviFontFamily}"
+                                       FontSize="{ThemeResource KiviFontSizeBody}"
+                                       FontWeight="{ThemeResource KiviFontWeightMedium}"
+                                       Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
+                            <TextBlock Text="read the active app &amp; field to match tone" FontFamily="{ThemeResource KiviFontFamily}"
+                                       FontSize="{ThemeResource KiviFontSizeCaption}"
+                                       Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+                        </StackPanel>
+                        <ToggleSwitch x:Name="ScreenContextToggle" Grid.Column="1"
+                                      OnContent="" OffContent=""
+                                      Toggled="OnScreenContextToggled"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Button x:Name="DoneButton" Click="OnDone"
+                    HorizontalAlignment="Stretch" Margin="0,4,0,0"
+                    Background="{ThemeResource KiviBrandInkBrush}"
+                    Foreground="{ThemeResource KiviSurfaceBrush}"
+                    CornerRadius="{ThemeResource KiviRadiusFull}"
+                    Padding="16,12"
+                    HorizontalContentAlignment="Center">
+                <TextBlock Text="Done" FontFamily="{ThemeResource KiviFontFamily}"
+                           FontSize="{ThemeResource KiviFontSizeBody}"
+                           FontWeight="{ThemeResource KiviFontWeightMedium}"/>
+            </Button>
+        </StackPanel>
+    </ScrollViewer>
 </Page>
