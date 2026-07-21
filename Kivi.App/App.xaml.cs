@@ -87,13 +87,49 @@ public partial class App : Application
 
         logger.LogInformation("Kivi ready. Hold RIGHT-CTRL to dictate. Metrics={Metrics}.", metricsEnabled);
 
-        // Temporary smoke-test wiring for the recovered orb overlay (Task 2).
-        // Finalized into the real startup gate in Task 6.
+        // Re-apply the user's saved hotkey on every launch.
+        var hotkey = Services.GetRequiredService<IHotkeyService>();
+        hotkey.SetHotkey(appConfig.HotkeyVirtualKeyCode);
+
         var dispatcher = DispatcherQueue.GetForCurrentThread();
         Controls.KiviOrbControl.AccentBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
             ColorFromHex(appConfig.OrbAccentColor));
-        var overlayVm = new ViewModels.OverlayViewModel(orchestrator, dispatcher);
-        _overlayWindow = new Views.OverlayWindow(overlayVm);
+
+        _ = RunStartupGateAsync(appConfig, orchestrator, dispatcher);
+    }
+
+    /// <summary>
+    /// First launch: Login -> Permissions -> Config, then the orb. Later launches:
+    /// re-check mic permission; if revoked, re-show only Permissions (which completes
+    /// without re-running Config); otherwise go straight to the orb.
+    /// </summary>
+    private async Task RunStartupGateAsync(AppConfig appConfig, IDictationOrchestrator orchestrator, DispatcherQueue dispatcher)
+    {
+        void ShowOrb()
+        {
+            var overlayVm = new ViewModels.OverlayViewModel(orchestrator, dispatcher);
+            _overlayWindow = new Views.OverlayWindow(overlayVm);
+        }
+
+        if (!appConfig.OnboardingCompleted)
+        {
+            var win = new Views.Onboarding.OnboardingWindow(startAtPermissions: false);
+            win.Completed += () => { win.Close(); ShowOrb(); };
+            win.Activate();
+            return;
+        }
+
+        // Onboarding done previously — but re-check mic; if revoked, re-show only Permissions.
+        bool micOk = await Kivi.App.Services.MicPermission.CheckAsync();
+        if (!micOk)
+        {
+            var win = new Views.Onboarding.OnboardingWindow(startAtPermissions: true);
+            win.Completed += () => { win.Close(); ShowOrb(); };
+            win.Activate();
+            return;
+        }
+
+        ShowOrb();
     }
 
     private static Windows.UI.Color ColorFromHex(string hex)

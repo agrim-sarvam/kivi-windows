@@ -49,5 +49,9 @@ public sealed partial class PermissionsPage : Page
 
     private async void OnRecheck(object sender, RoutedEventArgs e) => await RefreshMicAsync();
 
-    private void OnContinue(object sender, RoutedEventArgs e) => _host?.NavigateTo(typeof(ConfigPage));
+    private void OnContinue(object sender, RoutedEventArgs e)
+    {
+        if (_host?.PermissionsOnly == true) _host.RaiseCompleted();
+        else _host?.NavigateTo(typeof(ConfigPage));
+    }
 }
