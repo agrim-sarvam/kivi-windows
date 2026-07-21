@@ -14,6 +14,7 @@ using Kivi.Platform.Secrets;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 
 namespace Kivi.App;
@@ -23,6 +24,7 @@ public partial class App : Application
     public static IServiceProvider Services { get; private set; } = null!;
 
     private IDisposable? _obs;
+    private Views.OverlayWindow? _overlayWindow;
 
     public App()
     {
@@ -84,6 +86,21 @@ public partial class App : Application
 
         logger.LogInformation("Kivi ready. Hold RIGHT-CTRL to dictate. Metrics={Metrics}.", metricsEnabled);
 
-        // No window shown yet - overlay/tray added in Task 3 (3a-3d).
+        // Temporary smoke-test wiring for the recovered orb overlay (Task 2).
+        // Finalized into the real startup gate in Task 6.
+        var dispatcher = DispatcherQueue.GetForCurrentThread();
+        Controls.KiviOrbControl.AccentBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            ColorFromHex(appConfig.OrbAccentColor));
+        var overlayVm = new ViewModels.OverlayViewModel(orchestrator, dispatcher);
+        _overlayWindow = new Views.OverlayWindow(overlayVm);
+    }
+
+    private static Windows.UI.Color ColorFromHex(string hex)
+    {
+        hex = hex.TrimStart('#');
+        byte r = Convert.ToByte(hex.Substring(0, 2), 16);
+        byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+        byte b = Convert.ToByte(hex.Substring(4, 2), 16);
+        return Windows.UI.Color.FromArgb(255, r, g, b);
     }
 }
