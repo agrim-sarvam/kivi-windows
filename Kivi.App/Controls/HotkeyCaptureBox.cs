@@ -35,6 +35,15 @@ public sealed class HotkeyCaptureBox : Button
     private void OnKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
         if (!_capturing) return;
+
+        if (e.Key == VirtualKey.Escape)
+        {
+            _capturing = false;
+            Content = Label(VirtualKeyCode);
+            e.Handled = true;
+            return;
+        }
+
         _capturing = false;
         VirtualKeyCode = (uint)e.Key;
         Content = Label(VirtualKeyCode);
