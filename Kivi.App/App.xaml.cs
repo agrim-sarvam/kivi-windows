@@ -95,7 +95,7 @@ public partial class App : Application
         Controls.KiviOrbControl.AccentBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
             ColorFromHex(appConfig.OrbAccentColor));
 
-        _ = RunStartupGateAsync(appConfig, orchestrator, dispatcher);
+        _ = RunStartupGateAsync(appConfig, orchestrator, dispatcher, logger);
     }
 
     /// <summary>
@@ -103,7 +103,7 @@ public partial class App : Application
     /// re-check mic permission; if revoked, re-show only Permissions (which completes
     /// without re-running Config); otherwise go straight to the orb.
     /// </summary>
-    private async Task RunStartupGateAsync(AppConfig appConfig, IDictationOrchestrator orchestrator, DispatcherQueue dispatcher)
+    private async Task RunStartupGateAsync(AppConfig appConfig, IDictationOrchestrator orchestrator, DispatcherQueue dispatcher, ILogger<App> logger)
     {
         void ShowOrb()
         {
@@ -111,25 +111,33 @@ public partial class App : Application
             _overlayWindow = new Views.OverlayWindow(overlayVm);
         }
 
-        if (!appConfig.OnboardingCompleted)
+        try
         {
-            var win = new Views.Onboarding.OnboardingWindow(startAtPermissions: false);
-            win.Completed += () => { win.Close(); ShowOrb(); };
-            win.Activate();
-            return;
-        }
+            if (!appConfig.OnboardingCompleted)
+            {
+                var win = new Views.Onboarding.OnboardingWindow(startAtPermissions: false);
+                win.Completed += () => { win.Close(); ShowOrb(); };
+                win.Activate();
+                return;
+            }
 
-        // Onboarding done previously — but re-check mic; if revoked, re-show only Permissions.
-        bool micOk = await Kivi.App.Services.MicPermission.CheckAsync();
-        if (!micOk)
+            // Onboarding done previously — but re-check mic; if revoked, re-show only Permissions.
+            bool micOk = await Kivi.App.Services.MicPermission.CheckAsync();
+            if (!micOk)
+            {
+                var win = new Views.Onboarding.OnboardingWindow(startAtPermissions: true);
+                win.Completed += () => { win.Close(); ShowOrb(); };
+                win.Activate();
+                return;
+            }
+
+            ShowOrb();
+        }
+        catch (Exception ex)
         {
-            var win = new Views.Onboarding.OnboardingWindow(startAtPermissions: true);
-            win.Completed += () => { win.Close(); ShowOrb(); };
-            win.Activate();
-            return;
+            logger.LogError(ex, "Startup gate failed; falling back to showing the orb.");
+            try { ShowOrb(); } catch { /* last-resort: nothing more we can do */ }
         }
-
-        ShowOrb();
     }
 
     private static Windows.UI.Color ColorFromHex(string hex)
