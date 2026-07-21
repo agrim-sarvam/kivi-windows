@@ -83,8 +83,7 @@ public sealed partial class OverlayWindow : Window
 
         _appWindow.Resize(new SizeInt32(w, h));
 
-        if (_vm.IsVisible) ShowAnchoredBottomCenter();
-        else _appWindow.Hide();
+        ShowAnchoredBottomCenter();
     }
 
     private void ShowAnchoredBottomCenter()

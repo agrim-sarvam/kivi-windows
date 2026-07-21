@@ -19,7 +19,7 @@ public partial class OverlayViewModel : ObservableObject
 
     [ObservableProperty] private RecordingState _state;
 
-    public bool IsVisible    => State != RecordingState.Idle;
+    public bool IsVisible    => true;
     public bool IsListening  => State == RecordingState.Listening;
     public bool IsProcessing => State == RecordingState.Processing;
     public bool IsSpeaking   => State == RecordingState.Speaking;
