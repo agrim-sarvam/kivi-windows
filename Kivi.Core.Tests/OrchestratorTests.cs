@@ -210,6 +210,11 @@ public class OrchestratorTests
         Assert.Equal("Rewritten text.", paste.Pasted);
         Assert.Equal(RecordingState.Idle, orch.State);
         Assert.False(hotkey.ReviewArmed);
+
+        var undoIndex = paste.CallOrder.IndexOf("Undo");
+        var pasteIndex = paste.CallOrder.IndexOf("Inject:Rewritten text.");
+        Assert.True(undoIndex >= 0 && pasteIndex >= 0 && undoIndex < pasteIndex,
+            "Undo must happen before the rewritten text is pasted, or the real document would be corrupted.");
     }
 
     [Fact]
@@ -250,5 +255,33 @@ public class OrchestratorTests
         await Task.Delay(1500);
 
         Assert.Equal("Hello there.", paste.Pasted); // normal dictation completed; rewrite never ran
+    }
+
+    [Fact]
+    public async Task MismatchedHoldEnded_IsIgnored_CaptureContinuesUninterrupted()
+    {
+        var hotkey = new FakeHotkey();
+        var paste = new SpyPaste();
+        using var metrics = new KiviMetrics();
+        var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
+            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics);
+        orch.Start();
+
+        // Start a PRIMARY dictation capture, then fire the REWRITE hotkey's end event
+        // (never started) -- OnRewriteHoldEnded must no-op since IsRewriteCapture is false.
+        hotkey.FireStart();
+        await Task.Delay(20);
+        hotkey.FireRewriteEnd(); // mismatched: should be ignored, primary capture keeps running
+        await Task.Delay(20);
+
+        // The primary capture must still be exactly where it was -- not derailed into the
+        // rewrite pipeline, and not yet finished (only the real FireEnd() below completes it).
+        Assert.Null(paste.Pasted);
+
+        hotkey.FireEnd(); // the REAL end event for the primary capture
+        await Task.Delay(1500);
+
+        Assert.Equal("Hello there.", paste.Pasted); // primary pipeline completed normally
+        Assert.Equal(0, paste.UndoCalls); // rewrite pipeline never ran
     }
 }
