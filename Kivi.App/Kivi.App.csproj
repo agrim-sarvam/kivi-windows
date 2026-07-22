@@ -70,6 +70,18 @@
     <Page Include="Views\Onboarding\ConfigPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="Views\MainApp\MainAppWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\MainApp\SidebarNavItem.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\MainApp\RecordPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\MainApp\HistoryPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Compile Update="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
@@ -87,6 +99,18 @@
     </Compile>
     <Compile Update="Views\Onboarding\ConfigPage.xaml.cs">
       <DependentUpon>ConfigPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\MainApp\MainAppWindow.xaml.cs">
+      <DependentUpon>MainAppWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\MainApp\SidebarNavItem.xaml.cs">
+      <DependentUpon>SidebarNavItem.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\MainApp\RecordPage.xaml.cs">
+      <DependentUpon>RecordPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\MainApp\HistoryPage.xaml.cs">
+      <DependentUpon>HistoryPage.xaml</DependentUpon>
     </Compile>
   </ItemGroup>
 

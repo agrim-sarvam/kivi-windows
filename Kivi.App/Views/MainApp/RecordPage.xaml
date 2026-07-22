@@ -1,0 +1,84 @@
+<!-- Kivi.App/Views/MainApp/RecordPage.xaml -->
+<!-- Visual-only per this pass ("UI first, backend later"): the text area shows hint copy but
+     isn't wired to the dictation pipeline yet, and dictate/edit don't trigger anything real. -->
+<Page
+    x:Class="Kivi.App.Views.MainApp.RecordPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Kivi.App.Controls"
+    Background="{ThemeResource KiviSurfaceAltBrush}">
+
+    <Grid>
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4" Width="560">
+
+            <!-- Reuses the same dot-matrix mask rendering as the desktop orb (KiviOrbControl),
+                 just sized bigger and left at its default Idle (muted) colouring. -->
+            <controls:KiviOrbControl Width="130" Height="176" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+
+            <TextBlock Text="your voice, polished" HorizontalAlignment="Center"
+                       FontFamily="{ThemeResource KiviFontFamily}"
+                       FontSize="{ThemeResource KiviFontSizeTitle}"
+                       FontWeight="{ThemeResource KiviFontWeightSemibold}"
+                       Foreground="{ThemeResource KiviTextPrimaryBrush}"
+                       Margin="0,0,0,24"/>
+
+            <Border Style="{StaticResource KiviCardStyle}" CornerRadius="20" Padding="0"
+                    Height="176" Margin="0,0,0,16">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="44"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox Grid.Column="0" x:Name="DictationBox"
+                             AcceptsReturn="True" TextWrapping="Wrap"
+                             TextAlignment="Center" VerticalAlignment="Center"
+                             BorderThickness="0" Background="Transparent"
+                             FontFamily="{ThemeResource KiviFontFamily}" FontSize="14"
+                             Foreground="{ThemeResource KiviTextPrimaryBrush}"
+                             PlaceholderText="(tap / hold to talk | fn)&#x0a;or&#x0a;(type / paste to edit)"
+                             Padding="24"/>
+
+                    <StackPanel Grid.Column="1" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0">
+                        <Button Width="28" Height="28" Padding="0" CornerRadius="14"
+                                Background="{ThemeResource KiviSurfaceAltBrush}" BorderThickness="0">
+                            <FontIcon Glyph="&#xE8C8;" FontSize="13" Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
+                        </Button>
+                        <Button Width="28" Height="28" Padding="0" CornerRadius="14"
+                                Background="{ThemeResource KiviSurfaceAltBrush}" BorderThickness="0">
+                            <FontIcon Glyph="&#xE81C;" FontSize="13" Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0" Style="{StaticResource KiviPrimaryButtonStyle}" HorizontalAlignment="Stretch">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE720;" FontSize="13" Foreground="{ThemeResource KiviOnBrandBrush}"/>
+                        <TextBlock Text="dictate" VerticalAlignment="Center"/>
+                        <Border Background="#33FFFFFF" CornerRadius="4" Padding="6,2">
+                            <TextBlock Text="fn" FontFamily="{ThemeResource KiviMonoFontFamily}" FontSize="11"/>
+                        </Border>
+                    </StackPanel>
+                </Button>
+
+                <Button Grid.Column="1" HorizontalAlignment="Stretch" Height="48" CornerRadius="24"
+                        Background="{ThemeResource KiviAccentBrush}" BorderThickness="0">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE70F;" FontSize="13" Foreground="{ThemeResource KiviOnBrandBrush}"/>
+                        <TextBlock Text="edit" Foreground="{ThemeResource KiviOnBrandBrush}"
+                                   FontFamily="{ThemeResource KiviFontFamily}"
+                                   FontWeight="{ThemeResource KiviFontWeightMedium}" VerticalAlignment="Center"/>
+                        <FontIcon Glyph="&#xE712;" FontSize="13" Foreground="{ThemeResource KiviOnBrandBrush}"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </StackPanel>
+    </Grid>
+</Page>

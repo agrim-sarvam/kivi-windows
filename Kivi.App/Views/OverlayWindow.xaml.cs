@@ -20,6 +20,7 @@ public sealed partial class OverlayWindow : Window
     private readonly OverlayViewModel _vm;
     private readonly LayeredOrb _orb;
     private Views.Onboarding.OnboardingWindow? _settingsWindow;
+    private Views.MainApp.MainAppWindow? _mainAppWindow;
 
     public OverlayWindow(OverlayViewModel vm, Color accent, string languageLabel, string hotkeyLabel)
     {
@@ -42,8 +43,14 @@ public sealed partial class OverlayWindow : Window
         // DispatcherQueue) and reads state straight off _vm every frame.
         _orb = new LayeredOrb(vm, accent, languageLabel, hotkeyLabel);
         _orb.SettingsRequested += OnSettingsRequested;
+        _orb.MainAppRequested += OnMainAppRequested;
 
-        Closed += (_, _) => { _orb.SettingsRequested -= OnSettingsRequested; _orb.Dispose(); };
+        Closed += (_, _) =>
+        {
+            _orb.SettingsRequested -= OnSettingsRequested;
+            _orb.MainAppRequested -= OnMainAppRequested;
+            _orb.Dispose();
+        };
 
         // Activate (still off-screen, so invisible) so the window counts as "open" and keeps
         // the app running after onboarding closes.
@@ -64,6 +71,22 @@ public sealed partial class OverlayWindow : Window
         win.Completed += () => win.Close();
         win.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow = win;
+        win.Activate();
+    }
+
+    // Raised (on this same UI thread) when the orb's hover expand icon is clicked. Opens the
+    // main app window (sidebar + record/history), or refocuses it if already open.
+    private void OnMainAppRequested()
+    {
+        if (_mainAppWindow is not null)
+        {
+            _mainAppWindow.Activate();
+            return;
+        }
+
+        var win = new Views.MainApp.MainAppWindow();
+        win.Closed += (_, _) => _mainAppWindow = null;
+        _mainAppWindow = win;
         win.Activate();
     }
 }

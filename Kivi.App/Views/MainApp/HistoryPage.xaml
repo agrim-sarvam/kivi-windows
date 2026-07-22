@@ -1,0 +1,133 @@
+<!-- Kivi.App/Views/MainApp/HistoryPage.xaml -->
+<!-- Visual-only per this pass ("UI first, backend later"): rows are hardcoded sample data, not
+     real transcript history (no such storage exists yet). Clicking a row does update the detail
+     card above it, which is a real (if entirely in-memory) interaction. -->
+<Page
+    x:Class="Kivi.App.Views.MainApp.HistoryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{ThemeResource KiviSurfaceAltBrush}">
+
+    <ScrollViewer Padding="32,28,32,28">
+        <StackPanel Spacing="16" MaxWidth="920">
+
+            <!-- Detail card -->
+            <Border Style="{StaticResource KiviCardStyle}" CornerRadius="16" Padding="20,16,20,14">
+                <StackPanel Spacing="12">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="DetailText" Grid.Column="0" TextWrapping="Wrap"
+                                   FontFamily="{ThemeResource KiviFontFamily}" FontSize="16"
+                                   Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                            <Button Width="26" Height="26" Padding="0" CornerRadius="13" Background="Transparent" BorderThickness="0">
+                                <FontIcon Glyph="&#xE8C8;" FontSize="12" Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
+                            </Button>
+                            <Button Width="26" Height="26" Padding="0" CornerRadius="13" Background="Transparent" BorderThickness="0">
+                                <FontIcon Glyph="&#xE76B;" FontSize="12" Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
+                            </Button>
+                            <Button Width="26" Height="26" Padding="0" CornerRadius="13" Background="Transparent" BorderThickness="0">
+                                <FontIcon Glyph="&#xE76C;" FontSize="12" Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="DetailWordCount" Grid.Column="0"
+                                   FontFamily="{ThemeResource KiviFontFamily}" FontSize="11.5"
+                                   Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
+                        <TextBlock Grid.Column="1" Text="processed text" FontStyle="Italic"
+                                   FontFamily="{ThemeResource KiviFontFamily}" FontSize="11.5"
+                                   Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
+                    </Grid>
+
+                    <Rectangle Height="1" Fill="{ThemeResource KiviStrokeBrush}" Margin="0,2,0,2"/>
+
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                            <Border Width="16" Height="16" CornerRadius="4" Background="#F0653B"/>
+                            <TextBlock x:Name="DetailApp" FontFamily="{ThemeResource KiviFontFamily}" FontSize="12"
+                                       Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+                            <TextBlock Text="·" Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
+                            <TextBlock x:Name="DetailTime" FontFamily="{ThemeResource KiviFontFamily}" FontSize="12"
+                                       Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE70F;" FontSize="11" Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+                                <TextBlock Text="edit" FontFamily="{ThemeResource KiviFontFamily}" FontSize="12" Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE720;" FontSize="11" Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+                                <TextBlock Text="voice edit" FontFamily="{ThemeResource KiviFontFamily}" FontSize="12" Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE7A7;" FontSize="11" Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+                                <TextBlock Text="restore" FontFamily="{ThemeResource KiviFontFamily}" FontSize="12" Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE74D;" FontSize="11" Foreground="{ThemeResource KiviDangerBrush}"/>
+                                <TextBlock Text="delete" FontFamily="{ThemeResource KiviFontFamily}" FontSize="12" Foreground="{ThemeResource KiviDangerBrush}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Search -->
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Height="40" CornerRadius="10"
+                        Background="{ThemeResource KiviSurfaceBrush}" BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1">
+                    <Grid ColumnSpacing="8" Padding="14,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Grid.Column="0" Glyph="&#xE721;" FontSize="13" VerticalAlignment="Center" Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
+                        <TextBox Grid.Column="1" BorderThickness="0" Background="Transparent" VerticalAlignment="Center"
+                                 PlaceholderText="search transcripts..." FontFamily="{ThemeResource KiviFontFamily}" FontSize="13"/>
+                    </Grid>
+                </Border>
+                <Button Grid.Column="1" Width="40" Height="40" CornerRadius="10"
+                        Background="{ThemeResource KiviSurfaceBrush}" BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1">
+                    <FontIcon Glyph="&#xE71D;" FontSize="13" Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
+                </Button>
+            </Grid>
+
+            <!-- Column header -->
+            <Grid ColumnSpacing="12" Margin="12,4,12,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="140"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="90"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="app" FontFamily="{ThemeResource KiviMonoFontFamily}" FontSize="10.5" Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
+                <TextBlock Grid.Column="1" Text="text" FontFamily="{ThemeResource KiviMonoFontFamily}" FontSize="10.5" Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right">
+                    <TextBlock Text="time" FontFamily="{ThemeResource KiviMonoFontFamily}" FontSize="10.5" Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
+                    <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
+                </StackPanel>
+            </Grid>
+
+            <TextBlock Text="21 jul · tuesday" FontFamily="{ThemeResource KiviMonoFontFamily}" FontSize="11"
+                       Foreground="{ThemeResource KiviTextTertiaryBrush}" Margin="12,4,0,0"/>
+
+            <StackPanel x:Name="RowsPanel" Spacing="1"/>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

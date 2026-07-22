@@ -189,6 +189,7 @@
             <SolidColorBrush x:Key="KiviBrandInkBrush"      Color="{StaticResource KiviColorBrandInk}"/>
             <SolidColorBrush x:Key="KiviTextTertiaryBrush"  Color="{StaticResource KiviColorFg3}"/>
             <SolidColorBrush x:Key="KiviPositiveBrush"      Color="{StaticResource KiviColorPositive}"/>
+            <SolidColorBrush x:Key="KiviWarmTintBrush"      Color="{StaticResource KiviColorWarmTint}"/>
             <!-- Text/glyphs sitting ON the dark brand-ink pill: light in light theme. -->
             <SolidColorBrush x:Key="KiviOnBrandBrush"       Color="{StaticResource KiviColorFgInverse}"/>
             <!-- ToggleSwitch "on" track tinted to the brand leaf green (default is system blue). -->
@@ -219,6 +220,7 @@
             <SolidColorBrush x:Key="KiviBrandInkBrush"      Color="{StaticResource KiviColorBrandInkDark}"/>
             <SolidColorBrush x:Key="KiviTextTertiaryBrush"  Color="{StaticResource KiviColorFg3Dark}"/>
             <SolidColorBrush x:Key="KiviPositiveBrush"      Color="{StaticResource KiviColorPositiveDark}"/>
+            <SolidColorBrush x:Key="KiviWarmTintBrush"      Color="{StaticResource KiviColorWarmTintDark}"/>
             <!-- brand-ink in dark theme is LIGHT (#E0E6D8), so on-brand text is dark. -->
             <SolidColorBrush x:Key="KiviOnBrandBrush"       Color="{StaticResource KiviColorFgInverseDark}"/>
             <SolidColorBrush x:Key="ToggleSwitchFillOn"            Color="{StaticResource KiviColorLegGreenDark}"/>
@@ -248,6 +250,7 @@
             <SolidColorBrush x:Key="KiviBrandInkBrush"      Color="{ThemeResource SystemColorWindowTextColor}"/>
             <SolidColorBrush x:Key="KiviTextTertiaryBrush"  Color="{ThemeResource SystemColorGrayTextColor}"/>
             <SolidColorBrush x:Key="KiviPositiveBrush"      Color="{ThemeResource SystemColorHighlightColor}"/>
+            <SolidColorBrush x:Key="KiviWarmTintBrush"      Color="{ThemeResource SystemColorWindowColor}"/>
             <SolidColorBrush x:Key="KiviOnBrandBrush"       Color="{ThemeResource SystemColorWindowColor}"/>
             <SolidColorBrush x:Key="OverlayIdleBrush"       Color="{ThemeResource SystemColorGrayTextColor}"/>
             <SolidColorBrush x:Key="OverlayListeningBrush"  Color="{ThemeResource SystemColorHighlightColor}"/>

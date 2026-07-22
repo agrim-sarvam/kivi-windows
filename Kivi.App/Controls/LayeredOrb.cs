@@ -29,10 +29,12 @@ namespace Kivi.App.Controls;
 /// Click-through everywhere except a handful of small hotspots: hovering the rest pill (detected
 /// by polling the cursor position each frame, independent of window messages) morphs the pill
 /// into the same round "woken" orb used during real dictation, and rings it with five small
-/// quick-action icons (edit/expand/settings/theme/dismiss) plus a "hold to talk" tooltip. Only
-/// the settings (gear) icon is wired to a real action (reopening the Config page) today; the
-/// rest are honest visual stubs. This requires the window to answer WM_NCHITTEST itself (rather
-/// than relying on WS_EX_TRANSPARENT, which would make the whole window click-through
+/// quick-action icons (edit/expand/settings/theme/dismiss) plus a "hold to talk" tooltip. Settings
+/// reopens the Config page; Expand opens the main app window; the rest are honest visual stubs.
+/// The orb body itself is also draggable while hovering (grab it and move it anywhere on screen -
+/// it is not fixed bottom-center once dragged; this position is in-memory only, not persisted
+/// across restarts yet). This requires the window to answer WM_NCHITTEST itself (rather than
+/// relying on WS_EX_TRANSPARENT, which would make the whole window click-through
 /// unconditionally) - HTTRANSPARENT everywhere except inside a hotspot circle, so the rest of
 /// the screen stays exactly as click-through as before.
 ///
@@ -51,10 +53,12 @@ public sealed class LayeredOrb : IDisposable
     // back into that single instance via this reference.
     private static LayeredOrb? _current;
 
-    private const uint WM_NCHITTEST  = 0x0084;
-    private const uint WM_LBUTTONUP  = 0x0202;
-    private const nint HTTRANSPARENT = -1;
-    private const nint HTCLIENT      = 1;
+    private const uint WM_MOUSEMOVE   = 0x0200;
+    private const uint WM_LBUTTONDOWN = 0x0201;
+    private const uint WM_LBUTTONUP   = 0x0202;
+    private const uint WM_NCHITTEST   = 0x0084;
+    private const nint HTTRANSPARENT  = -1;
+    private const nint HTCLIENT       = 1;
 
     // Design sizes in effective (96-dpi) px; scaled by the monitor DPI when drawn.
     private const double CanvasW = 520, CanvasH = 170;
@@ -104,6 +108,7 @@ public sealed class LayeredOrb : IDisposable
     // (they never change - canvas size and DPI scale are both fixed after construction).
     private readonly float _hoverLeft, _hoverTop, _hoverRight, _hoverBottom;
     private readonly (HoverIcon Icon, float Cx, float Cy, float R)[] _iconHotspots;
+    private readonly float _orbBodyCx, _orbBodyCy, _orbBodyR; // draggable hit-region for the orb itself
 
     private byte[]? _mask;
     private int _maskW, _maskH, _maskStride;
@@ -123,8 +128,19 @@ public sealed class LayeredOrb : IDisposable
     private int _windowX, _windowY;          // last screen position pushed via UpdateLayeredWindow
     private bool _hovering;                  // cursor within the pill+icon-row hover rect, and State == Idle
 
+    // Dragging: lets the orb be moved anywhere on screen instead of staying fixed bottom-center.
+    // In-memory only for this pass -- resets to bottom-center on the next app launch; persisting
+    // the position is a "backend" concern for a later pass.
+    private bool _dragging;
+    private int _dragOffsetX, _dragOffsetY;  // cursor position relative to the window's origin, at drag start
+    private bool _hasCustomPosition;
+    private int _customX, _customY;
+
     /// <summary>Raised when the hover gear icon is clicked. Always raised on the UI thread.</summary>
     public event Action? SettingsRequested;
+
+    /// <summary>Raised when the hover expand icon is clicked. Always raised on the UI thread.</summary>
+    public event Action? MainAppRequested;
 
     public LayeredOrb(OverlayViewModel vm, Color accent, string languageLabel, string hotkeyLabel)
     {
@@ -144,7 +160,7 @@ public sealed class LayeredOrb : IDisposable
 
         uint dpi = NativeMethods.GetDpiForWindow(_hwnd);
         _scale = dpi == 0 ? 1.0 : dpi / 96.0;
-        (_hoverLeft, _hoverTop, _hoverRight, _hoverBottom, _iconHotspots) = ComputeHotspots();
+        (_hoverLeft, _hoverTop, _hoverRight, _hoverBottom, _iconHotspots, _orbBodyCx, _orbBodyCy, _orbBodyR) = ComputeHotspots();
 
         LoadMask();
         LoadFonts();
@@ -167,7 +183,8 @@ public sealed class LayeredOrb : IDisposable
     // the orb toward an icon would dismiss the menu before the cursor ever got there. The
     // rectangle is the padded bounding box of the orb plus every icon (plus a fixed allowance
     // for the tooltip drawn above them), guaranteeing continuous coverage with no gap.
-    private (float Left, float Top, float Right, float Bottom, (HoverIcon, float, float, float)[] Icons) ComputeHotspots()
+    private (float Left, float Top, float Right, float Bottom, (HoverIcon, float, float, float)[] Icons,
+        float OrbCx, float OrbCy, float OrbR) ComputeHotspots()
     {
         double s = _scale;
         int w = (int)Math.Round(CanvasW * s);
@@ -201,27 +218,35 @@ public sealed class LayeredOrb : IDisposable
 
         float pad = (float)(8 * s);
         float tooltipAllowance = (float)(34 * s); // fixed allowance for the tooltip drawn above the ring
-        return (left - pad, top - tooltipAllowance - pad, right + pad, bottom + pad, icons);
+        return (left - pad, top - tooltipAllowance - pad, right + pad, bottom + pad, icons, cx, orbCy, r);
     }
 
-    // ---- Win32 message handling (hover hit-testing + the settings-gear click) ----
+    // ---- Win32 message handling (hover hit-testing, icon clicks, orb dragging) ----
     private static nint WndProcCallback(nint hWnd, uint msg, nint wParam, nint lParam)
     {
         var self = _current;
         if (self is not null)
         {
             if (msg == WM_NCHITTEST) return self.HitTest(lParam);
-            if (msg == WM_LBUTTONUP) self.HandleClick(lParam);
+            if (msg == WM_LBUTTONDOWN) self.HandleMouseDown(lParam);
+            if (msg == WM_MOUSEMOVE) self.HandleMouseMove();
+            if (msg == WM_LBUTTONUP) self.HandleMouseUp(lParam);
         }
         return NativeMethods.DefWindowProcW(hWnd, msg, wParam, lParam);
     }
 
-    // WM_NCHITTEST's lParam is the cursor position in SCREEN coordinates.
+    // WM_NCHITTEST's lParam is the cursor position in SCREEN coordinates. The orb body itself
+    // claims clicks too (not just the icons) so it can be picked up and dragged; while
+    // _dragging, every point claims the click so a fast drag never slips back to click-through
+    // mid-gesture.
     private nint HitTest(nint lParam)
     {
+        if (_dragging) return HTCLIENT;
         if (!_hovering) return HTTRANSPARENT;
         (int screenX, int screenY) = DecodePoint(lParam);
         float localX = screenX - _windowX, localY = screenY - _windowY;
+        float odx = localX - _orbBodyCx, ody = localY - _orbBodyCy;
+        if (odx * odx + ody * ody <= _orbBodyR * _orbBodyR) return HTCLIENT;
         foreach (var (_, hx, hy, hr) in _iconHotspots)
         {
             float dx = localX - hx, dy = localY - hy;
@@ -230,21 +255,76 @@ public sealed class LayeredOrb : IDisposable
         return HTTRANSPARENT;
     }
 
-    // WM_LBUTTONUP's lParam is already client-area relative, which is the same coordinate space
-    // as our drawing (this window's client area IS the whole popup, no non-client borders).
-    private void HandleClick(nint lParam)
+    // WM_LBUTTONDOWN's lParam is client-area relative. Starting a drag requires the down-click
+    // to land on the orb BODY specifically (not an icon, so icon clicks keep working normally).
+    private void HandleMouseDown(nint lParam)
     {
+        if (!_hovering) return;
+        (int localX, int localY) = DecodePoint(lParam);
+        float dx = localX - _orbBodyCx, dy = localY - _orbBodyCy;
+        if (dx * dx + dy * dy > _orbBodyR * _orbBodyR) return;
+
+        NativeMethods.GetCursorPos(out var cursor);
+        _dragOffsetX = cursor.X - _windowX;
+        _dragOffsetY = cursor.Y - _windowY;
+        _dragging = true;
+        NativeMethods.SetCapture(_hwnd);
+    }
+
+    // Reposition immediately via SetWindowPos (cheap - no re-render needed for a plain move) and
+    // remember the new origin so the NEXT normal Render()/PushLayered call keeps using it instead
+    // of snapping back to the bottom-center default.
+    private void HandleMouseMove()
+    {
+        if (!_dragging) return;
+        NativeMethods.GetCursorPos(out var cursor);
+        int newX = cursor.X - _dragOffsetX;
+        int newY = cursor.Y - _dragOffsetY;
+
+        int w = (int)Math.Round(CanvasW * _scale);
+        int h = (int)Math.Round(CanvasH * _scale);
+        ClampToWorkArea(ref newX, ref newY, w, h);
+
+        NativeMethods.SetWindowPos(_hwnd, 0, newX, newY, 0, 0,
+            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER);
+        _windowX = newX; _windowY = newY;
+        _hasCustomPosition = true;
+        _customX = newX; _customY = newY;
+    }
+
+    // WM_LBUTTONUP's lParam is client-area relative, the same coordinate space as our drawing
+    // (this window's client area IS the whole popup, no non-client borders). If this mouse-up
+    // ends a drag, it is NOT also treated as an icon click (the down-click already landed on the
+    // orb body, not an icon, so this is naturally already the case - the early return here is
+    // just to skip the icon-hit-test loop, not to resolve an ambiguity).
+    private void HandleMouseUp(nint lParam)
+    {
+        if (_dragging)
+        {
+            _dragging = false;
+            NativeMethods.ReleaseCapture();
+            return;
+        }
+
         if (!_hovering) return;
         (int localX, int localY) = DecodePoint(lParam);
         foreach (var (icon, hx, hy, hr) in _iconHotspots)
         {
             float dx = localX - hx, dy = localY - hy;
-            if (dx * dx + dy * dy <= hr * hr && icon == HoverIcon.Settings)
-            {
-                SettingsRequested?.Invoke();
-                return;
-            }
+            if (dx * dx + dy * dy > hr * hr) continue;
+            if (icon == HoverIcon.Settings) SettingsRequested?.Invoke();
+            else if (icon == HoverIcon.Expand) MainAppRequested?.Invoke();
+            return;
         }
+    }
+
+    private void ClampToWorkArea(ref int x, ref int y, int w, int h)
+    {
+        nint mon = NativeMethods.MonitorFromWindow(_hwnd, NativeMethods.MONITOR_DEFAULTTONEAREST);
+        var mi = new NativeMethods.MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.MONITORINFO>() };
+        if (!NativeMethods.GetMonitorInfoW(mon, ref mi)) return;
+        x = Math.Clamp(x, mi.rcWork.Left, Math.Max(mi.rcWork.Left, mi.rcWork.Right - w));
+        y = Math.Clamp(y, mi.rcWork.Top, Math.Max(mi.rcWork.Top, mi.rcWork.Bottom - h));
     }
 
     private static (int X, int Y) DecodePoint(nint lParam)
@@ -788,15 +868,24 @@ public sealed class LayeredOrb : IDisposable
 
     private void PushLayered(Bitmap bmp, int w, int h)
     {
-        nint mon = NativeMethods.MonitorFromWindow(_hwnd, NativeMethods.MONITOR_DEFAULTTONEAREST);
-        var mi = new NativeMethods.MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.MONITORINFO>() };
         int x, y;
-        if (NativeMethods.GetMonitorInfoW(mon, ref mi))
+        if (_hasCustomPosition)
         {
-            x = mi.rcWork.Left + ((mi.rcWork.Right - mi.rcWork.Left) - w) / 2;
-            y = mi.rcWork.Bottom - h - (int)Math.Round(14 * _scale);
+            // The orb was dragged at least once -- keep it there instead of snapping back to
+            // the bottom-center default on every subsequent render.
+            x = _customX; y = _customY;
         }
-        else { x = 0; y = 0; }
+        else
+        {
+            nint mon = NativeMethods.MonitorFromWindow(_hwnd, NativeMethods.MONITOR_DEFAULTTONEAREST);
+            var mi = new NativeMethods.MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.MONITORINFO>() };
+            if (NativeMethods.GetMonitorInfoW(mon, ref mi))
+            {
+                x = mi.rcWork.Left + ((mi.rcWork.Right - mi.rcWork.Left) - w) / 2;
+                y = mi.rcWork.Bottom - h - (int)Math.Round(14 * _scale);
+            }
+            else { x = 0; y = 0; }
+        }
         _windowX = x; _windowY = y;
 
         nint screenDC = NativeMethods.GetDC(0);

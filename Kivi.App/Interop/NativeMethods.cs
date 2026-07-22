@@ -38,6 +38,12 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern bool GetCursorPos(out POINT lpPoint);
 
+    [DllImport("user32.dll")]
+    public static extern nint SetCapture(nint hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern bool ReleaseCapture();
+
     // ---- Layered window (UpdateLayeredWindow) for the free-floating, per-pixel-alpha orb ----
     public const int WS_EX_LAYERED   = 0x00080000;
     public const int WS_EX_TOPMOST   = 0x00000008;
@@ -48,6 +54,7 @@ internal static class NativeMethods
     public const int SW_SHOWNOACTIVATE = 4;
     public const uint SWP_NOACTIVATE = 0x0010;
     public const uint SWP_NOSIZE     = 0x0001;
+    public const uint SWP_NOZORDER   = 0x0004;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT { public int X, Y; public POINT(int x, int y) { X = x; Y = y; } }
