@@ -16,6 +16,7 @@ public sealed class FakeAudio : IAudioCaptureService
     public byte[] Wav = { 0x52, 0x49, 0x46, 0x46 }; // "RIFF"
     public Task StartRecordingAsync(CancellationToken ct) => Task.CompletedTask;
     public Task<byte[]> StopRecordingAsync() => Task.FromResult(Wav);
+    public byte[] SnapshotRecording() => Wav;
 }
 
 public sealed class FakeContext : IScreenContextProvider

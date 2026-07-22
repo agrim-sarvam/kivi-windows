@@ -106,6 +106,19 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService, IDisposabl
         }
     }
 
+    public byte[] SnapshotRecording()
+    {
+        lock (_gate)
+        {
+            if (_writer is null || _stream is null) return Array.Empty<byte>();
+            // WaveFileWriter patches the RIFF header sizes in place on Flush() (same as it
+            // does on Dispose()), so the stream bytes are a valid, decodable WAV right after
+            // this call -- capture keeps accumulating into the same _writer/_stream afterward.
+            _writer.Flush();
+            return _stream.ToArray();
+        }
+    }
+
     private void OnData(object? sender, WaveInEventArgs e)
     {
         lock (_gate)
