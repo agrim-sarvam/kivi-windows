@@ -25,6 +25,8 @@ public sealed class LowLevelKeyboardHookService : IHotkeyService, IDisposable
     private bool _held;
     private bool _rewriteHeld;
     private volatile bool _reviewArmed;
+    private bool _swallowingReturn;
+    private bool _swallowingEscape;
 
     public unsafe void Start()
     {
@@ -76,17 +78,41 @@ public sealed class LowLevelKeyboardHookService : IHotkeyService, IDisposable
                 if (isDown && !_rewriteHeld) { _rewriteHeld = true; RewriteHoldStarted?.Invoke(); }
                 else if (isUp && _rewriteHeld) { _rewriteHeld = false; RewriteHoldEnded?.Invoke(); }
             }
-            else if (_reviewArmed && isDown && data.vkCode == VK_RETURN)
+            else if (data.vkCode == VK_RETURN && (_reviewArmed || _swallowingReturn))
             {
-                _reviewArmed = false;
-                ReviewAccepted?.Invoke();
-                return new LRESULT(1); // swallow: confirms the rewrite, not a newline in the target app
+                if (isDown)
+                {
+                    if (_reviewArmed)
+                    {
+                        _reviewArmed = false;
+                        _swallowingReturn = true;
+                        ReviewAccepted?.Invoke();
+                    }
+                    return new LRESULT(1); // swallow this keydown, including OS auto-repeat while held: confirms the rewrite, not a newline in the target app
+                }
+                if (isUp)
+                {
+                    _swallowingReturn = false;
+                    return new LRESULT(1); // swallow the key-up for the same physical hold that was captured on keydown
+                }
             }
-            else if (_reviewArmed && isDown && data.vkCode == VK_ESCAPE)
+            else if (data.vkCode == VK_ESCAPE && (_reviewArmed || _swallowingEscape))
             {
-                _reviewArmed = false;
-                ReviewCancelled?.Invoke();
-                return new LRESULT(1); // swallow: discards the rewrite, not an app-level cancel
+                if (isDown)
+                {
+                    if (_reviewArmed)
+                    {
+                        _reviewArmed = false;
+                        _swallowingEscape = true;
+                        ReviewCancelled?.Invoke();
+                    }
+                    return new LRESULT(1); // swallow this keydown, including OS auto-repeat while held: discards the rewrite, not an app-level cancel
+                }
+                if (isUp)
+                {
+                    _swallowingEscape = false;
+                    return new LRESULT(1); // swallow the key-up for the same physical hold that was captured on keydown
+                }
             }
         }
 
