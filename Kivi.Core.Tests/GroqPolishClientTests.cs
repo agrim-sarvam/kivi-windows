@@ -99,4 +99,26 @@ public class GroqPolishClientTests
         Assert.Contains(AppConfig.Default().CleanupModel, handler.RequestBodies[0]);
         Assert.Contains(AppConfig.Default().FallbackModel, handler.RequestBodies[1]);
     }
+
+    [Fact]
+    public async Task RewriteAsync_ReturnsRewrittenText()
+    {
+        var client = Client(Chat("Confirming tomorrow at 3 PM."));
+        var result = await client.RewriteAsync("Kal 3 PM works.", "make it formal", default);
+        Assert.Equal("Confirming tomorrow at 3 PM.", result);
+    }
+
+    [Fact]
+    public async Task RewriteAsync_RateLimited_FallsBackToSecondModel()
+    {
+        var handler = new SequencedFakeHttpMessageHandler(
+            ("{\"error\":\"rate limited\"}", HttpStatusCode.TooManyRequests),
+            (Chat("Confirming tomorrow at 3 PM."), HttpStatusCode.OK));
+        var client = SequencedClient(handler);
+
+        var result = await client.RewriteAsync("Kal 3 PM works.", "make it formal", default);
+
+        Assert.Equal("Confirming tomorrow at 3 PM.", result);
+        Assert.Equal(2, handler.RequestBodies.Count);
+    }
 }

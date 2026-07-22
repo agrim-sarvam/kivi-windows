@@ -46,6 +46,8 @@ public sealed class StubPolish : Kivi.Core.Polish.IPolishClient
     public event Action<string>? EnteringCooldown;
     public Task<string> CleanupAsync(string transcript, string context, CancellationToken ct)
         => Task.FromResult("Hello there.");
+    public Task<string> RewriteAsync(string selectedText, string voiceCommand, CancellationToken ct)
+        => Task.FromResult("Rewritten text.");
 }
 
 public sealed class CooldownStubPolish : Kivi.Core.Polish.IPolishClient
@@ -57,4 +59,6 @@ public sealed class CooldownStubPolish : Kivi.Core.Polish.IPolishClient
         await Task.Delay(10, ct);
         return "Hello there.";
     }
+    public Task<string> RewriteAsync(string selectedText, string voiceCommand, CancellationToken ct)
+        => Task.FromResult(selectedText);
 }
