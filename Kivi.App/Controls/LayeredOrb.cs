@@ -53,12 +53,13 @@ public sealed class LayeredOrb : IDisposable
     // back into that single instance via this reference.
     private static LayeredOrb? _current;
 
-    private const uint WM_MOUSEMOVE   = 0x0200;
-    private const uint WM_LBUTTONDOWN = 0x0201;
-    private const uint WM_LBUTTONUP   = 0x0202;
-    private const uint WM_NCHITTEST   = 0x0084;
-    private const nint HTTRANSPARENT  = -1;
-    private const nint HTCLIENT       = 1;
+    private const uint WM_MOUSEMOVE      = 0x0200;
+    private const uint WM_LBUTTONDOWN    = 0x0201;
+    private const uint WM_LBUTTONUP      = 0x0202;
+    private const uint WM_CAPTURECHANGED = 0x0215;
+    private const uint WM_NCHITTEST      = 0x0084;
+    private const nint HTTRANSPARENT     = -1;
+    private const nint HTCLIENT          = 1;
 
     // Design sizes in effective (96-dpi) px; scaled by the monitor DPI when drawn.
     private const double CanvasW = 520, CanvasH = 170;
@@ -231,6 +232,14 @@ public sealed class LayeredOrb : IDisposable
             if (msg == WM_LBUTTONDOWN) self.HandleMouseDown(lParam);
             if (msg == WM_MOUSEMOVE) self.HandleMouseMove();
             if (msg == WM_LBUTTONUP) self.HandleMouseUp(lParam);
+            // Windows can revoke mouse capture involuntarily mid-drag (Alt+Tab, another app
+            // grabbing capture, a display change, ...) without ever delivering WM_LBUTTONUP.
+            // Without this, _dragging would stay stuck true forever: HitTest would keep
+            // unconditionally claiming the whole window, and the orb would keep following the
+            // cursor whenever it later passed over that rectangle, with no in-app recovery short
+            // of a restart. Capture is already gone by the time this arrives, so just clear the
+            // flag - do not call ReleaseCapture (there is nothing to release).
+            if (msg == WM_CAPTURECHANGED) self._dragging = false;
         }
         return NativeMethods.DefWindowProcW(hWnd, msg, wParam, lParam);
     }
