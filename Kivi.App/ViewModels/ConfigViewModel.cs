@@ -23,6 +23,7 @@ public partial class ConfigViewModel : ObservableObject
         TranscriptionLanguage = config.TranscriptionLanguage ?? "auto";
         ScreenContextEnabled = config.ScreenContextEnabled;
         HotkeyVk = config.HotkeyVirtualKeyCode;
+        RewriteHotkeyVk = config.RewriteHotkeyVirtualKeyCode;
         LaunchAtLogin = Services.StartupLauncher.IsEnabled();
     }
 
@@ -31,6 +32,7 @@ public partial class ConfigViewModel : ObservableObject
     [ObservableProperty] private bool _screenContextEnabled = true;
     [ObservableProperty] private bool _launchAtLogin;
     [ObservableProperty] private uint _hotkeyVk = 0xA3;
+    [ObservableProperty] private uint _rewriteHotkeyVk = 0xA5;
 
     partial void OnOrbAccentColorChanged(string value) => _config.OrbAccentColor = value;
 
@@ -45,6 +47,12 @@ public partial class ConfigViewModel : ObservableObject
     {
         _config.HotkeyVirtualKeyCode = value;
         _hotkey.SetHotkey(value);
+    }
+
+    partial void OnRewriteHotkeyVkChanged(uint value)
+    {
+        _config.RewriteHotkeyVirtualKeyCode = value;
+        _hotkey.SetRewriteHotkey(value);
     }
 
     public void Persist()

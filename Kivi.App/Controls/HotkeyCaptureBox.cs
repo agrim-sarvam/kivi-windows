@@ -57,6 +57,8 @@ public sealed class HotkeyCaptureBox : Button
         0xA2 => "Left Ctrl",
         0xA0 => "Left Shift",
         0xA1 => "Right Shift",
+        0xA4 => "Left Alt",
+        0xA5 => "Right Alt",
         _ => ((VirtualKey)vk).ToString()
     };
 }
