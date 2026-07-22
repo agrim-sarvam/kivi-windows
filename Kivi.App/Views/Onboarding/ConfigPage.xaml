@@ -27,29 +27,57 @@
 
             <!-- Hotkey card -->
             <Border Style="{StaticResource KiviCardStyle}">
-                <Grid ColumnSpacing="16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                        <TextBlock Text="Dictation hotkey" FontFamily="{ThemeResource KiviFontFamily}"
-                                   FontSize="{ThemeResource KiviFontSizeBody}"
-                                   FontWeight="{ThemeResource KiviFontWeightMedium}"
-                                   Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
-                        <TextBlock Text="hold this key to dictate" FontFamily="{ThemeResource KiviFontFamily}"
-                                   FontSize="{ThemeResource KiviFontSizeCaption}"
-                                   Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
-                    </StackPanel>
-                    <controls:HotkeyCaptureBox x:Name="HotkeyBox" Grid.Column="1"
-                            Background="{ThemeResource KiviSurfaceAltBrush}"
-                            BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
-                            CornerRadius="{ThemeResource KiviRadiusSm}"
-                            Foreground="{ThemeResource KiviTextPrimaryBrush}"
-                            FontFamily="{ThemeResource KiviMonoFontFamily}"
-                            FontSize="{ThemeResource KiviFontSizeBody}"
-                            Padding="16,10"/>
-                </Grid>
+                <StackPanel Spacing="16">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="Dictation hotkey" FontFamily="{ThemeResource KiviFontFamily}"
+                                       FontSize="{ThemeResource KiviFontSizeBody}"
+                                       FontWeight="{ThemeResource KiviFontWeightMedium}"
+                                       Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
+                            <TextBlock Text="hold this key to dictate" FontFamily="{ThemeResource KiviFontFamily}"
+                                       FontSize="{ThemeResource KiviFontSizeCaption}"
+                                       Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+                        </StackPanel>
+                        <controls:HotkeyCaptureBox x:Name="HotkeyBox" Grid.Column="1"
+                                Background="{ThemeResource KiviSurfaceAltBrush}"
+                                BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
+                                CornerRadius="{ThemeResource KiviRadiusSm}"
+                                Foreground="{ThemeResource KiviTextPrimaryBrush}"
+                                FontFamily="{ThemeResource KiviMonoFontFamily}"
+                                FontSize="{ThemeResource KiviFontSizeBody}"
+                                Padding="16,10"/>
+                    </Grid>
+
+                    <Rectangle Height="1" Fill="{ThemeResource KiviStrokeBrush}"/>
+
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="Hey-kivi rewrite hotkey" FontFamily="{ThemeResource KiviFontFamily}"
+                                       FontSize="{ThemeResource KiviFontSizeBody}"
+                                       FontWeight="{ThemeResource KiviFontWeightMedium}"
+                                       Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
+                            <TextBlock Text="hold and speak an edit for what kivi last typed" FontFamily="{ThemeResource KiviFontFamily}"
+                                       FontSize="{ThemeResource KiviFontSizeCaption}"
+                                       Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+                        </StackPanel>
+                        <controls:HotkeyCaptureBox x:Name="RewriteHotkeyBox" Grid.Column="1"
+                                Background="{ThemeResource KiviSurfaceAltBrush}"
+                                BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
+                                CornerRadius="{ThemeResource KiviRadiusSm}"
+                                Foreground="{ThemeResource KiviTextPrimaryBrush}"
+                                FontFamily="{ThemeResource KiviMonoFontFamily}"
+                                FontSize="{ThemeResource KiviFontSizeBody}"
+                                Padding="16,10"/>
+                    </Grid>
+                </StackPanel>
             </Border>
 
             <!-- Orb accent color card -->
