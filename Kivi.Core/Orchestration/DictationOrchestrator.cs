@@ -5,6 +5,7 @@ using Kivi.Core.Diagnostics;
 using Kivi.Core.Macros;
 using Kivi.Core.Polish;
 using Kivi.Core.Stt;
+using Kivi.Core.Text;
 
 namespace Kivi.Core.Orchestration;
 
@@ -26,9 +27,16 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     private Task<string> _contextTask = Task.FromResult("");
     private CancellationTokenSource _cts = new();
     private CancellationTokenSource _partialLoopCts = new();
+    private bool _capturing;
     private string _lastDictatedText = "";
+    private string _pendingRewrite = "";
 
     public RecordingState State { get; private set; } = RecordingState.Idle;
+    public bool IsRewriteCapture { get; private set; }
+    public string? Instruction { get; private set; }
+    public string? LastErrorMessage { get; private set; }
+    public IReadOnlyList<DiffToken>? Diff { get; private set; }
+
     public event Action<RecordingState>? StateChanged;
     public event Action<string>? PartialTranscriptChanged;
 
@@ -44,6 +52,10 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     {
         _hotkey.HoldStarted += OnHoldStarted;
         _hotkey.HoldEnded += OnHoldEnded;
+        _hotkey.RewriteHoldStarted += OnRewriteHoldStarted;
+        _hotkey.RewriteHoldEnded += OnRewriteHoldEnded;
+        _hotkey.ReviewAccepted += OnReviewAccepted;
+        _hotkey.ReviewCancelled += OnReviewCancelled;
         _hotkey.Start();
     }
 
@@ -51,6 +63,10 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     {
         _hotkey.HoldStarted -= OnHoldStarted;
         _hotkey.HoldEnded -= OnHoldEnded;
+        _hotkey.RewriteHoldStarted -= OnRewriteHoldStarted;
+        _hotkey.RewriteHoldEnded -= OnRewriteHoldEnded;
+        _hotkey.ReviewAccepted -= OnReviewAccepted;
+        _hotkey.ReviewCancelled -= OnReviewCancelled;
         _hotkey.Stop();
     }
 
@@ -62,12 +78,28 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
 
     private void OnHoldStarted()
     {
-        _cts = new CancellationTokenSource();
-        _partialLoopCts = new CancellationTokenSource();
-        SetState(RecordingState.Listening);
+        if (_capturing) return; // both hotkeys held at once is unsupported -- ignore the second
+        _capturing = true;
+        IsRewriteCapture = false;
+        StartCaptureCommon();
         _contextTask = _config.ScreenContextEnabled
             ? _context.CaptureContextAsync(_cts.Token)
             : Task.FromResult("");
+    }
+
+    private void OnRewriteHoldStarted()
+    {
+        if (_capturing) return;
+        _capturing = true;
+        IsRewriteCapture = true;
+        StartCaptureCommon();
+    }
+
+    private void StartCaptureCommon()
+    {
+        _cts = new CancellationTokenSource();
+        _partialLoopCts = new CancellationTokenSource();
+        SetState(RecordingState.Listening);
         _ = _audio.StartRecordingAsync(_cts.Token);
         _ = RunPartialLoopAsync(_partialLoopCts.Token);
     }
@@ -94,8 +126,18 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
 
     private void OnHoldEnded()
     {
+        if (!_capturing || IsRewriteCapture) return;
+        _capturing = false;
         _partialLoopCts.Cancel();
         _ = RunPipelineAsync();
+    }
+
+    private void OnRewriteHoldEnded()
+    {
+        if (!_capturing || !IsRewriteCapture) return;
+        _capturing = false;
+        _partialLoopCts.Cancel();
+        _ = RunRewritePipelineAsync();
     }
 
     private async Task RunPipelineAsync()
@@ -143,6 +185,7 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
         }
         catch
         {
+            LastErrorMessage = "Couldn't catch that.";
             SetState(RecordingState.Error);
             SetState(RecordingState.Idle);
         }
@@ -150,5 +193,79 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
         {
             _metrics.RecordTotal(total.Elapsed.TotalMilliseconds);
         }
+    }
+
+    private async Task RunRewritePipelineAsync()
+    {
+        try
+        {
+            SetState(RecordingState.RewritePending);
+            var wav = await _audio.StopRecordingAsync();
+            var instructionRaw = await _stt.TranscribeAsync(wav, _cts.Token);
+            if (string.IsNullOrEmpty(instructionRaw)) { IsRewriteCapture = false; SetState(RecordingState.Idle); return; }
+            var instruction = instructionRaw.Trim();
+            Instruction = instruction;
+
+            if (string.IsNullOrEmpty(_lastDictatedText))
+            {
+                await FailRewriteAsync("Nothing to rewrite yet.");
+                return;
+            }
+
+            var rewritten = await _polish.RewriteAsync(_lastDictatedText, instruction, _cts.Token);
+            Diff = WordDiff.Compute(_lastDictatedText, rewritten);
+            _pendingRewrite = rewritten;
+            SetState(RecordingState.RewriteReview);
+            _hotkey.ArmReviewKeys();
+        }
+        catch
+        {
+            await FailRewriteAsync("Couldn't catch that.");
+        }
+    }
+
+    private async Task FailRewriteAsync(string message)
+    {
+        LastErrorMessage = message;
+        SetState(RecordingState.Error);
+        await Task.Delay(DoneDisplayMs, CancellationToken.None);
+        IsRewriteCapture = false;
+        SetState(RecordingState.Idle);
+    }
+
+    private void OnReviewAccepted()
+    {
+        _hotkey.DisarmReviewKeys();
+        _ = ApplyAcceptedRewriteAsync();
+    }
+
+    private async Task ApplyAcceptedRewriteAsync()
+    {
+        try
+        {
+            await _paste.UndoAsync();
+            await _paste.InjectTextAsync(_pendingRewrite, false);
+            _lastDictatedText = _pendingRewrite;
+            SetState(RecordingState.Done);
+            await Task.Delay(DoneDisplayMs);
+        }
+        catch
+        {
+            LastErrorMessage = "Couldn't catch that.";
+            SetState(RecordingState.Error);
+            await Task.Delay(DoneDisplayMs);
+        }
+        finally
+        {
+            IsRewriteCapture = false;
+            SetState(RecordingState.Idle);
+        }
+    }
+
+    private void OnReviewCancelled()
+    {
+        _hotkey.DisarmReviewKeys();
+        IsRewriteCapture = false;
+        SetState(RecordingState.Idle);
     }
 }
