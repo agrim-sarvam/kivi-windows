@@ -71,10 +71,19 @@ public sealed class LayeredOrb : IDisposable
     private const double BoxMaxWidthHeyKivi = 480;
     private const double WokenHoldSeconds = 0.25;        // how long the woken orb holds before growing into a box
 
-    private static readonly Color Forest     = Color.FromArgb(255, 0x18, 0x30, 0x0F); // --brand-orbforest
+    private static readonly Color Forest     = Color.FromArgb(255, 0x18, 0x30, 0x0F); // --brand-orbforest (rest pill only)
     private static readonly Color Rim        = Color.FromArgb(255, 0x37, 0x63, 0x30);
-    private static readonly Color BirdDots   = Color.FromArgb(255, 0xCF, 0xE0, 0xB0);
-    private static readonly Color Satellite  = Color.FromArgb(235, 0xFF, 0xFF, 0xFF);
+
+    // The woken orb (both the real dictation transition and the hover preview) is a light
+    // sage/cream fill, NOT the rest pill's dark forest green - sampled directly from the
+    // approved reference mockup, which shows a light-coloured orb with a darker dot-matrix
+    // bird silhouette on top, not the other way around.
+    private static readonly Color OrbFill      = Color.FromArgb(255, 0xCE, 0xD6, 0xC0);
+    private static readonly Color OrbRim       = Color.FromArgb(255, 0xB4, 0xBF, 0xA2);
+    private static readonly Color BirdDots     = Color.FromArgb(255, 0x6E, 0x74, 0x66);
+    private static readonly Color Satellite    = Color.FromArgb(220, 0x6E, 0x74, 0x66);
+    private static readonly Color TooltipBg    = Color.FromArgb(255, 0xF4, 0xF6, 0xEF);
+    private static readonly Color FnBadgeBg    = Color.FromArgb(255, 0x3B, 0x5E, 0x1E);
     private static readonly Color Paper2     = Color.FromArgb(255, 0xFF, 0xFF, 0xFF); // --color-paper2
     private static readonly Color Border1    = Color.FromArgb(255, 0xED, 0xF0, 0xE6); // --color-border1
     private static readonly Color Fg1        = Color.FromArgb(255, 0x14, 0x18, 0x0E); // --color-fg1
@@ -460,20 +469,46 @@ public sealed class LayeredOrb : IDisposable
         float topMost = float.MaxValue;
         foreach (var (_, _, hy, hr) in _iconHotspots) topMost = Math.Min(topMost, hy - hr);
 
-        string tip = $"hold {_hotkeyLabel} to talk";
+        // Matches the reference: a light pill with dark text, ending in a small dark-green
+        // badge holding the hotkey name (not the earlier dark-pill/white-text version).
+        string prefix = "hold ", suffix = " to talk";
         using var font = MakeFont(11f, mono: true);
-        var size = g.MeasureString(tip, font);
+        var prefixSize = g.MeasureString(prefix, font);
+        var suffixSize = g.MeasureString(suffix, font);
+        var badgeTextSize = g.MeasureString(_hotkeyLabel, font);
+
         float padH = (float)(10 * _scale), padV = (float)(6 * _scale);
-        float tipW = size.Width + padH * 2, tipH = size.Height + padV * 2;
+        float badgePadH = (float)(6 * _scale);
+        float badgeGap = (float)(6 * _scale);
+        float badgeW = badgeTextSize.Width + badgePadH * 2;
+        float rowH = Math.Max(prefixSize.Height, badgeTextSize.Height);
+
+        float tipW = padH + prefixSize.Width + badgeGap + badgeW + badgeGap + suffixSize.Width + padH;
+        float tipH = rowH + padV * 2;
         float gap = (float)(10 * _scale);
         float tipY = topMost - gap - tipH;
         float tipX = cx - tipW / 2f;
 
         using (var path = RoundedRect(tipX, tipY, tipW, tipH, tipH / 2f))
-        using (var fill = new SolidBrush(Mul(Fg1, 0.92f * alpha)))
+        using (var fill = new SolidBrush(Mul(TooltipBg, 0.96f * alpha)))
             g.FillPath(fill, path);
-        using var tb = new SolidBrush(Mul(Color.White, alpha));
-        g.DrawString(tip, font, tb, tipX + padH, tipY + padV);
+
+        float textY = tipY + padV;
+        float x = tipX + padH;
+        using (var tb = new SolidBrush(Mul(Fg1, alpha)))
+            g.DrawString(prefix, font, tb, x, textY);
+        x += prefixSize.Width + badgeGap;
+
+        float badgeY = tipY + (tipH - rowH) / 2f - padV / 2f;
+        using (var badgePath = RoundedRect(x, badgeY, badgeW, rowH + padV, (rowH + padV) / 2f))
+        using (var badgeFill = new SolidBrush(Mul(FnBadgeBg, alpha)))
+            g.FillPath(badgeFill, badgePath);
+        using (var badgeText = new SolidBrush(Mul(Color.White, alpha)))
+            g.DrawString(_hotkeyLabel, font, badgeText, x + badgePadH, textY + (padV / 2f));
+        x += badgeW + badgeGap;
+
+        using (var tb2 = new SolidBrush(Mul(Fg1, alpha)))
+            g.DrawString(suffix, font, tb2, x, textY);
     }
 
     // Simple line-art glyphs (no image assets): pencil (edit), outward corner ticks (expand),
@@ -481,7 +516,7 @@ public sealed class LayeredOrb : IDisposable
     // the rest are honest stubs.
     private void DrawHoverIcon(Graphics g, HoverIcon icon, float cx, float cy, float r, float alpha)
     {
-        FillCircle(g, cx, cy, r, Mul(Color.White, 0.92f * alpha));
+        FillCircle(g, cx, cy, r, Mul(OrbFill, 0.96f * alpha));
         using (var edge = new Pen(Mul(Border1, alpha), (float)(1 * _scale)))
             g.DrawEllipse(edge, cx - r, cy - r, r * 2, r * 2);
 
@@ -550,8 +585,8 @@ public sealed class LayeredOrb : IDisposable
         FillCircle(g, cx - satX, cy, satR, Mul(Satellite, alpha));
         FillCircle(g, cx + satX, cy, satR, Mul(Satellite, alpha));
 
-        FillCircle(g, cx, cy, r, Mul(Forest, alpha));
-        using (var pen = new Pen(Mul(Rim, alpha), (float)(1.2 * s)))
+        FillCircle(g, cx, cy, r, Mul(OrbFill, alpha));
+        using (var pen = new Pen(Mul(OrbRim, alpha), (float)(1.2 * s)))
             g.DrawEllipse(pen, cx - r, cy - r, r * 2, r * 2);
 
         DrawBird(g, cx, cy - (float)(1.5 * s), (float)(OrbDiameter * 0.74 * s), Mul(BirdDots, alpha));

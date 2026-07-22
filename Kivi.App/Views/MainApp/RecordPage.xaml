@@ -58,7 +58,13 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <Button Grid.Column="0" Style="{StaticResource KiviPrimaryButtonStyle}" HorizontalAlignment="Stretch">
+                <!-- Colours sampled directly from the reference mockup: a dark charcoal-olive
+                     (not the app's near-black brand-ink) and a lighter, more muted sage green
+                     (not the app's saturated leaf-green accent) - kept local to these two
+                     buttons rather than changed globally, since KiviBrandInkBrush/KiviAccentBrush
+                     are shared brand tokens used across onboarding and elsewhere. -->
+                <Button Grid.Column="0" Style="{StaticResource KiviPrimaryButtonStyle}" HorizontalAlignment="Stretch"
+                        Background="#FF4F544A">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE720;" FontSize="13" Foreground="{ThemeResource KiviOnBrandBrush}"/>
                         <TextBlock Text="dictate" VerticalAlignment="Center"/>
@@ -69,7 +75,7 @@
                 </Button>
 
                 <Button Grid.Column="1" HorizontalAlignment="Stretch" Height="48" CornerRadius="24"
-                        Background="{ThemeResource KiviAccentBrush}" BorderThickness="0">
+                        Background="#FF6B8758" BorderThickness="0">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE70F;" FontSize="13" Foreground="{ThemeResource KiviOnBrandBrush}"/>
                         <TextBlock Text="edit" Foreground="{ThemeResource KiviOnBrandBrush}"
