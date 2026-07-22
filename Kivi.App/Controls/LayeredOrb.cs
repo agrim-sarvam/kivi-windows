@@ -98,7 +98,7 @@ public sealed class LayeredOrb : IDisposable
 
     // Hover hotspots, in the same scaled canvas-pixel space Render() draws in. Computed once
     // (they never change - canvas size and DPI scale are both fixed after construction).
-    private readonly float _restCx, _restCy, _restR;
+    private readonly float _hoverLeft, _hoverTop, _hoverRight, _hoverBottom;
     private readonly (HoverIcon Icon, float Cx, float Cy, float R)[] _iconHotspots;
 
     private byte[]? _mask;
@@ -140,7 +140,7 @@ public sealed class LayeredOrb : IDisposable
 
         uint dpi = NativeMethods.GetDpiForWindow(_hwnd);
         _scale = dpi == 0 ? 1.0 : dpi / 96.0;
-        (_restCx, _restCy, _restR, _iconHotspots) = ComputeHotspots();
+        (_hoverLeft, _hoverTop, _hoverRight, _hoverBottom, _iconHotspots) = ComputeHotspots();
 
         LoadMask();
         LoadFonts();
@@ -157,16 +157,19 @@ public sealed class LayeredOrb : IDisposable
     }
 
     // ---- hover hotspots ----
-    private (float Cx, float Cy, float R, (HoverIcon, float, float, float)[] Icons) ComputeHotspots()
+    // The hover-catch region is a RECTANGLE spanning from the pill up through the icon row (not
+    // a small circle around the pill alone) - a circle sized just to catch the pill doesn't
+    // reach the icon row above it, so moving the cursor from the pill toward an icon would
+    // dismiss the menu before the cursor ever got there. The rectangle guarantees continuous
+    // coverage across that whole path, with no gap.
+    private (float Left, float Top, float Right, float Bottom, (HoverIcon, float, float, float)[] Icons) ComputeHotspots()
     {
         double s = _scale;
         int w = (int)Math.Round(CanvasW * s);
         float cx = w / 2f;
         float baseline = (float)(Baseline * s);
 
-        float restCx = cx;
-        float restCy = baseline - (float)(PillH * s) / 2f;
-        float restR = (float)(30 * s); // generous hover-catch radius around the rest pill
+        float pillHalfW = (float)(PillW * s) / 2f;
 
         float iconR = (float)(9 * s);
         float gap = (float)(14 * s);
@@ -180,7 +183,13 @@ public sealed class LayeredOrb : IDisposable
             (HoverIcon.Pin,      startX + step * 2,   rowY, iconR),
             (HoverIcon.Dismiss,  startX + step * 3,   rowY, iconR),
         };
-        return (restCx, restCy, restR, icons);
+
+        float pad = (float)(8 * s);
+        float left = Math.Min(startX - iconR, cx - pillHalfW) - pad;
+        float right = Math.Max(startX + step * 3 + iconR, cx + pillHalfW) + pad;
+        float top = rowY - iconR - pad;
+        float bottom = baseline + pad;
+        return (left, top, right, bottom, icons);
     }
 
     // ---- Win32 message handling (hover hit-testing + the settings-gear click) ----
@@ -258,8 +267,8 @@ public sealed class LayeredOrb : IDisposable
         _glow = ColorF.Lerp(_glow, gTarget, Math.Clamp(dt / 0.12, 0, 1));
 
         NativeMethods.GetCursorPos(out var cursor);
-        float cdx = cursor.X - _windowX - _restCx, cdy = cursor.Y - _windowY - _restCy;
-        _hovering = isIdle && (cdx * cdx + cdy * cdy <= _restR * _restR);
+        float localX = cursor.X - _windowX, localY = cursor.Y - _windowY;
+        _hovering = isIdle && localX >= _hoverLeft && localX <= _hoverRight && localY >= _hoverTop && localY <= _hoverBottom;
 
         Render();
 

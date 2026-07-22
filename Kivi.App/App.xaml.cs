@@ -188,6 +188,6 @@ public partial class App : Application
         0xA1 => "Right Shift",
         0xA4 => "Left Alt",
         0xA5 => "Right Alt",
-        _ => vk.ToString(),
+        _ => ((Windows.System.VirtualKey)vk).ToString(),
     };
 }
