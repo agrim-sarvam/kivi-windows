@@ -40,4 +40,21 @@ public class PromptsTests
         Assert.Contains("high-priority terms", Prompts.VocabularyAppend("Kivi, Sarvam"));
         Assert.Contains("Kivi, Sarvam", Prompts.VocabularyAppend("Kivi, Sarvam"));
     }
+
+    [Fact]
+    public void CommandModeSystem_HasHardContractForSelectedTextAndVoiceCommand()
+    {
+        Assert.Contains("SELECTED_TEXT as the only source material", Prompts.CommandModeSystem);
+        Assert.Contains("VOICE_COMMAND as the user's instruction", Prompts.CommandModeSystem);
+    }
+
+    [Fact]
+    public void CommandModeUserMessage_WrapsSelectedTextAndVoiceCommand()
+    {
+        var msg = Prompts.CommandModeUserMessage("Kal 3 PM works.", "make it formal");
+        Assert.Contains("<<<SELECTED_TEXT", msg);
+        Assert.Contains("Kal 3 PM works.", msg);
+        Assert.Contains("<<<VOICE_COMMAND", msg);
+        Assert.Contains("make it formal", msg);
+    }
 }

@@ -155,6 +155,25 @@ RAW_TRANSCRIPTION
 """;
 
     /// <summary>
+    /// User-message template for the hey-kivi rewrite call, paired with
+    /// <see cref="CommandModeSystem"/>. Field names (SELECTED_TEXT, VOICE_COMMAND) match
+    /// what that system prompt's contract already references.
+    /// </summary>
+    public static string CommandModeUserMessage(string selectedText, string voiceCommand) => $"""
+Instructions: Transform SELECTED_TEXT according to VOICE_COMMAND and return only the replacement text.
+
+SELECTED_TEXT:
+<<<SELECTED_TEXT
+{selectedText}
+SELECTED_TEXT
+
+VOICE_COMMAND:
+<<<VOICE_COMMAND
+{voiceCommand}
+VOICE_COMMAND
+""";
+
+    /// <summary>
     /// Ported from PostProcessingService.swift `vocabularyPrompt` block.
     /// </summary>
     public static string VocabularyAppend(string normalizedVocabulary) => $"""
