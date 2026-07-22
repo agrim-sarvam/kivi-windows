@@ -284,4 +284,43 @@ public class OrchestratorTests
         Assert.Equal("Hello there.", paste.Pasted); // primary pipeline completed normally
         Assert.Equal(0, paste.UndoCalls); // rewrite pipeline never ran
     }
+
+    [Fact]
+    public async Task MismatchedPrimaryHoldEnded_IsIgnored_RewriteCaptureContinuesUninterrupted()
+    {
+        var hotkey = new FakeHotkey();
+        var paste = new SpyPaste();
+        using var metrics = new KiviMetrics();
+        var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
+            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics);
+
+        var states = new List<RecordingState>();
+        orch.StateChanged += s => states.Add(s);
+        orch.Start();
+
+        // A normal dictation first, so there's something for the rewrite to target.
+        hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
+        Assert.Equal("Hello there.", paste.Pasted);
+        states.Clear();
+
+        // Start a REWRITE capture, then fire the PRIMARY hotkey's end event (never started
+        // in this capture) -- OnHoldEnded must no-op since IsRewriteCapture is true.
+        hotkey.FireRewriteStart();
+        await Task.Delay(20);
+        hotkey.FireEnd(); // mismatched: should be ignored, rewrite capture keeps running
+        await Task.Delay(20);
+
+        // The rewrite capture must not have been derailed into the normal dictation
+        // pipeline -- no second normal paste happened, and we're still mid-capture.
+        Assert.Equal("Hello there.", paste.Pasted); // unchanged since the dictation above
+        Assert.DoesNotContain(RecordingState.Processing, states); // normal pipeline never ran
+
+        hotkey.FireRewriteEnd(); // the REAL end event for the rewrite capture
+        await Task.Delay(500);
+
+        // The rewrite pipeline completed normally: computed a diff and armed review keys.
+        Assert.Equal(RecordingState.RewriteReview, orch.State);
+        Assert.True(hotkey.ReviewArmed);
+        Assert.NotNull(orch.Diff);
+    }
 }
