@@ -1392,11 +1392,7 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
 
             if (string.IsNullOrEmpty(_lastDictatedText))
             {
-                LastErrorMessage = "Nothing to rewrite yet.";
-                SetState(RecordingState.Error);
-                await Task.Delay(DoneDisplayMs, CancellationToken.None);
-                IsRewriteCapture = false;
-                SetState(RecordingState.Idle);
+                await FailRewriteAsync("Nothing to rewrite yet.");
                 return;
             }
 
@@ -1408,12 +1404,17 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
         }
         catch
         {
-            LastErrorMessage = "Couldn't catch that.";
-            SetState(RecordingState.Error);
-            await Task.Delay(DoneDisplayMs, CancellationToken.None);
-            IsRewriteCapture = false;
-            SetState(RecordingState.Idle);
+            await FailRewriteAsync("Couldn't catch that.");
         }
+    }
+
+    private async Task FailRewriteAsync(string message)
+    {
+        LastErrorMessage = message;
+        SetState(RecordingState.Error);
+        await Task.Delay(DoneDisplayMs, CancellationToken.None);
+        IsRewriteCapture = false;
+        SetState(RecordingState.Idle);
     }
 
     private void OnReviewAccepted()
