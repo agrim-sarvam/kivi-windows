@@ -113,4 +113,26 @@ public class OrchestratorTests
         Assert.Equal(0, ctx.Calls);
         Assert.Equal("Hello there.", paste.Pasted);
     }
+
+    [Fact]
+    public async Task Listening_EmitsPartialTranscript_AfterWarmup()
+    {
+        var hotkey = new FakeHotkey();
+        var paste = new SpyPaste();
+        using var metrics = new KiviMetrics();
+        var stt = new StubStt { Result = "partial words" };
+        var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
+            stt, new StubPolish(), paste, AppConfig.Default(), metrics);
+
+        var partials = new List<string>();
+        orch.PartialTranscriptChanged += p => partials.Add(p);
+        orch.Start();
+
+        hotkey.FireStart();
+        await Task.Delay(700); // past the 500ms warmup -> at least one snapshot should fire
+        hotkey.FireEnd();
+        await Task.Delay(1500);
+
+        Assert.Contains("partial words", partials);
+    }
 }

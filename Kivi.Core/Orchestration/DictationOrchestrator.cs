@@ -20,12 +20,17 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     private readonly KiviMetrics _metrics;
     private readonly object _lock = new();
     private const int DoneDisplayMs = 1200;
+    private const int PartialIntervalMs = 1000;
+    private const int PartialWarmupMs = 500;
 
     private Task<string> _contextTask = Task.FromResult("");
     private CancellationTokenSource _cts = new();
+    private CancellationTokenSource _partialLoopCts = new();
+    private string _lastDictatedText = "";
 
     public RecordingState State { get; private set; } = RecordingState.Idle;
     public event Action<RecordingState>? StateChanged;
+    public event Action<string>? PartialTranscriptChanged;
 
     public DictationOrchestrator(IHotkeyService hotkey, IAudioCaptureService audio, IScreenContextProvider context,
         ISttEngine stt, IPolishClient polish, IPasteService paste, AppConfig config, KiviMetrics metrics)
@@ -58,14 +63,40 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     private void OnHoldStarted()
     {
         _cts = new CancellationTokenSource();
+        _partialLoopCts = new CancellationTokenSource();
         SetState(RecordingState.Listening);
         _contextTask = _config.ScreenContextEnabled
             ? _context.CaptureContextAsync(_cts.Token)
             : Task.FromResult("");
         _ = _audio.StartRecordingAsync(_cts.Token);
+        _ = RunPartialLoopAsync(_partialLoopCts.Token);
     }
 
-    private void OnHoldEnded() => _ = RunPipelineAsync();
+    private async Task RunPartialLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(PartialWarmupMs, ct);
+            while (!ct.IsCancellationRequested)
+            {
+                var wav = _audio.SnapshotRecording();
+                if (wav.Length > 0)
+                {
+                    var partial = await _stt.TranscribeAsync(wav, ct);
+                    if (!string.IsNullOrEmpty(partial))
+                        PartialTranscriptChanged?.Invoke(partial);
+                }
+                await Task.Delay(PartialIntervalMs, ct);
+            }
+        }
+        catch (OperationCanceledException) { /* recording ended -> stop snapshotting */ }
+    }
+
+    private void OnHoldEnded()
+    {
+        _partialLoopCts.Cancel();
+        _ = RunPipelineAsync();
+    }
 
     private async Task RunPipelineAsync()
     {
@@ -104,6 +135,7 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
             var pasteSw = Stopwatch.StartNew();
             await _paste.InjectTextAsync(textToPaste, cmd.ShouldPressEnter);
             _metrics.RecordStage("paste", pasteSw.Elapsed.TotalMilliseconds);
+            _lastDictatedText = textToPaste;
 
             SetState(RecordingState.Done);
             await Task.Delay(DoneDisplayMs, _cts.Token);
