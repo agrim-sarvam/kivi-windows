@@ -117,7 +117,7 @@ public sealed class LayeredOrb : IDisposable
     private bool _disposed;
 
     private int _windowX, _windowY;          // last screen position pushed via UpdateLayeredWindow
-    private bool _hovering;                  // cursor within _restR of the rest pill, and State == Idle
+    private bool _hovering;                  // cursor within the pill+icon-row hover rect, and State == Idle
 
     /// <summary>Raised when the hover gear icon is clicked. Always raised on the UI thread.</summary>
     public event Action? SettingsRequested;
