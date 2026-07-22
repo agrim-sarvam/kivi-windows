@@ -20,7 +20,7 @@ public sealed partial class OverlayWindow : Window
     private readonly OverlayViewModel _vm;
     private readonly LayeredOrb _orb;
 
-    public OverlayWindow(OverlayViewModel vm, Color accent)
+    public OverlayWindow(OverlayViewModel vm, Color accent, string languageLabel)
     {
         InitializeComponent();
         _vm = vm;
@@ -37,16 +37,9 @@ public sealed partial class OverlayWindow : Window
         appWindow.Resize(new SizeInt32(1, 1));
         appWindow.Move(new PointInt32(-32000, -32000));
 
-        // The visible orb lives here, on the UI thread (its breathing timer needs the
-        // DispatcherQueue).
-        _orb = new LayeredOrb(accent);
-        _orb.SetState(_vm.State);
-
-        _vm.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(OverlayViewModel.State))
-                _orb.SetState(_vm.State);
-        };
+        // The visible orb lives here, on the UI thread (its render timer needs the
+        // DispatcherQueue) and reads state straight off _vm every frame.
+        _orb = new LayeredOrb(vm, accent, languageLabel);
 
         Closed += (_, _) => _orb.Dispose();
 
