@@ -31,8 +31,9 @@ public sealed class SpyContext : IScreenContextProvider
 
 public sealed class SpyPaste : IPasteService
 {
-    public string? Pasted; public bool PressedEnter;
+    public string? Pasted; public bool PressedEnter; public int UndoCalls;
     public Task InjectTextAsync(string text, bool pressEnter) { Pasted = text; PressedEnter = pressEnter; return Task.CompletedTask; }
+    public Task UndoAsync() { UndoCalls++; return Task.CompletedTask; }
 }
 
 public sealed class StubStt : Kivi.Core.Stt.ISttEngine

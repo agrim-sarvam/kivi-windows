@@ -31,6 +31,7 @@ public sealed class SendInputPasteService : IPasteService
     private const ushort VK_CONTROL = 0x11;
     private const ushort VK_V = 0x56;
     private const ushort VK_RETURN = 0x0D;
+    private const ushort VK_Z = 0x5A;
 
     private static readonly int[] ModifierKeys = { VK_SHIFT, VK_CTRL, VK_ALT, VK_LWIN, VK_RWIN };
 
@@ -62,6 +63,20 @@ public sealed class SendInputPasteService : IPasteService
             await Task.Delay(80);
             SendKeyPress(VK_RETURN);
         }
+    }
+
+    /// <summary>
+    /// Sends Ctrl+Z to undo the last edit in the focused app -- used by the hey-kivi
+    /// rewrite flow to undo the single-paste insertion InjectTextAsync made for the
+    /// original dictation before pasting the rewritten replacement.
+    /// </summary>
+    public async Task UndoAsync()
+    {
+        await WaitForModifiersReleasedAsync();
+        SendKeyDown(VK_CONTROL);
+        SendKeyDown(VK_Z);
+        SendKeyUp(VK_Z);
+        SendKeyUp(VK_CONTROL);
     }
 
     private static async Task WaitForModifiersReleasedAsync()
