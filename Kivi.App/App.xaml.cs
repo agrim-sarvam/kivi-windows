@@ -105,6 +105,7 @@ public partial class App : Application
         // Re-apply the user's saved hotkey on every launch.
         var hotkey = Services.GetRequiredService<IHotkeyService>();
         hotkey.SetHotkey(appConfig.HotkeyVirtualKeyCode);
+        hotkey.SetRewriteHotkey(appConfig.RewriteHotkeyVirtualKeyCode);
 
         var dispatcher = DispatcherQueue.GetForCurrentThread();
         Controls.KiviOrbControl.AccentBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
@@ -123,7 +124,8 @@ public partial class App : Application
         void ShowOrb()
         {
             var overlayVm = new ViewModels.OverlayViewModel(orchestrator, dispatcher);
-            _overlayWindow = new Views.OverlayWindow(overlayVm, GdiColorFromHex(appConfig.OrbAccentColor));
+            var languageLabel = string.IsNullOrWhiteSpace(appConfig.TranscriptionLanguage) ? "auto" : appConfig.TranscriptionLanguage!;
+            _overlayWindow = new Views.OverlayWindow(overlayVm, GdiColorFromHex(appConfig.OrbAccentColor), languageLabel);
         }
 
         try
