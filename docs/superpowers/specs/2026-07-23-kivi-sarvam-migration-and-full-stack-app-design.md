@@ -40,6 +40,18 @@ This spec covers a five-part expansion, in build order:
 - Tests: port `GroqSttEngineTests.cs`/`GroqPolishClientTests.cs` to `SarvamSttEngineTests.cs`/`SarvamPolishClientTests.cs`, reusing the existing `FakeHttpMessageHandler`/`SequencedFakeHttpMessageHandler` infrastructure, asserting against Sarvam's response shape.
 - Old Groq classes are deleted outright, not kept behind a flag.
 
+### Key distribution (single shared key, own-your-risk model)
+
+The Sarvam API key ships **embedded with the app, owned by the developer** — not entered by each end user. This means:
+
+- **No API-key onboarding step.** Anyone who installs the exe gets working dictation immediately after granting mic/accessibility permissions — no Sarvam account, no key of their own.
+- **All installs draw on one account.** Every person who runs the exe is spending the developer's Sarvam credits; there is no per-user attribution or usage cap unless one is added later.
+- **The key is not truly secret once shipped.** A reasonably technical user can extract it from the installed app (decompiling the .NET assembly, or self-MITM'ing the app's own HTTPS traffic on their own machine, since they control both ends). Once extracted, it can be used entirely outside Kivi, indistinguishably from Kivi's own traffic on Sarvam's side.
+- **Practical guardrails for this phase:**
+  - Ship the key in a separate local config/appsettings file next to the exe (loaded at startup and seeded into `DpapiSecretStore`), not as a hardcoded C# string literal — allows rotating the key without a rebuild if it leaks.
+  - Treat the key as revocable/rotatable on short notice; watch Sarvam's usage dashboard for anomalous spikes.
+  - This model is appropriate for a small, trusted circle (friends/beta testers). It is explicitly **not** a plan for public/wide distribution — if the exe is ever shared beyond people the developer trusts and can reach, revisit this in favor of a backend-proxy model (app calls a server the developer controls; the server holds the key and can meter/cap usage; the raw key never reaches any client machine). That tradeoff is documented here so the choice is deliberate, not accidental.
+
 ---
 
 ## Part 2: Onboarding
@@ -106,3 +118,4 @@ This split means Personas/Presets/Memory get a complete, demoable UI now, while 
 - Decide whether to keep/replace the STT hallucination filter now that `no_speech_prob` has no Sarvam equivalent.
 - Spike Velopack packaging against the unpackaged Windows App SDK build before committing to it as the installer framework.
 - Decide on Record page theming (mockups show Record in a dark "ink forest" theme distinct from the rest of the app) — confirm whether this is a deliberate per-page theme or should be unified.
+- Revisit the shared-key distribution model before any distribution beyond a small trusted circle — see "Key distribution" under Part 1.
