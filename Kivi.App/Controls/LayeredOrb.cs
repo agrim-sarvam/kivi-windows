@@ -26,14 +26,15 @@ namespace Kivi.App.Controls;
 ///  - <b>Hey kivi</b> -> the same box, wider, rendering a word diff instead of plain body text,
 ///    while awaiting an accept (Enter) or reject (Esc).
 ///
-/// Click-through everywhere except two small hotspots: hovering the rest pill (detected by
-/// polling the cursor position each frame, independent of window messages) reveals a "hold to
-/// talk" tooltip plus four small quick-action icons; only the settings (gear) icon is wired to a
-/// real action (reopening the Config page) today, the other three are honest visual stubs. This
-/// requires the window to answer WM_NCHITTEST itself (rather than relying on WS_EX_TRANSPARENT,
-/// which would make the whole window click-through unconditionally) - HTTRANSPARENT everywhere
-/// except inside a hotspot circle, so the rest of the screen stays exactly as click-through as
-/// before.
+/// Click-through everywhere except a handful of small hotspots: hovering the rest pill (detected
+/// by polling the cursor position each frame, independent of window messages) morphs the pill
+/// into the same round "woken" orb used during real dictation, and rings it with five small
+/// quick-action icons (edit/expand/settings/theme/dismiss) plus a "hold to talk" tooltip. Only
+/// the settings (gear) icon is wired to a real action (reopening the Config page) today; the
+/// rest are honest visual stubs. This requires the window to answer WM_NCHITTEST itself (rather
+/// than relying on WS_EX_TRANSPARENT, which would make the whole window click-through
+/// unconditionally) - HTTRANSPARENT everywhere except inside a hotspot circle, so the rest of
+/// the screen stays exactly as click-through as before.
 ///
 /// Reads live state directly off <see cref="OverlayViewModel"/> every frame instead of being
 /// pushed updates, since the viewmodel already marshals orchestrator events onto this same UI
@@ -86,7 +87,10 @@ public sealed class LayeredOrb : IDisposable
     private static readonly Color CDone       = Color.FromArgb(0x6E, 0xA3, 0x35);
     private static readonly Color CError      = Color.FromArgb(0xB8, 0x15, 0x14);
 
-    private enum HoverIcon { Edit, Settings, Pin, Dismiss }
+    // Expand is a placeholder for a future "open the main Kivi app" action (per the approved
+    // reference design) - the main app doesn't exist yet, so it stays an honest visual stub
+    // alongside Edit/Theme/Dismiss until that's built.
+    private enum HoverIcon { Edit, Expand, Settings, Theme, Dismiss }
 
     private readonly nint _hwnd;
     private readonly OverlayViewModel _vm;
@@ -157,11 +161,12 @@ public sealed class LayeredOrb : IDisposable
     }
 
     // ---- hover hotspots ----
-    // The hover-catch region is a RECTANGLE spanning from the pill up through the icon row (not
-    // a small circle around the pill alone) - a circle sized just to catch the pill doesn't
-    // reach the icon row above it, so moving the cursor from the pill toward an icon would
-    // dismiss the menu before the cursor ever got there. The rectangle guarantees continuous
-    // coverage across that whole path, with no gap.
+    // The hover-catch region is a RECTANGLE spanning the orb and the ring of icons around it
+    // (not a small circle around the pill/orb center alone) - a circle sized just to catch the
+    // orb's own footprint doesn't reach the icons overlapping its rim, so moving the cursor from
+    // the orb toward an icon would dismiss the menu before the cursor ever got there. The
+    // rectangle is the padded bounding box of the orb plus every icon (plus a fixed allowance
+    // for the tooltip drawn above them), guaranteeing continuous coverage with no gap.
     private (float Left, float Top, float Right, float Bottom, (HoverIcon, float, float, float)[] Icons) ComputeHotspots()
     {
         double s = _scale;
@@ -169,27 +174,34 @@ public sealed class LayeredOrb : IDisposable
         float cx = w / 2f;
         float baseline = (float)(Baseline * s);
 
-        float pillHalfW = (float)(PillW * s) / 2f;
+        float r = (float)(OrbDiameter * s / 2);
+        float orbCy = baseline - r;
 
         float iconR = (float)(9 * s);
-        float gap = (float)(14 * s);
-        float rowY = baseline - (float)(PillH * s) - (float)(34 * s);
-        float step = iconR * 2 + gap;
-        float startX = cx - step * 1.5f;
+        float dismissR = (float)(7 * s);
+        float ringOffset = r * 0.85f;
+
         var icons = new (HoverIcon, float, float, float)[]
         {
-            (HoverIcon.Edit,     startX,              rowY, iconR),
-            (HoverIcon.Settings, startX + step,       rowY, iconR),
-            (HoverIcon.Pin,      startX + step * 2,   rowY, iconR),
-            (HoverIcon.Dismiss,  startX + step * 3,   rowY, iconR),
+            (HoverIcon.Edit,     cx - ringOffset, orbCy - ringOffset, iconR),
+            (HoverIcon.Expand,   cx + ringOffset, orbCy - ringOffset, iconR),
+            (HoverIcon.Settings, cx - ringOffset, orbCy + ringOffset, iconR),
+            (HoverIcon.Theme,    cx + ringOffset, orbCy + ringOffset, iconR),
+            (HoverIcon.Dismiss,  cx + r * 1.7f,   orbCy - r,          dismissR),
         };
 
+        float left = cx - r, right = cx + r, top = orbCy - r, bottom = orbCy + r;
+        foreach (var (_, ix, iy, ir) in icons)
+        {
+            left = Math.Min(left, ix - ir);
+            right = Math.Max(right, ix + ir);
+            top = Math.Min(top, iy - ir);
+            bottom = Math.Max(bottom, iy + ir);
+        }
+
         float pad = (float)(8 * s);
-        float left = Math.Min(startX - iconR, cx - pillHalfW) - pad;
-        float right = Math.Max(startX + step * 3 + iconR, cx + pillHalfW) + pad;
-        float top = rowY - iconR - pad;
-        float bottom = baseline + pad;
-        return (left, top, right, bottom, icons);
+        float tooltipAllowance = (float)(34 * s); // fixed allowance for the tooltip drawn above the ring
+        return (left - pad, top - tooltipAllowance - pad, right + pad, bottom + pad, icons);
     }
 
     // ---- Win32 message handling (hover hit-testing + the settings-gear click) ----
@@ -258,17 +270,20 @@ public sealed class LayeredOrb : IDisposable
         if (!isIdle) _activeSeconds += dt;
         _prevState = state;
 
-        double orbTarget = isIdle ? 0.0 : 1.0;
+        NativeMethods.GetCursorPos(out var cursor);
+        float localX = cursor.X - _windowX, localY = cursor.Y - _windowY;
+        _hovering = isIdle && localX >= _hoverLeft && localX <= _hoverRight && localY >= _hoverTop && localY <= _hoverBottom;
+
+        // Hovering at rest pulls the SAME pill->orb crossfade real dictation uses (reusing its
+        // easing and DrawOrb rendering verbatim) - never the box, which stays gated on !isIdle
+        // alone so hovering can never accidentally grow into the dictating box.
+        double orbTarget = (!isIdle || _hovering) ? 1.0 : 0.0;
         double boxTarget = (!isIdle && _activeSeconds > WokenHoldSeconds) ? 1.0 : 0.0;
         _orbAmount = Approach(_orbAmount, orbTarget, dt / 0.12);
         _boxAmount = Approach(_boxAmount, boxTarget, dt / 0.12);
 
         var gTarget = ColorF.From(StateColor(state));
         _glow = ColorF.Lerp(_glow, gTarget, Math.Clamp(dt / 0.12, 0, 1));
-
-        NativeMethods.GetCursorPos(out var cursor);
-        float localX = cursor.X - _windowX, localY = cursor.Y - _windowY;
-        _hovering = isIdle && localX >= _hoverLeft && localX <= _hoverRight && localY >= _hoverTop && localY <= _hoverBottom;
 
         Render();
 
@@ -319,8 +334,8 @@ public sealed class LayeredOrb : IDisposable
             float boxAlpha = (float)boxT;
 
             if (pillAlpha > 0.001f) DrawPill(g, cx, baseline, pillAlpha);
-            if (pillAlpha > 0.001f) DrawHoverMenu(g, cx, baseline, pillAlpha);
             if (orbAlpha > 0.001f) DrawOrb(g, cx, baseline, orbAlpha);
+            if (orbAlpha > 0.001f) DrawHoverMenu(g, cx, orbAlpha);
             if (boxAlpha > 0.001f) DrawBox(g, cx, baseline, boxAlpha);
         }
         PushLayered(bmp, w, h);
@@ -343,32 +358,38 @@ public sealed class LayeredOrb : IDisposable
         g.FillPath(fill, path);
     }
 
-    // ---- hover-revealed quick-action menu (rest posture only) ----
-    private void DrawHoverMenu(Graphics g, float cx, float baseline, float pillAlpha)
+    // ---- hover-revealed quick-action menu (rings the woken orb once hover pulls it in) ----
+    private void DrawHoverMenu(Graphics g, float cx, float alpha)
     {
         if (!_hovering) return;
-        float menuAlpha = pillAlpha;
 
         foreach (var (icon, hx, hy, hr) in _iconHotspots)
-            DrawHoverIcon(g, icon, hx, hy, hr, menuAlpha);
+            DrawHoverIcon(g, icon, hx, hy, hr, alpha);
+
+        // Tooltip sits above the topmost icon, wherever that currently is - keeps this correct
+        // even if the ring layout above changes later, without re-deriving the geometry here.
+        float topMost = float.MaxValue;
+        foreach (var (_, _, hy, hr) in _iconHotspots) topMost = Math.Min(topMost, hy - hr);
 
         string tip = $"hold {_hotkeyLabel} to talk";
         using var font = MakeFont(11f, mono: true);
         var size = g.MeasureString(tip, font);
         float padH = (float)(10 * _scale), padV = (float)(6 * _scale);
         float tipW = size.Width + padH * 2, tipH = size.Height + padV * 2;
-        float tipY = baseline - (float)(PillH * _scale) - (float)(18 * _scale) - tipH;
+        float gap = (float)(10 * _scale);
+        float tipY = topMost - gap - tipH;
         float tipX = cx - tipW / 2f;
 
         using (var path = RoundedRect(tipX, tipY, tipW, tipH, tipH / 2f))
-        using (var fill = new SolidBrush(Mul(Fg1, 0.92f * menuAlpha)))
+        using (var fill = new SolidBrush(Mul(Fg1, 0.92f * alpha)))
             g.FillPath(fill, path);
-        using var tb = new SolidBrush(Mul(Color.White, menuAlpha));
+        using var tb = new SolidBrush(Mul(Color.White, alpha));
         g.DrawString(tip, font, tb, tipX + padH, tipY + padV);
     }
 
-    // Simple line-art glyphs (no image assets): pencil (edit), gear (settings), plus (pin),
-    // cross (dismiss). Only Settings is wired to a real action; the rest are honest stubs.
+    // Simple line-art glyphs (no image assets): pencil (edit), outward corner ticks (expand),
+    // gear (settings), sun (theme), cross (dismiss). Only Settings is wired to a real action;
+    // the rest are honest stubs.
     private void DrawHoverIcon(Graphics g, HoverIcon icon, float cx, float cy, float r, float alpha)
     {
         FillCircle(g, cx, cy, r, Mul(Color.White, 0.92f * alpha));
@@ -383,6 +404,12 @@ public sealed class LayeredOrb : IDisposable
                 g.DrawLine(pen, cx - u, cy + u, cx + u, cy - u);
                 g.DrawLine(pen, cx + u * 0.3f, cy - u * 1.3f, cx + u * 1.3f, cy - u * 0.3f);
                 break;
+            case HoverIcon.Expand:
+                DrawCornerTick(g, pen, cx, cy, u, 1, 1);
+                DrawCornerTick(g, pen, cx, cy, u, -1, 1);
+                DrawCornerTick(g, pen, cx, cy, u, 1, -1);
+                DrawCornerTick(g, pen, cx, cy, u, -1, -1);
+                break;
             case HoverIcon.Settings:
                 g.DrawEllipse(pen, cx - u * 0.6f, cy - u * 0.6f, u * 1.2f, u * 1.2f);
                 for (int i = 0; i < 6; i++)
@@ -393,15 +420,28 @@ public sealed class LayeredOrb : IDisposable
                     g.DrawLine(pen, x1, y1, x2, y2);
                 }
                 break;
-            case HoverIcon.Pin:
-                g.DrawLine(pen, cx - u, cy, cx + u, cy);
-                g.DrawLine(pen, cx, cy - u, cx, cy + u);
+            case HoverIcon.Theme:
+                g.DrawEllipse(pen, cx - u * 0.5f, cy - u * 0.5f, u, u);
+                for (int i = 0; i < 8; i++)
+                {
+                    double ang = i * Math.PI / 4;
+                    float x1 = cx + (float)(Math.Cos(ang) * u * 0.75f), y1 = cy + (float)(Math.Sin(ang) * u * 0.75f);
+                    float x2 = cx + (float)(Math.Cos(ang) * u * 1.15f), y2 = cy + (float)(Math.Sin(ang) * u * 1.15f);
+                    g.DrawLine(pen, x1, y1, x2, y2);
+                }
                 break;
             case HoverIcon.Dismiss:
                 g.DrawLine(pen, cx - u, cy - u, cx + u, cy + u);
                 g.DrawLine(pen, cx - u, cy + u, cx + u, cy - u);
                 break;
         }
+    }
+
+    private static void DrawCornerTick(Graphics g, Pen pen, float cx, float cy, float u, int sx, int sy)
+    {
+        float x0 = cx + sx * u * 0.5f, y0 = cy + sy * u * 0.5f;
+        float x1 = cx + sx * u * 1.2f, y1 = cy + sy * u * 1.2f;
+        g.DrawLine(pen, x0, y0, x1, y1);
     }
 
     // ---- woken posture ----
