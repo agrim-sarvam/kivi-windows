@@ -35,6 +35,9 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern bool GetWindowRect(nint hWnd, out RECT lpRect);
 
+    [DllImport("user32.dll")]
+    public static extern bool GetCursorPos(out POINT lpPoint);
+
     // ---- Layered window (UpdateLayeredWindow) for the free-floating, per-pixel-alpha orb ----
     public const int WS_EX_LAYERED   = 0x00080000;
     public const int WS_EX_TOPMOST   = 0x00000008;

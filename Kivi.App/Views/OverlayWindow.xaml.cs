@@ -19,8 +19,9 @@ public sealed partial class OverlayWindow : Window
 {
     private readonly OverlayViewModel _vm;
     private readonly LayeredOrb _orb;
+    private Views.Onboarding.OnboardingWindow? _settingsWindow;
 
-    public OverlayWindow(OverlayViewModel vm, Color accent, string languageLabel)
+    public OverlayWindow(OverlayViewModel vm, Color accent, string languageLabel, string hotkeyLabel)
     {
         InitializeComponent();
         _vm = vm;
@@ -39,12 +40,30 @@ public sealed partial class OverlayWindow : Window
 
         // The visible orb lives here, on the UI thread (its render timer needs the
         // DispatcherQueue) and reads state straight off _vm every frame.
-        _orb = new LayeredOrb(vm, accent, languageLabel);
+        _orb = new LayeredOrb(vm, accent, languageLabel, hotkeyLabel);
+        _orb.SettingsRequested += OnSettingsRequested;
 
-        Closed += (_, _) => _orb.Dispose();
+        Closed += (_, _) => { _orb.SettingsRequested -= OnSettingsRequested; _orb.Dispose(); };
 
         // Activate (still off-screen, so invisible) so the window counts as "open" and keeps
         // the app running after onboarding closes.
         Activate();
+    }
+
+    // Raised (on this same UI thread) when the orb's hover gear icon is clicked. Reopens the
+    // existing Config page as a standalone settings window, or refocuses it if already open.
+    private void OnSettingsRequested()
+    {
+        if (_settingsWindow is not null)
+        {
+            _settingsWindow.Activate();
+            return;
+        }
+
+        var win = Views.Onboarding.OnboardingWindow.ForSettingsReentry();
+        win.Completed += () => win.Close();
+        win.Closed += (_, _) => _settingsWindow = null;
+        _settingsWindow = win;
+        win.Activate();
     }
 }

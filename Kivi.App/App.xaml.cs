@@ -125,7 +125,8 @@ public partial class App : Application
         {
             var overlayVm = new ViewModels.OverlayViewModel(orchestrator, dispatcher);
             var languageLabel = string.IsNullOrWhiteSpace(appConfig.TranscriptionLanguage) ? "auto" : appConfig.TranscriptionLanguage!;
-            _overlayWindow = new Views.OverlayWindow(overlayVm, GdiColorFromHex(appConfig.OrbAccentColor), languageLabel);
+            var hotkeyLabel = HotkeyLabel(appConfig.HotkeyVirtualKeyCode);
+            _overlayWindow = new Views.OverlayWindow(overlayVm, GdiColorFromHex(appConfig.OrbAccentColor), languageLabel, hotkeyLabel);
         }
 
         try
@@ -178,4 +179,15 @@ public partial class App : Application
         byte b = Convert.ToByte(hex.Substring(4, 2), 16);
         return System.Drawing.Color.FromArgb(255, r, g, b);
     }
+
+    private static string HotkeyLabel(uint vk) => vk switch
+    {
+        0xA3 => "Right Ctrl",
+        0xA2 => "Left Ctrl",
+        0xA0 => "Left Shift",
+        0xA1 => "Right Shift",
+        0xA4 => "Left Alt",
+        0xA5 => "Right Alt",
+        _ => vk.ToString(),
+    };
 }

@@ -11,8 +11,8 @@ using Microsoft.UI.Dispatching;
 namespace Kivi.App.Controls;
 
 /// <summary>
-/// The persistent desktop overlay, drawn as a genuinely transparent, click-through, always-on-top
-/// Win32 <b>layered window</b> (UpdateLayeredWindow + a premultiplied-ARGB GDI+ bitmap) - WinUI 3
+/// The persistent desktop overlay, drawn as a genuinely transparent, always-on-top Win32
+/// <b>layered window</b> (UpdateLayeredWindow + a premultiplied-ARGB GDI+ bitmap) - WinUI 3
 /// composites its own windows opaquely, so it can't float a soft-glowing free-form shape.
 ///
 /// Four postures, growing from a fixed bottom-center anchor (brand "kivi on the desktop"):
@@ -20,9 +20,20 @@ namespace Kivi.App.Controls;
 ///  - <b>Woken</b> -> a brief transitional round orb (dot-matrix kiwi + satellites) shown right
 ///    after leaving rest, before the box appears.
 ///  - <b>Dictating</b> -> a text-layout box (header/body/footer) for Listening and every
-///    subsequent pipeline state.
+///    subsequent pipeline state. Its geometry (not just opacity) grows from the orb's footprint
+///    up to full size, so the transition reads as "the orb grows into the box" rather than a
+///    full-size card materializing above a still-solid orb.
 ///  - <b>Hey kivi</b> -> the same box, wider, rendering a word diff instead of plain body text,
 ///    while awaiting an accept (Enter) or reject (Esc).
+///
+/// Click-through everywhere except two small hotspots: hovering the rest pill (detected by
+/// polling the cursor position each frame, independent of window messages) reveals a "hold to
+/// talk" tooltip plus four small quick-action icons; only the settings (gear) icon is wired to a
+/// real action (reopening the Config page) today, the other three are honest visual stubs. This
+/// requires the window to answer WM_NCHITTEST itself (rather than relying on WS_EX_TRANSPARENT,
+/// which would make the whole window click-through unconditionally) - HTTRANSPARENT everywhere
+/// except inside a hotspot circle, so the rest of the screen stays exactly as click-through as
+/// before.
 ///
 /// Reads live state directly off <see cref="OverlayViewModel"/> every frame instead of being
 /// pushed updates, since the viewmodel already marshals orchestrator events onto this same UI
@@ -33,6 +44,16 @@ public sealed class LayeredOrb : IDisposable
     private const string ClassName = "KiviOrbLayered";
     private static NativeMethods.WndProc? _wndProcKeepAlive;
     private static ushort _classAtom;
+
+    // Only one LayeredOrb exists for the app's lifetime; the static WndProc callback (required
+    // by RegisterClassExW, which needs a plain function pointer, not an instance method) reaches
+    // back into that single instance via this reference.
+    private static LayeredOrb? _current;
+
+    private const uint WM_NCHITTEST  = 0x0084;
+    private const uint WM_LBUTTONUP  = 0x0202;
+    private const nint HTTRANSPARENT = -1;
+    private const nint HTCLIENT      = 1;
 
     // Design sizes in effective (96-dpi) px; scaled by the monitor DPI when drawn.
     private const double CanvasW = 520, CanvasH = 170;
@@ -65,12 +86,20 @@ public sealed class LayeredOrb : IDisposable
     private static readonly Color CDone       = Color.FromArgb(0x6E, 0xA3, 0x35);
     private static readonly Color CError      = Color.FromArgb(0xB8, 0x15, 0x14);
 
+    private enum HoverIcon { Edit, Settings, Pin, Dismiss }
+
     private readonly nint _hwnd;
     private readonly OverlayViewModel _vm;
     private readonly Color _accent;
     private readonly string _languageLabel;
+    private readonly string _hotkeyLabel;
     private readonly DispatcherQueueTimer _timer;
     private readonly double _scale;
+
+    // Hover hotspots, in the same scaled canvas-pixel space Render() draws in. Computed once
+    // (they never change - canvas size and DPI scale are both fixed after construction).
+    private readonly float _restCx, _restCy, _restR;
+    private readonly (HoverIcon Icon, float Cx, float Cy, float R)[] _iconHotspots;
 
     private byte[]? _mask;
     private int _maskW, _maskH, _maskStride;
@@ -87,22 +116,31 @@ public sealed class LayeredOrb : IDisposable
     private double _phase;                   // seconds, drives breathing + waveform
     private bool _disposed;
 
-    public LayeredOrb(OverlayViewModel vm, Color accent, string languageLabel)
+    private int _windowX, _windowY;          // last screen position pushed via UpdateLayeredWindow
+    private bool _hovering;                  // cursor within _restR of the rest pill, and State == Idle
+
+    /// <summary>Raised when the hover gear icon is clicked. Always raised on the UI thread.</summary>
+    public event Action? SettingsRequested;
+
+    public LayeredOrb(OverlayViewModel vm, Color accent, string languageLabel, string hotkeyLabel)
     {
+        _current = this;
         _vm = vm;
         _accent = accent;
         _languageLabel = languageLabel;
+        _hotkeyLabel = hotkeyLabel;
         _glow = ColorF.From(CIdle);
         EnsureClassRegistered();
 
         _hwnd = NativeMethods.CreateWindowExW(
-            NativeMethods.WS_EX_LAYERED | NativeMethods.WS_EX_TRANSPARENT | NativeMethods.WS_EX_TOOLWINDOW
+            NativeMethods.WS_EX_LAYERED | NativeMethods.WS_EX_TOOLWINDOW
                 | NativeMethods.WS_EX_TOPMOST | NativeMethods.WS_EX_NOACTIVATE,
             ClassName, "kivi", NativeMethods.WS_POPUP,
             0, 0, 10, 10, 0, 0, NativeMethods.GetModuleHandleW(null), 0);
 
         uint dpi = NativeMethods.GetDpiForWindow(_hwnd);
         _scale = dpi == 0 ? 1.0 : dpi / 96.0;
+        (_restCx, _restCy, _restR, _iconHotspots) = ComputeHotspots();
 
         LoadMask();
         LoadFonts();
@@ -116,6 +154,84 @@ public sealed class LayeredOrb : IDisposable
         _timer.Start();
 
         Frame();
+    }
+
+    // ---- hover hotspots ----
+    private (float Cx, float Cy, float R, (HoverIcon, float, float, float)[] Icons) ComputeHotspots()
+    {
+        double s = _scale;
+        int w = (int)Math.Round(CanvasW * s);
+        float cx = w / 2f;
+        float baseline = (float)(Baseline * s);
+
+        float restCx = cx;
+        float restCy = baseline - (float)(PillH * s) / 2f;
+        float restR = (float)(30 * s); // generous hover-catch radius around the rest pill
+
+        float iconR = (float)(9 * s);
+        float gap = (float)(14 * s);
+        float rowY = baseline - (float)(PillH * s) - (float)(34 * s);
+        float step = iconR * 2 + gap;
+        float startX = cx - step * 1.5f;
+        var icons = new (HoverIcon, float, float, float)[]
+        {
+            (HoverIcon.Edit,     startX,              rowY, iconR),
+            (HoverIcon.Settings, startX + step,       rowY, iconR),
+            (HoverIcon.Pin,      startX + step * 2,   rowY, iconR),
+            (HoverIcon.Dismiss,  startX + step * 3,   rowY, iconR),
+        };
+        return (restCx, restCy, restR, icons);
+    }
+
+    // ---- Win32 message handling (hover hit-testing + the settings-gear click) ----
+    private static nint WndProcCallback(nint hWnd, uint msg, nint wParam, nint lParam)
+    {
+        var self = _current;
+        if (self is not null)
+        {
+            if (msg == WM_NCHITTEST) return self.HitTest(lParam);
+            if (msg == WM_LBUTTONUP) self.HandleClick(lParam);
+        }
+        return NativeMethods.DefWindowProcW(hWnd, msg, wParam, lParam);
+    }
+
+    // WM_NCHITTEST's lParam is the cursor position in SCREEN coordinates.
+    private nint HitTest(nint lParam)
+    {
+        if (!_hovering) return HTTRANSPARENT;
+        (int screenX, int screenY) = DecodePoint(lParam);
+        float localX = screenX - _windowX, localY = screenY - _windowY;
+        foreach (var (_, hx, hy, hr) in _iconHotspots)
+        {
+            float dx = localX - hx, dy = localY - hy;
+            if (dx * dx + dy * dy <= hr * hr) return HTCLIENT;
+        }
+        return HTTRANSPARENT;
+    }
+
+    // WM_LBUTTONUP's lParam is already client-area relative, which is the same coordinate space
+    // as our drawing (this window's client area IS the whole popup, no non-client borders).
+    private void HandleClick(nint lParam)
+    {
+        if (!_hovering) return;
+        (int localX, int localY) = DecodePoint(lParam);
+        foreach (var (icon, hx, hy, hr) in _iconHotspots)
+        {
+            float dx = localX - hx, dy = localY - hy;
+            if (dx * dx + dy * dy <= hr * hr && icon == HoverIcon.Settings)
+            {
+                SettingsRequested?.Invoke();
+                return;
+            }
+        }
+    }
+
+    private static (int X, int Y) DecodePoint(nint lParam)
+    {
+        long l = lParam.ToInt64();
+        int x = unchecked((short)(l & 0xFFFF));
+        int y = unchecked((short)((l >> 16) & 0xFFFF));
+        return (x, y);
     }
 
     // ---- animation loop ----
@@ -141,9 +257,13 @@ public sealed class LayeredOrb : IDisposable
         var gTarget = ColorF.From(StateColor(state));
         _glow = ColorF.Lerp(_glow, gTarget, Math.Clamp(dt / 0.12, 0, 1));
 
+        NativeMethods.GetCursorPos(out var cursor);
+        float cdx = cursor.X - _windowX - _restCx, cdy = cursor.Y - _windowY - _restCy;
+        _hovering = isIdle && (cdx * cdx + cdy * cdy <= _restR * _restR);
+
         Render();
 
-        bool settled = isIdle && _orbAmount < 0.001 && _glow.Near(gTarget);
+        bool settled = isIdle && !_hovering && _orbAmount < 0.001 && _glow.Near(gTarget);
         var want = TimeSpan.FromMilliseconds(settled ? 50 : 16);
         if (Math.Abs(_timer.Interval.TotalMilliseconds - want.TotalMilliseconds) > 1) _timer.Interval = want;
     }
@@ -190,6 +310,7 @@ public sealed class LayeredOrb : IDisposable
             float boxAlpha = (float)boxT;
 
             if (pillAlpha > 0.001f) DrawPill(g, cx, baseline, pillAlpha);
+            if (pillAlpha > 0.001f) DrawHoverMenu(g, cx, baseline, pillAlpha);
             if (orbAlpha > 0.001f) DrawOrb(g, cx, baseline, orbAlpha);
             if (boxAlpha > 0.001f) DrawBox(g, cx, baseline, boxAlpha);
         }
@@ -211,6 +332,67 @@ public sealed class LayeredOrb : IDisposable
         using var path = RoundedRect(left, top, w, h, h / 2f);
         using var fill = new SolidBrush(Mul(Forest, alpha));
         g.FillPath(fill, path);
+    }
+
+    // ---- hover-revealed quick-action menu (rest posture only) ----
+    private void DrawHoverMenu(Graphics g, float cx, float baseline, float pillAlpha)
+    {
+        if (!_hovering) return;
+        float menuAlpha = pillAlpha;
+
+        foreach (var (icon, hx, hy, hr) in _iconHotspots)
+            DrawHoverIcon(g, icon, hx, hy, hr, menuAlpha);
+
+        string tip = $"hold {_hotkeyLabel} to talk";
+        using var font = MakeFont(11f, mono: true);
+        var size = g.MeasureString(tip, font);
+        float padH = (float)(10 * _scale), padV = (float)(6 * _scale);
+        float tipW = size.Width + padH * 2, tipH = size.Height + padV * 2;
+        float tipY = baseline - (float)(PillH * _scale) - (float)(18 * _scale) - tipH;
+        float tipX = cx - tipW / 2f;
+
+        using (var path = RoundedRect(tipX, tipY, tipW, tipH, tipH / 2f))
+        using (var fill = new SolidBrush(Mul(Fg1, 0.92f * menuAlpha)))
+            g.FillPath(fill, path);
+        using var tb = new SolidBrush(Mul(Color.White, menuAlpha));
+        g.DrawString(tip, font, tb, tipX + padH, tipY + padV);
+    }
+
+    // Simple line-art glyphs (no image assets): pencil (edit), gear (settings), plus (pin),
+    // cross (dismiss). Only Settings is wired to a real action; the rest are honest stubs.
+    private void DrawHoverIcon(Graphics g, HoverIcon icon, float cx, float cy, float r, float alpha)
+    {
+        FillCircle(g, cx, cy, r, Mul(Color.White, 0.92f * alpha));
+        using (var edge = new Pen(Mul(Border1, alpha), (float)(1 * _scale)))
+            g.DrawEllipse(edge, cx - r, cy - r, r * 2, r * 2);
+
+        using var pen = new Pen(Mul(Fg2, alpha), (float)(1.4 * _scale)) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        float u = r * 0.45f;
+        switch (icon)
+        {
+            case HoverIcon.Edit:
+                g.DrawLine(pen, cx - u, cy + u, cx + u, cy - u);
+                g.DrawLine(pen, cx + u * 0.3f, cy - u * 1.3f, cx + u * 1.3f, cy - u * 0.3f);
+                break;
+            case HoverIcon.Settings:
+                g.DrawEllipse(pen, cx - u * 0.6f, cy - u * 0.6f, u * 1.2f, u * 1.2f);
+                for (int i = 0; i < 6; i++)
+                {
+                    double ang = i * Math.PI / 3;
+                    float x1 = cx + (float)(Math.Cos(ang) * u * 0.8f), y1 = cy + (float)(Math.Sin(ang) * u * 0.8f);
+                    float x2 = cx + (float)(Math.Cos(ang) * u * 1.25f), y2 = cy + (float)(Math.Sin(ang) * u * 1.25f);
+                    g.DrawLine(pen, x1, y1, x2, y2);
+                }
+                break;
+            case HoverIcon.Pin:
+                g.DrawLine(pen, cx - u, cy, cx + u, cy);
+                g.DrawLine(pen, cx, cy - u, cx, cy + u);
+                break;
+            case HoverIcon.Dismiss:
+                g.DrawLine(pen, cx - u, cy - u, cx + u, cy + u);
+                g.DrawLine(pen, cx - u, cy + u, cx + u, cy - u);
+                break;
+        }
     }
 
     // ---- woken posture ----
@@ -254,10 +436,19 @@ public sealed class LayeredOrb : IDisposable
             desiredW = Math.Max(desiredW, Math.Min(contentW, (float)(BoxMaxWidthHeyKivi * s)));
         }
 
-        float bh = (float)(BoxH * s);
-        float rad = (float)(BoxRadius * s);
+        // Grow the box's actual geometry from the orb's small footprint up to full size (not
+        // just its opacity), so the transition reads as "the orb grows into the box" rather than
+        // a full-size translucent card materializing above the still-solid orb.
+        float growT = Math.Clamp(alpha, 0f, 1f);
+        float startSize = (float)(OrbDiameter * s);
         float sc = 0.96f + 0.04f * alpha;
-        float bw = desiredW * sc; bh *= sc;
+        float targetW = desiredW * sc;
+        float targetH = (float)(BoxH * s) * sc;
+        float targetRad = (float)(BoxRadius * s);
+
+        float bw = Lerp(startSize, targetW, growT);
+        float bh = Lerp(startSize, targetH, growT);
+        float rad = Lerp(startSize / 2f, targetRad, growT);
         float left = cx - bw / 2f;
         float top = baseline - bh;
 
@@ -277,20 +468,25 @@ public sealed class LayeredOrb : IDisposable
             g.DrawPath(edge, path);
         }
 
+        // Content (text/diff) only starts appearing once the box has mostly finished growing --
+        // avoids rendering full-size text squeezed into a still-small box.
+        float contentAlpha = Math.Clamp((growT - 0.6f) / 0.4f, 0f, 1f) * alpha;
+        if (contentAlpha <= 0.001f) return;
+
         float padX = (float)(20 * s);
         float headerY = top + (float)(16 * s);
 
         using (var headerFont = MakeFont(11f, mono: true))
         {
             var headerColor = isHeyKivi ? CProcessing : Fg3;
-            using var hb = new SolidBrush(Mul(headerColor, alpha));
+            using var hb = new SolidBrush(Mul(headerColor, contentAlpha));
             g.DrawString(header, headerFont, hb, left + padX, headerY);
 
             if (!isHeyKivi)
             {
                 using var chipFont = MakeFont(12f, mono: true);
                 var chipSize = g.MeasureString(_languageLabel, chipFont);
-                using var cb = new SolidBrush(Mul(Fg2, alpha));
+                using var cb = new SolidBrush(Mul(Fg2, contentAlpha));
                 g.DrawString(_languageLabel, chipFont, cb, left + bw - padX - chipSize.Width, headerY);
             }
         }
@@ -301,7 +497,7 @@ public sealed class LayeredOrb : IDisposable
 
         if (state == RecordingState.RewriteReview && _vm.Diff is { Count: > 0 } diff)
         {
-            DrawDiffText(g, bodyRect, diff, alpha);
+            DrawDiffText(g, bodyRect, diff, contentAlpha);
         }
         else
         {
@@ -310,7 +506,7 @@ public sealed class LayeredOrb : IDisposable
             {
                 bool placeholder = state == RecordingState.Listening && !_vm.IsRewriteCapture && string.IsNullOrEmpty(_vm.PartialTranscript);
                 using var bodyFont = MakeFont(15f);
-                using var bb = new SolidBrush(Mul(placeholder ? Fg3 : Fg1, alpha));
+                using var bb = new SolidBrush(Mul(placeholder ? Fg3 : Fg1, contentAlpha));
                 using var fmt = new StringFormat { Trimming = StringTrimming.EllipsisCharacter };
                 g.DrawString(body, bodyFont, bb, bodyRect, fmt);
             }
@@ -320,7 +516,7 @@ public sealed class LayeredOrb : IDisposable
         if (footer.Length > 0)
         {
             using var footerFont = MakeFont(12f, mono: true);
-            using var fb = new SolidBrush(Mul(Fg2, alpha));
+            using var fb = new SolidBrush(Mul(Fg2, contentAlpha));
             g.DrawString(footer, footerFont, fb, left + padX, top + bh - (float)(12 * s) - (float)(14 * s));
         }
     }
@@ -478,6 +674,7 @@ public sealed class LayeredOrb : IDisposable
     private static Color Mul(Color c, double a) => Color.FromArgb((int)Math.Clamp(c.A * a, 0, 255), c.R, c.G, c.B);
     private static double Approach(double v, double t, double step) => v < t ? Math.Min(t, v + step) : Math.Max(t, v - step);
     private static double Smooth(double t) { t = Math.Clamp(t, 0, 1); return t * t * (3 - 2 * t); }
+    private static float Lerp(float a, float b, float t) => a + (b - a) * t;
 
     private readonly struct ColorF
     {
@@ -529,7 +726,7 @@ public sealed class LayeredOrb : IDisposable
     private static void EnsureClassRegistered()
     {
         if (_classAtom != 0) return;
-        _wndProcKeepAlive = NativeMethods.DefWindowProcW;
+        _wndProcKeepAlive = WndProcCallback;
         var wc = new NativeMethods.WNDCLASSEX
         {
             cbSize = System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.WNDCLASSEX>(),
@@ -551,6 +748,7 @@ public sealed class LayeredOrb : IDisposable
             y = mi.rcWork.Bottom - h - (int)Math.Round(14 * _scale);
         }
         else { x = 0; y = 0; }
+        _windowX = x; _windowY = y;
 
         nint screenDC = NativeMethods.GetDC(0);
         nint memDC = NativeMethods.CreateCompatibleDC(screenDC);
@@ -585,6 +783,7 @@ public sealed class LayeredOrb : IDisposable
         _disposed = true;
         _timer.Stop();
         _fonts?.Dispose();
+        if (_current == this) _current = null;
         if (_hwnd != 0) NativeMethods.DestroyWindow(_hwnd);
     }
 }
