@@ -8,15 +8,23 @@ namespace Kivi.Platform.Hotkey;
 
 public sealed class LowLevelKeyboardHookService : IHotkeyService, IDisposable
 {
-    private uint _boundVk = 0xA3; // VK_RCONTROL default; changeable via SetHotkey
+    private uint _boundVk = 0xA3;    // VK_RCONTROL default; changeable via SetHotkey
+    private uint _rewriteVk = 0xA5;  // VK_RMENU default; changeable via SetRewriteHotkey
     private const uint WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101, WM_SYSKEYUP = 0x0105;
+    private const uint VK_RETURN = 0x0D, VK_ESCAPE = 0x1B;
 
     public event Action? HoldStarted;
     public event Action? HoldEnded;
+    public event Action? RewriteHoldStarted;
+    public event Action? RewriteHoldEnded;
+    public event Action? ReviewAccepted;
+    public event Action? ReviewCancelled;
 
     private HOOKPROC? _proc;   // keep alive to avoid GC of the delegate while the hook is installed
     private UnhookWindowsHookExSafeHandle? _hook;
     private bool _held;
+    private bool _rewriteHeld;
+    private volatile bool _reviewArmed;
 
     public unsafe void Start()
     {
@@ -40,30 +48,48 @@ public sealed class LowLevelKeyboardHookService : IHotkeyService, IDisposable
         if (_held) { _held = false; HoldEnded?.Invoke(); }
     }
 
+    public void SetRewriteHotkey(uint virtualKeyCode)
+    {
+        _rewriteVk = virtualKeyCode;
+        if (_rewriteHeld) { _rewriteHeld = false; RewriteHoldEnded?.Invoke(); }
+    }
+
+    public void ArmReviewKeys() => _reviewArmed = true;
+    public void DisarmReviewKeys() => _reviewArmed = false;
+
     private LRESULT HookCallback(int nCode, WPARAM wParam, LPARAM lParam)
     {
         if (nCode >= 0)
         {
             var data = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+            uint msg = (uint)wParam.Value;
+            bool isDown = msg == WM_KEYDOWN;
+            bool isUp = msg == WM_KEYUP || msg == WM_SYSKEYUP;
+
             if (data.vkCode == _boundVk)
             {
-                uint msg = (uint)wParam.Value;
-                if (msg == WM_KEYDOWN && !_held)
-                {
-                    _held = true;
-                    HoldStarted?.Invoke();
-                }
-                else if (msg == WM_KEYUP || msg == WM_SYSKEYUP)
-                {
-                    if (_held)
-                    {
-                        _held = false;
-                        HoldEnded?.Invoke();
-                    }
-                }
+                if (isDown && !_held) { _held = true; HoldStarted?.Invoke(); }
+                else if (isUp && _held) { _held = false; HoldEnded?.Invoke(); }
+            }
+            else if (data.vkCode == _rewriteVk)
+            {
+                if (isDown && !_rewriteHeld) { _rewriteHeld = true; RewriteHoldStarted?.Invoke(); }
+                else if (isUp && _rewriteHeld) { _rewriteHeld = false; RewriteHoldEnded?.Invoke(); }
+            }
+            else if (_reviewArmed && isDown && data.vkCode == VK_RETURN)
+            {
+                _reviewArmed = false;
+                ReviewAccepted?.Invoke();
+                return new LRESULT(1); // swallow: confirms the rewrite, not a newline in the target app
+            }
+            else if (_reviewArmed && isDown && data.vkCode == VK_ESCAPE)
+            {
+                _reviewArmed = false;
+                ReviewCancelled?.Invoke();
+                return new LRESULT(1); // swallow: discards the rewrite, not an app-level cancel
             }
         }
 
-        return PInvoke.CallNextHookEx(_hook, nCode, wParam, lParam); // non-suppressing
+        return PInvoke.CallNextHookEx(_hook, nCode, wParam, lParam); // non-suppressing (except the two swallowed cases above)
     }
 }

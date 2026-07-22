@@ -4,10 +4,24 @@ public sealed class FakeHotkey : IHotkeyService
 {
     public event Action? HoldStarted;
     public event Action? HoldEnded;
+    public event Action? RewriteHoldStarted;
+    public event Action? RewriteHoldEnded;
+    public event Action? ReviewAccepted;
+    public event Action? ReviewCancelled;
+    public bool ReviewArmed { get; private set; }
+
     public void Start() { } public void Stop() { }
     public void SetHotkey(uint virtualKeyCode) { }
+    public void SetRewriteHotkey(uint virtualKeyCode) { }
+    public void ArmReviewKeys() => ReviewArmed = true;
+    public void DisarmReviewKeys() => ReviewArmed = false;
+
     public void FireStart() => HoldStarted?.Invoke();
     public void FireEnd() => HoldEnded?.Invoke();
+    public void FireRewriteStart() => RewriteHoldStarted?.Invoke();
+    public void FireRewriteEnd() => RewriteHoldEnded?.Invoke();
+    public void FireReviewAccepted() => ReviewAccepted?.Invoke();
+    public void FireReviewCancelled() => ReviewCancelled?.Invoke();
 }
 
 public sealed class FakeAudio : IAudioCaptureService
