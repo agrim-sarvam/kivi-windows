@@ -33,4 +33,11 @@ public class AppConfigTests
         Assert.True(c.ScreenContextEnabled);
         Assert.Equal(0xA3u, c.HotkeyVirtualKeyCode);
     }
+
+    [Fact]
+    public void Default_HasRewriteHotkeyDefault()
+    {
+        var c = AppConfig.Default();
+        Assert.Equal(0xA5u, c.RewriteHotkeyVirtualKeyCode);
+    }
 }

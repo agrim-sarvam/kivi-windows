@@ -19,6 +19,7 @@ public sealed class AppConfig
     public string OrbAccentColor { get; set; } = "#41691E";
     public bool ScreenContextEnabled { get; set; } = true;
     public uint HotkeyVirtualKeyCode { get; set; } = 0xA3; // VK_RCONTROL (Right Ctrl)
+    public uint RewriteHotkeyVirtualKeyCode { get; set; } = 0xA5; // VK_RMENU (Right Alt) -- "hey kivi" rewrite
 
     public static AppConfig Default() => new();
 
