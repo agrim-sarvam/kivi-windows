@@ -4,12 +4,12 @@ using Xunit;
 public class AppConfigTests
 {
     [Fact]
-    public void Default_HasGroqBaseUrls_AndValidates()
+    public void Default_HasSarvamBaseUrls_AndValidates()
     {
         var cfg = AppConfig.Default();
-        Assert.Equal("https://api.groq.com/openai/v1", cfg.TranscriptionBaseUrl);
-        Assert.Equal("https://api.groq.com/openai/v1", cfg.ChatBaseUrl);
-        Assert.Equal("whisper-large-v3", cfg.TranscriptionModel);
+        Assert.Equal("https://api.sarvam.ai", cfg.TranscriptionBaseUrl);
+        Assert.Equal("https://api.sarvam.ai", cfg.ChatBaseUrl);
+        Assert.Equal("saaras:v3", cfg.TranscriptionModel);
         cfg.Validate(); // must not throw
     }
 
