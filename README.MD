@@ -55,6 +55,23 @@ guard that skips capture entirely for password fields.
 dotnet test
 ```
 
+## Building a release
+
+1. `powershell -File scripts/build-release.ps1 -SarvamApiKey "<key>" -Version "<version>"` —
+   publishes a self-contained build and stamps in the embedded Sarvam API key
+   (never commit the real key; it's read from the command-line parameter only).
+2. `powershell -File scripts/build-installer.ps1 -Version "<version>"` — packages the
+   publish output into `release/releases/Setup.exe` via Velopack.
+
+The resulting `Setup.exe` is unsigned (no code-signing certificate yet) — Windows
+SmartScreen will show a warning on first run; this is expected until a certificate
+is obtained.
+
+The embedded Sarvam key means every install of this Setup.exe draws on the same
+Sarvam account's credits and rate limits — see the key-distribution note in
+`docs/superpowers/specs/2026-07-23-kivi-sarvam-migration-and-full-stack-app-design.md`
+before distributing this build beyond a small, trusted circle.
+
 ## docs/
 
 - **overview.md** — original project brief: goals and the plan-of-action
