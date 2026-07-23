@@ -75,14 +75,14 @@ public partial class App : Application
         // Secrets: env/user-secrets first, else DPAPI store.
         services.AddSingleton<ISecretStore>(_ =>
         {
-            var envKey = configuration["GROQ_API_KEY"];
+            var envKey = configuration["SARVAM_API_KEY"];
             var dpapi = new DpapiSecretStore();
             if (!string.IsNullOrEmpty(envKey)) dpapi.SetApiKey(envKey); // cache into store for this session
             return dpapi;
         });
 
-        services.AddSingleton<ISttEngine, GroqSttEngine>();
-        services.AddSingleton<IPolishClient, GroqPolishClient>();
+        services.AddSingleton<ISttEngine, SarvamSttEngine>();
+        services.AddSingleton<IPolishClient, SarvamPolishClient>();
         services.AddSingleton<IHotkeyService, LowLevelKeyboardHookService>();
         services.AddSingleton<IAudioCaptureService, WasapiAudioCaptureService>();
         services.AddSingleton<IScreenContextProvider, UiaScreenContextProvider>();
