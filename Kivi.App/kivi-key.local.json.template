@@ -1,3 +1,5 @@
 {
-  "SarvamApiKey": ""
+  "SarvamApiKey": "",
+  "GoogleClientId": "",
+  "GoogleClientSecret": ""
 }

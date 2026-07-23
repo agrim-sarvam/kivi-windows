@@ -60,10 +60,10 @@ dotnet test
 Kivi ships for both x64 and ARM64 (Windows 11 requires a 64-bit CPU to install at all, so
 there's no genuine 32-bit-only hardware to target — x86 is intentionally not built).
 
-1. `powershell -File scripts/build-release.ps1 -SarvamApiKey "<key>" -Version "<version>"` —
+1. `powershell -File scripts/build-release.ps1 -SarvamApiKey "<key>" -GoogleClientId "<id>" -GoogleClientSecret "<secret>" -Version "<version>"` —
    publishes a self-contained build for both `win-x64` and `win-arm64`, stamping the
-   embedded Sarvam API key into each (never commit the real key; it's read from the
-   command-line parameter only).
+   embedded Sarvam API key and Google OAuth Desktop-app credentials into each (never
+   commit any of these; they're read from command-line parameters only).
 2. `powershell -File scripts/build-installer.ps1 -Version "<version>"` — packages both
    publish outputs into separate installers under `release/releases/` via Velopack: an
    x64 `Kivi-win-Setup.exe` and an ARM64 `Kivi-win-arm64-Setup.exe`.

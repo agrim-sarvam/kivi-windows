@@ -1,8 +1,9 @@
 # scripts/build-release.ps1
 # Builds release-ready publish outputs for Kivi (win-x64 and win-arm64), stamping in the
-# embedded Sarvam API key in each. Usage: .\scripts\build-release.ps1 -SarvamApiKey "sk_xxx" -Version "0.1.0"
+# embedded Sarvam API key and Google OAuth credentials in each.
+# Usage: .\scripts\build-release.ps1 -SarvamApiKey "sk_xxx" -GoogleClientId "..." -GoogleClientSecret "..." -Version "0.1.0"
 #
-# The key is passed as a parameter, never hardcoded here and never committed --
+# All credentials are passed as parameters, never hardcoded here and never committed --
 # per the key-distribution model documented in
 # docs/superpowers/specs/2026-07-23-kivi-sarvam-migration-and-full-stack-app-design.md.
 #
@@ -12,6 +13,12 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$SarvamApiKey,
+
+    [Parameter(Mandatory = $true)]
+    [string]$GoogleClientId,
+
+    [Parameter(Mandatory = $true)]
+    [string]$GoogleClientSecret,
 
     [Parameter(Mandatory = $true)]
     [string]$Version
@@ -39,9 +46,13 @@ foreach ($rid in $runtimes) {
         throw "dotnet publish failed for $rid with exit code $LASTEXITCODE"
     }
 
-    Write-Host "Stamping in the embedded Sarvam key ($rid)..."
+    Write-Host "Stamping in the embedded Sarvam key and Google OAuth credentials ($rid)..."
     $keyFilePath = Join-Path $publishDir "kivi-key.local.json"
-    @{ SarvamApiKey = $SarvamApiKey } | ConvertTo-Json | Set-Content -Path $keyFilePath -Encoding utf8
+    @{
+        SarvamApiKey = $SarvamApiKey
+        GoogleClientId = $GoogleClientId
+        GoogleClientSecret = $GoogleClientSecret
+    } | ConvertTo-Json | Set-Content -Path $keyFilePath -Encoding utf8
 
     Write-Host "Release publish output ready at: $publishDir"
 }
