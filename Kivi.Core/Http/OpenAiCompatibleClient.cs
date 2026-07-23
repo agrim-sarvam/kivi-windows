@@ -25,6 +25,22 @@ public sealed class OpenAiCompatibleClient
         return await SendAsync(req, timeout, ct);
     }
 
+    public async Task<string> PostSarvamTranscriptionAsync(string baseUrl, string apiKey, string model,
+        string mode, string? languageCode, byte[] wav, string fileName, TimeSpan timeout, CancellationToken ct)
+    {
+        using var content = new MultipartFormDataContent();
+        content.Add(new StringContent(model), "model");
+        content.Add(new StringContent(mode), "mode");
+        if (!string.IsNullOrEmpty(languageCode)) content.Add(new StringContent(languageCode), "language_code");
+        var file = new ByteArrayContent(wav);
+        file.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
+        content.Add(file, "file", fileName);
+
+        using var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/speech-to-text") { Content = content };
+        req.Headers.Add("api-subscription-key", apiKey);
+        return await SendAsync(req, timeout, ct);
+    }
+
     public async Task<string> PostChatCompletionAsync(string baseUrl, string apiKey, object payload, TimeSpan timeout, CancellationToken ct)
     {
         var json = JsonSerializer.Serialize(payload);

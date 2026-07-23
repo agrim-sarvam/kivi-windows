@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Net;
 using Kivi.Core.Http;
 using Xunit;
@@ -30,5 +31,34 @@ public class OpenAiCompatibleClientTests
             client.PostChatCompletionAsync("https://api.groq.com/openai/v1", "k",
                 new { model = "m" }, TimeSpan.FromSeconds(20), default));
         Assert.Equal(HttpStatusCode.TooManyRequests, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task PostSarvamTranscriptionAsync_SendsSubscriptionKeyHeader_AndCorrectFields()
+    {
+        var fake = FakeHttpMessageHandler.Json("{\"transcript\":\"hi\"}");
+        var client = new OpenAiCompatibleClient(new HttpClient(fake));
+
+        var result = await client.PostSarvamTranscriptionAsync(
+            "https://api.sarvam.ai", "sk_test123", "saaras:v3", "codemix", "hi-IN",
+            new byte[] { 1, 2, 3 }, "audio.wav", TimeSpan.FromSeconds(20), default);
+
+        Assert.Equal("{\"transcript\":\"hi\"}", result);
+        Assert.Equal("https://api.sarvam.ai/speech-to-text", fake.LastRequest!.RequestUri!.ToString());
+        Assert.Null(fake.LastRequest.Headers.Authorization);
+        Assert.Equal("sk_test123", fake.LastRequest.Headers.GetValues("api-subscription-key").Single());
+    }
+
+    [Fact]
+    public async Task PostSarvamTranscriptionAsync_OmitsLanguageCode_WhenNull()
+    {
+        var fake = FakeHttpMessageHandler.Json("{\"transcript\":\"hi\"}");
+        var client = new OpenAiCompatibleClient(new HttpClient(fake));
+
+        await client.PostSarvamTranscriptionAsync(
+            "https://api.sarvam.ai", "sk_test123", "saaras:v3", "codemix", null,
+            new byte[] { 1 }, "audio.wav", TimeSpan.FromSeconds(20), default);
+
+        Assert.DoesNotContain("language_code", fake.LastRequestBody);
     }
 }
