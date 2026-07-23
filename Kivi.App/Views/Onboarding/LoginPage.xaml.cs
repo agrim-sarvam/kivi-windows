@@ -16,8 +16,9 @@ namespace Kivi.App.Views.Onboarding;
 /// </summary>
 public sealed partial class LoginPage : Page
 {
-    // TODO(config): replace with Kivi's real registered OAuth client ID before shipping.
-    private const string GoogleClientId = "REPLACE_WITH_REAL_GOOGLE_OAUTH_CLIENT_ID";
+    // Registered as a Desktop app OAuth client in Google Cloud Console (project: Kivi Dictation).
+    // No client secret is needed for the loopback id_token flow used by GoogleSignIn.
+    private const string GoogleClientId = "552223359415-in50ck0ijpcai5fj4pd4ihdjnj0ogqqt.apps.googleusercontent.com";
 
     private OnboardingWindow? _host;
 
