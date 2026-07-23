@@ -15,6 +15,7 @@ public sealed class FakeHotkey : IHotkeyService
     public void SetRewriteHotkey(uint virtualKeyCode) { }
     public void ArmReviewKeys() => ReviewArmed = true;
     public void DisarmReviewKeys() => ReviewArmed = false;
+    public void SetEnabled(bool enabled) { }
 
     public void FireStart() => HoldStarted?.Invoke();
     public void FireEnd() => HoldEnded?.Invoke();

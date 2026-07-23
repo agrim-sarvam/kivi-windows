@@ -15,4 +15,7 @@ public interface IHotkeyService
     void SetRewriteHotkey(uint virtualKeyCode);
     void ArmReviewKeys();
     void DisarmReviewKeys();
+    // Temporarily pauses/resumes hook handling without changing which key is bound (unlike
+    // SetHotkey/SetRewriteHotkey). Used by the tray icon's "Pause dictation" command.
+    void SetEnabled(bool enabled);
 }
