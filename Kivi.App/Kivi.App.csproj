@@ -82,6 +82,21 @@
     <Page Include="Views\MainApp\HistoryPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="Views\MainApp\AnalyticsPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\MainApp\SettingsPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\MainApp\PersonasPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\MainApp\PresetsPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\MainApp\MemoryPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Compile Update="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
@@ -111,6 +126,21 @@
     </Compile>
     <Compile Update="Views\MainApp\HistoryPage.xaml.cs">
       <DependentUpon>HistoryPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\MainApp\AnalyticsPage.xaml.cs">
+      <DependentUpon>AnalyticsPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\MainApp\SettingsPage.xaml.cs">
+      <DependentUpon>SettingsPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\MainApp\PersonasPage.xaml.cs">
+      <DependentUpon>PersonasPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\MainApp\PresetsPage.xaml.cs">
+      <DependentUpon>PresetsPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\MainApp\MemoryPage.xaml.cs">
+      <DependentUpon>MemoryPage.xaml</DependentUpon>
     </Compile>
   </ItemGroup>
 

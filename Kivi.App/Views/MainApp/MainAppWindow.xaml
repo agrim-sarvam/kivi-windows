@@ -1,9 +1,10 @@
 <!-- Kivi.App/Views/MainApp/MainAppWindow.xaml -->
 <!-- The "main app" window: a sidebar (record/history/personas/presets/memory/analytics/
-     leaderboard nav, usage meter, account footer) plus a content Frame that navigates between
-     RecordPage and HistoryPage. Only Record and History have real destinations today; the other
-     five nav items render for visual fidelity but are non-interactive stubs, consistent with
-     this project's established "UI first, backend later" pattern (see ConfigPage/LoginPage). -->
+     leaderboard/settings nav, usage meter, account footer) plus a content Frame. Record,
+     History, Analytics, and Settings are real, end-to-end pages. Personas/Presets/Memory
+     are real, navigable pages too, but are backed by in-memory-only mock data (see
+     WorkspaceMockData; no persistence, no real backend wiring, per the design spec's
+     deliberate scope split. Only "leaderboard" remains a non-interactive stub. -->
 <Window
     x:Class="Kivi.App.Views.MainApp.MainAppWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -24,6 +25,7 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
@@ -50,16 +52,18 @@
                     <local:SidebarNavItem x:Name="NavHistory" Glyph="&#xE81C;" Label="history" Click="OnNavHistory"/>
                 </StackPanel>
 
-                <!-- Workspace section (non-interactive stubs: no backend exists yet) -->
+                <!-- Workspace section: personas/presets/memory are real pages backed by
+                     in-memory mock data (WorkspaceMockData); analytics is real end-to-end;
+                     leaderboard remains a non-interactive stub (out of scope). -->
                 <StackPanel Grid.Row="2" Spacing="2" VerticalAlignment="Top">
                     <TextBlock Text="WORKSPACE" Margin="12,0,0,6"
                                FontFamily="{ThemeResource KiviMonoFontFamily}"
                                FontSize="10.5" FontWeight="SemiBold"
                                Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
-                    <local:SidebarNavItem Glyph="&#xE70F;" Label="personas" IsStub="True"/>
-                    <local:SidebarNavItem Glyph="&#xE8FD;" Label="presets" IsStub="True"/>
-                    <local:SidebarNavItem Glyph="&#xE710;" Label="memory" IsStub="True"/>
-                    <local:SidebarNavItem Glyph="&#xE9D9;" Label="analytics" IsStub="True"/>
+                    <local:SidebarNavItem x:Name="NavPersonas" Glyph="&#xE70F;" Label="personas" Click="OnNavPersonas"/>
+                    <local:SidebarNavItem x:Name="NavPresets" Glyph="&#xE8FD;" Label="presets" Click="OnNavPresets"/>
+                    <local:SidebarNavItem x:Name="NavMemory" Glyph="&#xE710;" Label="memory" Click="OnNavMemory"/>
+                    <local:SidebarNavItem x:Name="NavAnalytics" Glyph="&#xE9D9;" Label="analytics" Click="OnNavAnalytics"/>
                     <local:SidebarNavItem Glyph="&#xE9F1;" Label="leaderboard" IsStub="True"/>
                 </StackPanel>
 
@@ -105,6 +109,10 @@
                     <FontIcon Grid.Column="2" Glyph="&#xE713;" FontSize="15" VerticalAlignment="Center"
                               Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
                 </Grid>
+
+                <!-- Settings: pinned at the very bottom of the sidebar, below the account footer. -->
+                <local:SidebarNavItem x:Name="NavSettings" Grid.Row="5" Glyph="&#xE713;" Label="settings"
+                                      Click="OnNavSettings" Margin="0,10,0,0"/>
             </Grid>
         </Border>
 
