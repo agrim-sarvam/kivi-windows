@@ -1,4 +1,6 @@
 // Kivi.App/Views/MainApp/MainAppWindow.xaml.cs
+using Kivi.Core.Config;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -26,10 +28,36 @@ public sealed partial class MainAppWindow : Window
         Title = "Kivi";
         NavRecord.IsActive = true;
         ContentFrame.Navigate(typeof(RecordPage));
+        RenderAccountFooter();
 
         nint hwnd = WindowNative.GetWindowHandle(this);
         _appWindow = AppWindow.GetFromWindowId(Win32Interop.GetWindowIdFromWindow(hwnd));
         _appWindow.Closing += OnAppWindowClosing;
+    }
+
+    /// <summary>
+    /// Shows the real signed-in profile (AppConfig.ProfileName/ProfileEmail, set during
+    /// onboarding's Google sign-in or left null if "use work email instead" was chosen)
+    /// instead of a hardcoded placeholder account.
+    /// </summary>
+    private void RenderAccountFooter()
+    {
+        var config = Kivi.App.App.Services.GetRequiredService<AppConfig>();
+        var name = config.ProfileName;
+        var email = config.ProfileEmail;
+
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            AccountName.Text = name;
+            AccountEmail.Text = email ?? "";
+            AccountInitial.Text = name.Substring(0, 1).ToUpperInvariant();
+        }
+        else
+        {
+            AccountName.Text = "Not signed in";
+            AccountEmail.Text = "";
+            AccountInitial.Text = "?";
+        }
     }
 
     private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)

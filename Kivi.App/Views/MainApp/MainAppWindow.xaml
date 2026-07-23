@@ -96,14 +96,14 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Width="30" Height="30" CornerRadius="15"
                             Background="{ThemeResource KiviBrandInkBrush}">
-                        <TextBlock Text="n" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        <TextBlock x:Name="AccountInitial" Text="?" HorizontalAlignment="Center" VerticalAlignment="Center"
                                    FontFamily="{ThemeResource KiviFontFamily}" FontSize="13"
                                    Foreground="{ThemeResource KiviOnBrandBrush}"/>
                     </Border>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="0">
-                        <TextBlock Text="Nishk Davawala" FontFamily="{ThemeResource KiviFontFamily}"
+                        <TextBlock x:Name="AccountName" Text="Not signed in" FontFamily="{ThemeResource KiviFontFamily}"
                                    FontSize="12.5" Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
-                        <TextBlock Text="nishk@sarvam.ai" FontFamily="{ThemeResource KiviFontFamily}"
+                        <TextBlock x:Name="AccountEmail" Text="" FontFamily="{ThemeResource KiviFontFamily}"
                                    FontSize="11" Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
                     </StackPanel>
                     <FontIcon Grid.Column="2" Glyph="&#xE713;" FontSize="15" VerticalAlignment="Center"
