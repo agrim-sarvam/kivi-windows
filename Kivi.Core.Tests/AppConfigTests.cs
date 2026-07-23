@@ -40,4 +40,14 @@ public class AppConfigTests
         var c = AppConfig.Default();
         Assert.Equal(0xA5u, c.RewriteHotkeyVirtualKeyCode);
     }
+
+    [Fact]
+    public void Default_HasNullProfileAndUseCaseFields()
+    {
+        var c = AppConfig.Default();
+        Assert.Null(c.ProfileName);
+        Assert.Null(c.ProfileEmail);
+        Assert.Null(c.ProfileAvatarUrl);
+        Assert.Null(c.PrimaryUseCase);
+    }
 }
