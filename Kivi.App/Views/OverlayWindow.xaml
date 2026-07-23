@@ -16,7 +16,7 @@
              for ShowContextMenu. Right-click (MenuActivation default) opens it. -->
         <tb:TaskbarIcon x:Name="TrayIcon"
                          ToolTipText="Kivi"
-                         IconSource="ms-appx:///Assets/Icons/kivi-mask.png">
+                         IconSource="ms-appx:///Assets/Icons/kivi.ico">
             <tb:TaskbarIcon.ContextFlyout>
                 <MenuFlyout>
                     <MenuFlyoutItem Text="Open Kivi" Click="OnTrayOpenKivi" />
