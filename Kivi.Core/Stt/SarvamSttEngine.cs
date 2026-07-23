@@ -7,7 +7,11 @@ namespace Kivi.Core.Stt;
 
 public sealed class SarvamSttEngine : ISttEngine
 {
-    private const string Mode = "codemix";
+    // "codemix" outputs Indic words in native script (Devanagari for Hindi) -- "translit"
+    // instead transliterates them into Roman letters (e.g. "ab batao maine kya likha hai"),
+    // which is what "Hinglish" means for this app: no Devanagari at all, romanized Hindi
+    // mixed with English, all in one Latin-alphabet transcript.
+    private const string Mode = "translit";
 
     private readonly OpenAiCompatibleClient _http;
     private readonly AppConfig _config;

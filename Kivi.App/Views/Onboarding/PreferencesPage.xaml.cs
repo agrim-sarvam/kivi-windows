@@ -16,9 +16,9 @@ public sealed partial class PreferencesPage : Page
 {
     // Codes must be real Sarvam language_code values (BCP-47, e.g. "hi-IN"/"en-IN") -- Sarvam's
     // speech-to-text rejects/mishandles anything else. "Auto" sends no language_code at all
-    // (Sarvam auto-detects), which combined with mode=codemix is the right default for mixed
-    // Hindi/English speech -- there's no separate "Hinglish" code, codemix mode IS the Hinglish
-    // behavior (transcribes English words in English, Hindi words in Devanagari, same utterance).
+    // (Sarvam auto-detects), which combined with SarvamSttEngine's mode=translit is the right
+    // default for Hinglish: English words stay spelled in English, Hindi words are romanized
+    // into Latin letters (e.g. "ab batao maine kya likha hai") -- no Devanagari at all.
     private static readonly (string Code, string Label)[] LanguageChoices =
     {
         ("auto", "Auto (Hinglish-friendly)"),

@@ -27,8 +27,9 @@ public sealed partial class ConfigPage : Page
     };
 
     // Codes must be real Sarvam language_code values (BCP-47) -- see PreferencesPage.xaml.cs
-    // for why "auto" (no language_code, codemix mode handles Hinglish) is the recommended
-    // default, and why Spanish/French were dropped (Sarvam STT doesn't support them).
+    // for why "auto" (no language_code, SarvamSttEngine's mode=translit handles Hinglish) is
+    // the recommended default, and why Spanish/French were dropped (Sarvam STT doesn't support
+    // them).
     private static readonly (string Code, string Label)[] LanguageChoices =
     {
         ("auto", "Auto (Hinglish-friendly)"),
