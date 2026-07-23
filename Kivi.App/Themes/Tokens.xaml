@@ -95,7 +95,11 @@
     <x:Double x:Key="KiviSpaceS32">64</x:Double>
 
     <!-- Typography (font sourcing per spec S3 — Inter, not Matter/Season Mix) -->
-    <x:String x:Key="KiviFontFamily">/Assets/Fonts/Inter-Regular.ttf#Inter</x:String>
+    <!-- Inter has no Devanagari glyphs; Hinglish/Hindi dictation output would render as
+         tofu boxes without a fallback. Nirmala UI ships with every Windows install and
+         covers Devanagari (and most other Indic scripts). XAML tries fonts left to right
+         per glyph, so Latin text still renders in Inter and only Devanagari falls back. -->
+    <x:String x:Key="KiviFontFamily">/Assets/Fonts/Inter-Regular.ttf#Inter, Nirmala UI</x:String>
     <x:String x:Key="KiviWordmarkFontFamily">/Assets/Fonts/SpaceGrotesk-Medium.ttf#Space Grotesk</x:String>
     <x:String x:Key="KiviMonoFontFamily">/Assets/Fonts/SpaceMono-Regular.ttf#Space Mono</x:String>
     <x:Double x:Key="KiviFontSizeCaption">11.5</x:Double>

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace Kivi.App.Views.Onboarding;
@@ -50,6 +51,7 @@ public sealed partial class WalkthroughPage : Page
                     StatusChip.Text = _orchestrator.LastErrorMessage is { Length: > 0 } msg
                         ? $"Couldn't dictate: {msg}"
                         : "Couldn't dictate that. Try again, or check Settings > API key.";
+                    _ = PracticeField.Focus(FocusState.Programmatic);
                     break;
                 case RecordingState.Idle when PracticeField.Text.Length > 0:
                     _step1Completed = true;
@@ -67,6 +69,12 @@ public sealed partial class WalkthroughPage : Page
         Step1Panel.Visibility = Visibility.Visible;
         Step2Panel.Visibility = Visibility.Collapsed;
         StatusChip.Text = "Hold Right Ctrl and say something";
+
+        // Dictation pastes into whatever control has OS-level keyboard focus system-wide
+        // (SendInputPasteService simulates Ctrl+V) -- without an explicit focus call here,
+        // the practice field may never actually be the paste target, making the walkthrough
+        // look like "nothing happens" even when dictation itself succeeded elsewhere.
+        _ = PracticeField.Focus(FocusState.Programmatic);
     }
 
     private void ShowStep2()

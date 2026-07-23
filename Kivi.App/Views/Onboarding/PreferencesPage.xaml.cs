@@ -14,12 +14,16 @@ namespace Kivi.App.Views.Onboarding;
 /// </summary>
 public sealed partial class PreferencesPage : Page
 {
+    // Codes must be real Sarvam language_code values (BCP-47, e.g. "hi-IN"/"en-IN") -- Sarvam's
+    // speech-to-text rejects/mishandles anything else. "Auto" sends no language_code at all
+    // (Sarvam auto-detects), which combined with mode=codemix is the right default for mixed
+    // Hindi/English speech -- there's no separate "Hinglish" code, codemix mode IS the Hinglish
+    // behavior (transcribes English words in English, Hindi words in Devanagari, same utterance).
     private static readonly (string Code, string Label)[] LanguageChoices =
     {
-        ("auto", "Auto"),
-        ("en", "English"),
-        ("hi", "Hindi"),
-        ("hi-en", "Hinglish"),
+        ("auto", "Auto (Hinglish-friendly)"),
+        ("en-IN", "English"),
+        ("hi-IN", "Hindi"),
     };
 
     private static readonly (string Code, string Label)[] UseCaseChoices =
