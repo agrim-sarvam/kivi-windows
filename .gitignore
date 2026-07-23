@@ -29,3 +29,5 @@ Thumbs.db
 .DS_Store
 .superpowers/
 logs/
+
+*.mov
