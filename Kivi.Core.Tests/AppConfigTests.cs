@@ -8,7 +8,7 @@ public class AppConfigTests
     {
         var cfg = AppConfig.Default();
         Assert.Equal("https://api.sarvam.ai", cfg.TranscriptionBaseUrl);
-        Assert.Equal("https://api.sarvam.ai", cfg.ChatBaseUrl);
+        Assert.Equal("https://api.sarvam.ai/v1", cfg.ChatBaseUrl);
         Assert.Equal("saaras:v3", cfg.TranscriptionModel);
         cfg.Validate(); // must not throw
     }

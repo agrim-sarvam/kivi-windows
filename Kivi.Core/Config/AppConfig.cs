@@ -4,7 +4,7 @@ namespace Kivi.Core.Config;
 public sealed class AppConfig
 {
     public string TranscriptionBaseUrl { get; set; } = "https://api.sarvam.ai";
-    public string ChatBaseUrl { get; set; } = "https://api.sarvam.ai";
+    public string ChatBaseUrl { get; set; } = "https://api.sarvam.ai/v1";
     public string TranscriptionModel { get; set; } = "saaras:v3";
     public string CleanupModel { get; set; } = "sarvam-30b";
     public string FallbackModel { get; set; } = "sarvam-105b";
