@@ -1,7 +1,7 @@
 <!-- Kivi.App/Views/MainApp/HistoryPage.xaml -->
-<!-- Visual-only per this pass ("UI first, backend later"): rows are hardcoded sample data, not
-     real transcript history (no such storage exists yet). Clicking a row does update the detail
-     card above it, which is a real (if entirely in-memory) interaction. -->
+<!-- Real, persisted transcript history: rows are backed by ITranscriptStore, newest first.
+     Clicking a row updates the detail card above it; the search box filters rows by
+     substring match against transcript text and app name. -->
 <Page
     x:Class="Kivi.App.Views.MainApp.HistoryPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -99,7 +99,7 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <FontIcon Grid.Column="0" Glyph="&#xE721;" FontSize="13" VerticalAlignment="Center" Foreground="{ThemeResource KiviTextTertiaryBrush}"/>
-                        <TextBox Grid.Column="1" BorderThickness="0" Background="Transparent" VerticalAlignment="Center"
+                        <TextBox x:Name="SearchBox" Grid.Column="1" BorderThickness="0" Background="Transparent" VerticalAlignment="Center"
                                  PlaceholderText="search transcripts..." FontFamily="{ThemeResource KiviFontFamily}" FontSize="13"/>
                     </Grid>
                 </Border>
@@ -124,10 +124,7 @@
                 </StackPanel>
             </Grid>
 
-            <TextBlock Text="21 jul · tuesday" FontFamily="{ThemeResource KiviMonoFontFamily}" FontSize="11"
-                       Foreground="{ThemeResource KiviTextTertiaryBrush}" Margin="12,4,0,0"/>
-
-            <StackPanel x:Name="RowsPanel" Spacing="1"/>
+            <StackPanel x:Name="RowsPanel" Spacing="1" Margin="0,4,0,0"/>
         </StackPanel>
     </ScrollViewer>
 </Page>

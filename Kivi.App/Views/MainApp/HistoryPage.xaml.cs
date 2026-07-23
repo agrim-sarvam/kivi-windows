@@ -1,4 +1,7 @@
 // Kivi.App/Views/MainApp/HistoryPage.xaml.cs
+using System.Linq;
+using Kivi.Core.History;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -7,39 +10,40 @@ using Windows.UI;
 namespace Kivi.App.Views.MainApp;
 
 /// <summary>
-/// Sample transcript rows for this visual-only pass -- no transcript-history storage exists
-/// yet, so this is hardcoded, in-memory demo content, not real data.
+/// Real, persisted transcript history -- reads from ITranscriptStore, no hardcoded sample
+/// data. Newest dictation first, matching the mockup's reverse-chronological list.
 /// </summary>
 public sealed partial class HistoryPage : Page
 {
-    private sealed record Row(string Text, string Time, int WordCount);
-
-    private static readonly Row[] SampleRows =
-    {
-        new("ask any doubts you have before starting", "3:55 pm", 7),
-        new("Let's get it out here before starting", "3:55 pm", 8),
-        new("Can you give me the questions which you have listed, which is the slightly fuller version, in a .txt format and just the question…", "2:14 pm", 24),
-        new("Are you saying that only 3 out of 9 yeses make a company you are with for a second meeting?", "1:03 pm", 19),
-        new("A bit more.", "1:02 pm", 3),
-        new("Betcore.", "1:02 pm", 1),
-        new("This is good, but I cannot ask a lot of questions in the first meet itself. So just make this concise and just give me a set of ques…", "1:02 pm", 26),
-        new(", for majorly Edge but a basic reroute logic that it fits some other team or something like that", "12:59 pm", 18),
-    };
-
+    private readonly IReadOnlyList<TranscriptEntry> _entries;
     private readonly List<Border> _rowBorders = new();
+    private readonly List<Button> _rowButtons = new();
 
     public HistoryPage()
     {
         InitializeComponent();
+        var store = Kivi.App.App.Services.GetRequiredService<ITranscriptStore>();
+        _entries = store.LoadAll().Reverse().ToList();
         BuildRows();
-        Select(0);
+        if (_entries.Count > 0) Select(0);
+        else ShowEmptyState();
+
+        SearchBox.TextChanged += OnSearchTextChanged;
+    }
+
+    private void ShowEmptyState()
+    {
+        DetailText.Text = "No dictations yet — hold Right Ctrl anywhere to start.";
+        DetailWordCount.Text = "";
+        DetailApp.Text = "";
+        DetailTime.Text = "";
     }
 
     private void BuildRows()
     {
-        for (int i = 0; i < SampleRows.Length; i++)
+        for (int i = 0; i < _entries.Count; i++)
         {
-            var row = SampleRows[i];
+            var entry = _entries[i];
             int index = i;
 
             var border = new Border
@@ -60,7 +64,7 @@ public sealed partial class HistoryPage : Page
             appCol.Children.Add(new Border { Width = 16, Height = 16, CornerRadius = new CornerRadius(4), Background = new SolidColorBrush(Color.FromArgb(255, 0xF0, 0x65, 0x3B)) });
             appCol.Children.Add(new TextBlock
             {
-                Text = "Brave",
+                Text = string.IsNullOrEmpty(entry.AppName) ? "Unknown" : entry.AppName,
                 FontFamily = new FontFamily((string)Application.Current.Resources["KiviFontFamily"]),
                 FontSize = 12.5,
                 Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["KiviTextSecondaryBrush"],
@@ -70,7 +74,7 @@ public sealed partial class HistoryPage : Page
 
             var textBlock = new TextBlock
             {
-                Text = row.Text,
+                Text = entry.Text,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 MaxLines = 1,
                 FontFamily = new FontFamily((string)Application.Current.Resources["KiviFontFamily"]),
@@ -82,7 +86,7 @@ public sealed partial class HistoryPage : Page
 
             var timeBlock = new TextBlock
             {
-                Text = row.Time,
+                Text = entry.Timestamp.LocalDateTime.ToString("h:mm tt"),
                 HorizontalAlignment = HorizontalAlignment.Right,
                 FontFamily = new FontFamily((string)Application.Current.Resources["KiviFontFamily"]),
                 FontSize = 12,
@@ -108,6 +112,7 @@ public sealed partial class HistoryPage : Page
             button.Click += (_, _) => Select(index);
 
             _rowBorders.Add(border);
+            _rowButtons.Add(button);
             RowsPanel.Children.Add(button);
         }
     }
@@ -125,10 +130,22 @@ public sealed partial class HistoryPage : Page
             _rowBorders[i].Background = selected ? warmTint : transparent;
         }
 
-        var row = SampleRows[index];
-        DetailText.Text = row.Text;
-        DetailWordCount.Text = $"{row.WordCount} words";
-        DetailApp.Text = "Brave Browser";
-        DetailTime.Text = "19 hr ago";
+        var entry = _entries[index];
+        DetailText.Text = entry.Text;
+        DetailWordCount.Text = $"{entry.WordCount} words";
+        DetailApp.Text = string.IsNullOrEmpty(entry.AppName) ? "Unknown" : entry.AppName;
+        DetailTime.Text = entry.Timestamp.LocalDateTime.ToString("MMM d, h:mm tt");
+    }
+
+    private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
+    {
+        var query = SearchBox.Text?.Trim() ?? "";
+        for (int i = 0; i < _entries.Count; i++)
+        {
+            bool matches = string.IsNullOrEmpty(query)
+                || _entries[i].Text.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || _entries[i].AppName.Contains(query, StringComparison.OrdinalIgnoreCase);
+            _rowButtons[i].Visibility = matches ? Visibility.Visible : Visibility.Collapsed;
+        }
     }
 }
