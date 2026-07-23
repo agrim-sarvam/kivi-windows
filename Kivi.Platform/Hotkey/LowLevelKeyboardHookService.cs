@@ -27,6 +27,7 @@ public sealed class LowLevelKeyboardHookService : IHotkeyService, IDisposable
     private volatile bool _reviewArmed;
     private bool _swallowingReturn;
     private bool _swallowingEscape;
+    private volatile bool _enabled = true;
 
     public unsafe void Start()
     {
@@ -59,9 +60,20 @@ public sealed class LowLevelKeyboardHookService : IHotkeyService, IDisposable
     public void ArmReviewKeys() => _reviewArmed = true;
     public void DisarmReviewKeys() => _reviewArmed = false;
 
+    public void SetEnabled(bool enabled)
+    {
+        _enabled = enabled;
+        // Clear any in-progress hold so state doesn't stick across a pause.
+        if (!enabled)
+        {
+            if (_held) { _held = false; HoldEnded?.Invoke(); }
+            if (_rewriteHeld) { _rewriteHeld = false; RewriteHoldEnded?.Invoke(); }
+        }
+    }
+
     private LRESULT HookCallback(int nCode, WPARAM wParam, LPARAM lParam)
     {
-        if (nCode >= 0)
+        if (nCode >= 0 && _enabled)
         {
             var data = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
             uint msg = (uint)wParam.Value;

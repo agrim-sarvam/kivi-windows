@@ -20,6 +20,10 @@ public sealed class AppConfig
     public bool ScreenContextEnabled { get; set; } = true;
     public uint HotkeyVirtualKeyCode { get; set; } = 0xA3; // VK_RCONTROL (Right Ctrl)
     public uint RewriteHotkeyVirtualKeyCode { get; set; } = 0xA5; // VK_RMENU (Right Alt) -- "hey kivi" rewrite
+    public string? ProfileName { get; set; }
+    public string? ProfileEmail { get; set; }
+    public string? ProfileAvatarUrl { get; set; }
+    public string? PrimaryUseCase { get; set; }
 
     public static AppConfig Default() => new();
 

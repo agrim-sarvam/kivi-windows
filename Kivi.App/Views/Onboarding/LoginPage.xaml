@@ -42,6 +42,11 @@
                          FontFamily="{ThemeResource KiviFontFamily}"
                          Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
 
+        <TextBlock x:Name="StatusText" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                   FontFamily="{ThemeResource KiviFontFamily}" FontSize="{ThemeResource KiviFontSizeCaption}"
+                   Foreground="{ThemeResource KiviTextSecondaryBrush}" Margin="0,16,0,0"
+                   Visibility="Collapsed"/>
+
         <TextBlock Text="free &amp; unlimited during launch — your words stay yours"
                    HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
                    FontFamily="{ThemeResource KiviMonoFontFamily}"

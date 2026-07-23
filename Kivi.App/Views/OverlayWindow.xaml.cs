@@ -1,6 +1,8 @@
 using System.Drawing;
+using CommunityToolkit.Mvvm.Input;
 using Kivi.App.Controls;
 using Kivi.App.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -21,11 +23,18 @@ public sealed partial class OverlayWindow : Window
     private readonly LayeredOrb _orb;
     private Views.Onboarding.OnboardingWindow? _settingsWindow;
     private Views.MainApp.MainAppWindow? _mainAppWindow;
+    private bool _dictationPaused;
 
     public OverlayWindow(OverlayViewModel vm, Color accent, string languageLabel, string hotkeyLabel)
     {
         InitializeComponent();
         _vm = vm;
+
+        // H.NotifyIcon.WinUI 2.3.2's TaskbarIcon exposes no click *events* (no
+        // TrayLeftMouseUp) -- left-click is wired via the LeftClickCommand ICommand
+        // property instead. Right-click (MenuActivation default) opens the menu set via
+        // the standard FrameworkElement.ContextFlyout property in OverlayWindow.xaml.
+        TrayIcon.LeftClickCommand = new RelayCommand(() => OnTrayOpenKivi(this, new RoutedEventArgs()));
 
         // Push this anchor window off-screen and shrink it so it is never seen.
         nint hwnd = WindowNative.GetWindowHandle(this);
@@ -50,6 +59,7 @@ public sealed partial class OverlayWindow : Window
             _orb.SettingsRequested -= OnSettingsRequested;
             _orb.MainAppRequested -= OnMainAppRequested;
             _orb.Dispose();
+            TrayIcon.Dispose();
         };
 
         // Activate (still off-screen, so invisible) so the window counts as "open" and keeps
@@ -88,5 +98,25 @@ public sealed partial class OverlayWindow : Window
         win.Closed += (_, _) => _mainAppWindow = null;
         _mainAppWindow = win;
         win.Activate();
+    }
+
+    // --- Tray icon handlers ---
+
+    private void OnTrayOpenKivi(object sender, RoutedEventArgs e) => OnMainAppRequested();
+
+    private void OnTrayPauseToggle(object sender, RoutedEventArgs e)
+    {
+        _dictationPaused = !_dictationPaused;
+        var hotkey = Kivi.App.App.Services.GetRequiredService<Kivi.Core.Abstractions.IHotkeyService>();
+        hotkey.SetEnabled(!_dictationPaused);
+        TrayPauseItem.Text = _dictationPaused ? "Resume dictation" : "Pause dictation";
+    }
+
+    private void OnTraySettings(object sender, RoutedEventArgs e) => OnSettingsRequested();
+
+    private void OnTrayQuit(object sender, RoutedEventArgs e)
+    {
+        TrayIcon.Dispose();
+        Application.Current.Exit();
     }
 }
