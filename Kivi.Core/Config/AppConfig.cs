@@ -20,6 +20,9 @@ public sealed class AppConfig
     public bool ScreenContextEnabled { get; set; } = true;
     public uint HotkeyVirtualKeyCode { get; set; } = 0xA3; // VK_RCONTROL (Right Ctrl)
     public uint RewriteHotkeyVirtualKeyCode { get; set; } = 0xA5; // VK_RMENU (Right Alt) -- "hey kivi" rewrite
+    public bool SoundOnPasteEnabled { get; set; } = true;
+    public bool IncognitoDictationEnabled { get; set; }
+    public int PressAndHoldDelayMs { get; set; } = 100;
 
     public static AppConfig Default() => new();
 

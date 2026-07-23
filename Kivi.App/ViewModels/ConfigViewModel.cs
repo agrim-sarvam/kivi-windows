@@ -6,9 +6,12 @@ using Kivi.Core.Config;
 namespace Kivi.App.ViewModels;
 
 /// <summary>
-/// Bindable config state for the onboarding Config page. Property changes write straight
-/// through to the shared AppConfig singleton (not yet persisted); Persist() flips
-/// OnboardingCompleted and saves via IAppConfigStore.
+/// Bindable config state shared by onboarding's ConfigPage and the always-available
+/// SettingsPage. Property changes write straight through to the shared AppConfig singleton
+/// AND persist immediately via IAppConfigStore -- a shared view model used from two
+/// different hosting pages should not have close-only-persists semantics for one of its two
+/// hosts (SettingsPage has no terminal "Done" step, so it must persist per-change).
+/// Persist() additionally flips OnboardingCompleted, for onboarding's own "Done" button.
 /// </summary>
 public partial class ConfigViewModel : ObservableObject
 {
@@ -24,6 +27,9 @@ public partial class ConfigViewModel : ObservableObject
         ScreenContextEnabled = config.ScreenContextEnabled;
         HotkeyVk = config.HotkeyVirtualKeyCode;
         RewriteHotkeyVk = config.RewriteHotkeyVirtualKeyCode;
+        SoundOnPasteEnabled = config.SoundOnPasteEnabled;
+        IncognitoDictationEnabled = config.IncognitoDictationEnabled;
+        PressAndHoldDelayMs = config.PressAndHoldDelayMs;
         LaunchAtLogin = Services.StartupLauncher.IsEnabled();
     }
 
@@ -33,13 +39,19 @@ public partial class ConfigViewModel : ObservableObject
     [ObservableProperty] private bool _launchAtLogin;
     [ObservableProperty] private uint _hotkeyVk = 0xA3;
     [ObservableProperty] private uint _rewriteHotkeyVk = 0xA5;
+    [ObservableProperty] private bool _soundOnPasteEnabled = true;
+    [ObservableProperty] private bool _incognitoDictationEnabled;
+    [ObservableProperty] private int _pressAndHoldDelayMs = 100;
 
-    partial void OnOrbAccentColorChanged(string value) => _config.OrbAccentColor = value;
+    partial void OnOrbAccentColorChanged(string value) { _config.OrbAccentColor = value; _store.Save(_config); }
 
     partial void OnTranscriptionLanguageChanged(string value)
-        => _config.TranscriptionLanguage = value == "auto" ? null : value;
+    {
+        _config.TranscriptionLanguage = value == "auto" ? null : value;
+        _store.Save(_config);
+    }
 
-    partial void OnScreenContextEnabledChanged(bool value) => _config.ScreenContextEnabled = value;
+    partial void OnScreenContextEnabledChanged(bool value) { _config.ScreenContextEnabled = value; _store.Save(_config); }
 
     partial void OnLaunchAtLoginChanged(bool value) => Services.StartupLauncher.SetEnabled(value);
 
@@ -47,13 +59,21 @@ public partial class ConfigViewModel : ObservableObject
     {
         _config.HotkeyVirtualKeyCode = value;
         _hotkey.SetHotkey(value);
+        _store.Save(_config);
     }
 
     partial void OnRewriteHotkeyVkChanged(uint value)
     {
         _config.RewriteHotkeyVirtualKeyCode = value;
         _hotkey.SetRewriteHotkey(value);
+        _store.Save(_config);
     }
+
+    partial void OnSoundOnPasteEnabledChanged(bool value) { _config.SoundOnPasteEnabled = value; _store.Save(_config); }
+
+    partial void OnIncognitoDictationEnabledChanged(bool value) { _config.IncognitoDictationEnabled = value; _store.Save(_config); }
+
+    partial void OnPressAndHoldDelayMsChanged(int value) { _config.PressAndHoldDelayMs = value; _store.Save(_config); }
 
     public void Persist()
     {

@@ -40,4 +40,13 @@ public class AppConfigTests
         var c = AppConfig.Default();
         Assert.Equal(0xA5u, c.RewriteHotkeyVirtualKeyCode);
     }
+
+    [Fact]
+    public void Default_HasSoundIncognitoAndPressHoldDelayDefaults()
+    {
+        var c = AppConfig.Default();
+        Assert.True(c.SoundOnPasteEnabled);
+        Assert.False(c.IncognitoDictationEnabled);
+        Assert.Equal(100, c.PressAndHoldDelayMs);
+    }
 }
