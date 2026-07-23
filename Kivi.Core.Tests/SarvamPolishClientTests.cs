@@ -4,7 +4,7 @@ using Kivi.Core.Http;
 using Kivi.Core.Polish;
 using Xunit;
 
-public class GroqPolishClientTests
+public class SarvamPolishClientTests
 {
     private sealed class FakeSecrets : Kivi.Core.Abstractions.ISecretStore
     { public string? GetApiKey() => "k"; public void SetApiKey(string key) { } }
@@ -12,14 +12,9 @@ public class GroqPolishClientTests
     private static string Chat(string content) =>
         "{\"choices\":[{\"message\":{\"content\":" + System.Text.Json.JsonSerializer.Serialize(content) + "}}]}";
 
-    private static GroqPolishClient Client(string body)
+    private static SarvamPolishClient Client(string body)
         => new(new OpenAiCompatibleClient(new HttpClient(FakeHttpMessageHandler.Json(body))), AppConfig.Default(), new FakeSecrets());
 
-    /// <summary>
-    /// Fake handler that returns a queued sequence of responses, one per request,
-    /// in order. Used to exercise multi-call control flow (primary fails -> fallback
-    /// called) where the single-canned-response FakeHttpMessageHandler can't help.
-    /// </summary>
     private sealed class SequencedFakeHttpMessageHandler : HttpMessageHandler
     {
         private readonly Queue<HttpResponseMessage> _responses;
@@ -37,7 +32,7 @@ public class GroqPolishClientTests
         }
     }
 
-    private static GroqPolishClient SequencedClient(SequencedFakeHttpMessageHandler handler)
+    private static SarvamPolishClient SequencedClient(SequencedFakeHttpMessageHandler handler)
         => new(new OpenAiCompatibleClient(new HttpClient(handler)), AppConfig.Default(), new FakeSecrets());
 
     [Fact]
@@ -57,7 +52,6 @@ public class GroqPolishClientTests
     [Fact]
     public async Task InjectionGuard_ReturnsRawTranscript_WhenModelAnswered()
     {
-        // raw asks to "write an email"; model responded with an assistant preamble -> guard trips
         var client = Client(Chat("Sure, here is the email you asked for: Dear team ..."));
         var raw = "write an email to the team asking if friday works";
         Assert.Equal(raw, await client.CleanupAsync(raw, "", default));
@@ -66,8 +60,6 @@ public class GroqPolishClientTests
     [Fact]
     public async Task RateLimited_FallsBackToSecondModel_AndReturnsCleanedText()
     {
-        // First request (CleanupModel) comes back 429 -> client should put it in cooldown
-        // and retry with FallbackModel, which returns a normal cleaned completion.
         var handler = new SequencedFakeHttpMessageHandler(
             ("{\"error\":\"rate limited\"}", HttpStatusCode.TooManyRequests),
             (Chat("Hello there."), HttpStatusCode.OK));
@@ -77,7 +69,6 @@ public class GroqPolishClientTests
 
         Assert.Equal("Hello there.", result);
         Assert.Equal(2, handler.RequestBodies.Count);
-        // Confirm the two requests actually targeted different models (primary then fallback).
         Assert.Contains(AppConfig.Default().CleanupModel, handler.RequestBodies[0]);
         Assert.Contains(AppConfig.Default().FallbackModel, handler.RequestBodies[1]);
     }
@@ -85,8 +76,6 @@ public class GroqPolishClientTests
     [Fact]
     public async Task EmptyContentFromPrimary_FallsBackToSecondModel_AndReturnsCleanedText()
     {
-        // First request (CleanupModel) returns blank content -> client should skip it
-        // (no cooldown needed) and retry with FallbackModel, which returns real cleaned text.
         var handler = new SequencedFakeHttpMessageHandler(
             (Chat("   "), HttpStatusCode.OK),
             (Chat("Hello there."), HttpStatusCode.OK));

@@ -8,16 +8,15 @@ using Kivi.Core.Http;
 namespace Kivi.Core.Polish;
 
 /// <summary>
-/// LLM cleanup client for Groq's OpenAI-compatible /chat/completions endpoint.
-/// Ported from FreeFlow's PostProcessingService.swift: builds the cleanup
-/// system/user prompts, posts to the default model with the reasoning/token
-/// overrides, falls back to a secondary model on rate limit / empty output,
-/// tracks a per-model cooldown after a 429, and runs a prompt-injection guard
+/// LLM cleanup client for Sarvam's OpenAI-compatible /v1/chat/completions endpoint.
+/// Builds the cleanup system/user prompts, posts to the default model with the
+/// reasoning/token overrides, falls back to a secondary model on rate limit / empty
+/// output, tracks a per-model cooldown after a 429, and runs a prompt-injection guard
 /// that returns the raw transcript if the model appears to have executed the
 /// transcript as an instruction instead of cleaning it. Never logs the
 /// transcript, cleaned text, or the API key.
 /// </summary>
-public sealed class GroqPolishClient : IPolishClient
+public sealed class SarvamPolishClient : IPolishClient
 {
     private readonly OpenAiCompatibleClient _http;
     private readonly AppConfig _config;
@@ -26,7 +25,7 @@ public sealed class GroqPolishClient : IPolishClient
 
     public event Action<string>? EnteringCooldown;
 
-    public GroqPolishClient(OpenAiCompatibleClient http, AppConfig config, ISecretStore secrets)
+    public SarvamPolishClient(OpenAiCompatibleClient http, AppConfig config, ISecretStore secrets)
         => (_http, _config, _secrets) = (http, config, secrets);
 
     public async Task<string> CleanupAsync(string transcript, string context, CancellationToken ct)
