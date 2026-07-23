@@ -110,6 +110,7 @@ public partial class App : Application
         services.AddSingleton<IScreenContextProvider, UiaScreenContextProvider>();
         services.AddSingleton<IPasteService, SendInputPasteService>();
         services.AddSingleton<ITranscriptStore>(_ => new JsonTranscriptStore());
+        services.AddSingleton(global::Kivi.App.Services.GoogleOAuthConfig.Resolve(configuration));
         services.AddSingleton<IDictationOrchestrator, DictationOrchestrator>();
         services.AddTransient<ViewModels.ConfigViewModel>();
 

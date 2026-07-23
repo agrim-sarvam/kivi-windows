@@ -16,10 +16,6 @@ namespace Kivi.App.Views.Onboarding;
 /// </summary>
 public sealed partial class LoginPage : Page
 {
-    // Registered as a Desktop app OAuth client in Google Cloud Console (project: Kivi Dictation).
-    // No client secret is needed for the loopback id_token flow used by GoogleSignIn.
-    private const string GoogleClientId = "552223359415-in50ck0ijpcai5fj4pd4ihdjnj0ogqqt.apps.googleusercontent.com";
-
     private OnboardingWindow? _host;
 
     public LoginPage() => InitializeComponent();
@@ -35,7 +31,15 @@ public sealed partial class LoginPage : Page
         StatusText.Text = "Waiting for sign-in in your browser…";
         StatusText.Visibility = Visibility.Visible;
 
-        var result = await GoogleSignIn.SignInAsync(GoogleClientId, default);
+        var oauth = Kivi.App.App.Services.GetRequiredService<GoogleOAuthConfig>();
+        if (string.IsNullOrEmpty(oauth.ClientId) || string.IsNullOrEmpty(oauth.ClientSecret))
+        {
+            StatusText.Text = "Google sign-in isn't configured on this build. Use your work email instead.";
+            GoogleButton.IsEnabled = true;
+            return;
+        }
+
+        var result = await GoogleSignIn.SignInAsync(oauth.ClientId, oauth.ClientSecret, default);
 
         if (result.Profile is { } profile)
         {

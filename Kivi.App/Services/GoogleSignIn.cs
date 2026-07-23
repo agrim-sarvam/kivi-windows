@@ -16,10 +16,13 @@ namespace Kivi.App.Services;
 /// Uses the Authorization Code + PKCE flow (response_type=code), not the older implicit
 /// flow (response_type=id_token) -- Google rejects the implicit flow for OAuth clients
 /// created after it was deprecated, returning "Error 400: unsupported_response_type".
-/// PKCE lets a public/desktop client (no client secret) exchange the code for tokens
-/// safely: a random code_verifier is hashed into a code_challenge sent up front, and the
-/// raw verifier is presented at token-exchange time so Google can confirm the same app
-/// instance that started the flow is the one completing it.
+/// PKCE proves the same app instance that started the flow is the one completing it (a
+/// random code_verifier is hashed into a code_challenge sent up front, then the raw
+/// verifier is presented at token-exchange time). Google's token endpoint still requires
+/// a client_secret on the exchange request even for a "Desktop app" OAuth client type --
+/// per Google's own installed-app documentation this value "is not treated as a client
+/// secret" for this client type (it can't be kept confidential in a distributed binary
+/// anyway), so embedding it here carries the same risk profile as the client ID itself.
 /// </summary>
 public static class GoogleSignIn
 {
@@ -46,7 +49,7 @@ public static class GoogleSignIn
         return $"https://accounts.google.com/o/oauth2/v2/auth?{query}";
     }
 
-    public static async Task<SignInResult> SignInAsync(string clientId, CancellationToken ct)
+    public static async Task<SignInResult> SignInAsync(string clientId, string clientSecret, CancellationToken ct)
     {
         using var listener = new HttpListener();
         // Port 0 is not valid for HttpListener prefixes; pick a fixed high port used only
@@ -117,7 +120,7 @@ public static class GoogleSignIn
             return new SignInResult(null, "Redirect had no code or a mismatched state parameter.");
         }
 
-        var (idToken, exchangeError) = await ExchangeCodeForIdTokenAsync(clientId, code, redirectUri, codeVerifier, ct);
+        var (idToken, exchangeError) = await ExchangeCodeForIdTokenAsync(clientId, clientSecret, code, redirectUri, codeVerifier, ct);
         if (idToken is null)
         {
             await RespondAsync(context, BrandedHtml("Something went wrong", "Kivi couldn't finish signing you in. You can close this tab and try again."), ct);
@@ -171,7 +174,7 @@ public static class GoogleSignIn
     }
 
     private static async Task<(string? IdToken, string? Error)> ExchangeCodeForIdTokenAsync(
-        string clientId, string code, string redirectUri, string codeVerifier, CancellationToken ct)
+        string clientId, string clientSecret, string code, string redirectUri, string codeVerifier, CancellationToken ct)
     {
         try
         {
@@ -179,6 +182,7 @@ public static class GoogleSignIn
             var form = new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["client_id"] = clientId,
+                ["client_secret"] = clientSecret,
                 ["code"] = code,
                 ["code_verifier"] = codeVerifier,
                 ["grant_type"] = "authorization_code",
