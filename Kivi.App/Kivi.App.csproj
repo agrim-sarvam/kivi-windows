@@ -70,6 +70,9 @@
     <Page Include="Views\Onboarding\PermissionsPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="Views\Onboarding\WalkthroughPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="Views\Onboarding\ConfigPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -102,6 +105,9 @@
     </Compile>
     <Compile Update="Views\Onboarding\PermissionsPage.xaml.cs">
       <DependentUpon>PermissionsPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="Views\Onboarding\WalkthroughPage.xaml.cs">
+      <DependentUpon>WalkthroughPage.xaml</DependentUpon>
     </Compile>
     <Compile Update="Views\Onboarding\ConfigPage.xaml.cs">
       <DependentUpon>ConfigPage.xaml</DependentUpon>

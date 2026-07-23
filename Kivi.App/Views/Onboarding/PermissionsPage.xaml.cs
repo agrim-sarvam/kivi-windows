@@ -52,6 +52,6 @@ public sealed partial class PermissionsPage : Page
     private void OnContinue(object sender, RoutedEventArgs e)
     {
         if (_host?.PermissionsOnly == true) _host.RaiseCompleted();
-        else _host?.NavigateTo(typeof(ConfigPage));
+        else _host?.NavigateTo(typeof(WalkthroughPage));
     }
 }
