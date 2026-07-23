@@ -24,6 +24,9 @@ public sealed class AppConfig
     public string? ProfileEmail { get; set; }
     public string? ProfileAvatarUrl { get; set; }
     public string? PrimaryUseCase { get; set; }
+    public bool SoundOnPasteEnabled { get; set; } = true;
+    public bool IncognitoDictationEnabled { get; set; }
+    public int PressAndHoldDelayMs { get; set; } = 100;
 
     public static AppConfig Default() => new();
 

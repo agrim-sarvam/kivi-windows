@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Kivi.Core.Abstractions;
 using Kivi.Core.Config;
 using Kivi.Core.Diagnostics;
+using Kivi.Core.History;
 using Kivi.Core.Macros;
 using Kivi.Core.Polish;
 using Kivi.Core.Stt;
@@ -19,6 +20,7 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     private readonly IPasteService _paste;
     private readonly AppConfig _config;
     private readonly KiviMetrics _metrics;
+    private readonly ITranscriptStore _transcriptStore;
     private readonly object _lock = new();
     private const int DoneDisplayMs = 1200;
     private const int PartialIntervalMs = 1000;
@@ -41,10 +43,11 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     public event Action<string>? PartialTranscriptChanged;
 
     public DictationOrchestrator(IHotkeyService hotkey, IAudioCaptureService audio, IScreenContextProvider context,
-        ISttEngine stt, IPolishClient polish, IPasteService paste, AppConfig config, KiviMetrics metrics)
+        ISttEngine stt, IPolishClient polish, IPasteService paste, AppConfig config, KiviMetrics metrics,
+        ITranscriptStore transcriptStore)
     {
-        (_hotkey, _audio, _context, _stt, _polish, _paste, _config, _metrics)
-           = (hotkey, audio, context, stt, polish, paste, config, metrics);
+        (_hotkey, _audio, _context, _stt, _polish, _paste, _config, _metrics, _transcriptStore)
+           = (hotkey, audio, context, stt, polish, paste, config, metrics, transcriptStore);
         _polish.EnteringCooldown += _ => SetState(RecordingState.Waiting);
     }
 
@@ -179,6 +182,16 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
             _metrics.RecordStage("paste", pasteSw.Elapsed.TotalMilliseconds);
             _lastDictatedText = textToPaste;
 
+            _transcriptStore.Append(new TranscriptEntry(
+                Guid.NewGuid().ToString("N"),
+                textToPaste,
+                DateTimeOffset.UtcNow,
+                "", // no foreground-app-name signal exists yet -- IScreenContextProvider returns
+                    // free-text context, not a structured app name; do not fabricate one here.
+                _config.TranscriptionLanguage,
+                textToPaste.Split(new[] { ' ', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length,
+                false));
+
             SetState(RecordingState.Done);
             await Task.Delay(DoneDisplayMs, _cts.Token);
             SetState(RecordingState.Idle);
@@ -246,6 +259,16 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
             await _paste.UndoAsync();
             await _paste.InjectTextAsync(_pendingRewrite, false);
             _lastDictatedText = _pendingRewrite;
+
+            _transcriptStore.Append(new TranscriptEntry(
+                Guid.NewGuid().ToString("N"),
+                _pendingRewrite,
+                DateTimeOffset.UtcNow,
+                "", // no foreground-app-name signal exists yet -- see RunPipelineAsync's note.
+                _config.TranscriptionLanguage,
+                _pendingRewrite.Split(new[] { ' ', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length,
+                true));
+
             SetState(RecordingState.Done);
             await Task.Delay(DoneDisplayMs);
         }

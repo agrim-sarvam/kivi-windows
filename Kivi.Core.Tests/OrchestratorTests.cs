@@ -1,10 +1,19 @@
 using Kivi.Core.Config;
 using Kivi.Core.Diagnostics;
+using Kivi.Core.History;
 using Kivi.Core.Orchestration;
 using Xunit;
 
 public class OrchestratorTests
 {
+    private sealed class FakeTranscriptStore : ITranscriptStore
+    {
+        public List<TranscriptEntry> Entries { get; } = new();
+        public IReadOnlyList<TranscriptEntry> LoadAll() => Entries;
+        public void Append(TranscriptEntry entry) => Entries.Add(entry);
+        public void Clear() => Entries.Clear();
+    }
+
     [Fact]
     public async Task FullDictation_RunsStateSequence_AndPastesCleanedText()
     {
@@ -12,7 +21,7 @@ public class OrchestratorTests
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics);
+            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
 
         var states = new List<RecordingState>();
         orch.StateChanged += s => states.Add(s);
@@ -31,6 +40,27 @@ public class OrchestratorTests
     }
 
     [Fact]
+    public async Task CompletedDictation_AppendsEntryToTranscriptStore()
+    {
+        var hotkey = new FakeHotkey();
+        var paste = new SpyPaste();
+        using var metrics = new KiviMetrics();
+        var transcriptStore = new FakeTranscriptStore();
+        var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
+            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, transcriptStore);
+        orch.Start();
+
+        hotkey.FireStart();
+        await Task.Delay(50);
+        hotkey.FireEnd();
+        await Task.Delay(1500); // allow the async pipeline + Done->Idle delay to complete
+
+        Assert.Single(transcriptStore.Entries);
+        Assert.Equal("Hello there.", transcriptStore.Entries[0].Text);
+        Assert.False(transcriptStore.Entries[0].WasRewrite);
+    }
+
+    [Fact]
     public async Task VoiceMacro_BypassesCleanup_PastesPayload()
     {
         var cfg = AppConfig.Default();
@@ -39,7 +69,7 @@ public class OrchestratorTests
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, cfg, metrics);
+            new StubStt(), new StubPolish(), paste, cfg, metrics, new FakeTranscriptStore());
         orch.Start();
 
         hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
@@ -55,7 +85,7 @@ public class OrchestratorTests
         using var metrics = new KiviMetrics();
         var polish = new CooldownStubPolish();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), polish, paste, AppConfig.Default(), metrics);
+            new StubStt(), polish, paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
 
         var states = new List<RecordingState>();
         orch.StateChanged += s => states.Add(s);
@@ -77,7 +107,7 @@ public class OrchestratorTests
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics);
+            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
 
         var states = new List<RecordingState>();
         orch.StateChanged += s => states.Add(s);
@@ -105,7 +135,7 @@ public class OrchestratorTests
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), ctx,
-            new StubStt(), new StubPolish(), paste, cfg, metrics);
+            new StubStt(), new StubPolish(), paste, cfg, metrics, new FakeTranscriptStore());
         orch.Start();
 
         hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
@@ -122,7 +152,7 @@ public class OrchestratorTests
         using var metrics = new KiviMetrics();
         var stt = new StubStt { Result = "partial words" };
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            stt, new StubPolish(), paste, AppConfig.Default(), metrics);
+            stt, new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
 
         var partials = new List<string>();
         orch.PartialTranscriptChanged += p => partials.Add(p);
@@ -143,7 +173,7 @@ public class OrchestratorTests
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics);
+            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
 
         var states = new List<RecordingState>();
         orch.StateChanged += s => states.Add(s);
@@ -167,7 +197,7 @@ public class OrchestratorTests
         using var metrics = new KiviMetrics();
         var polish = new StubPolish(); // RewriteAsync -> "Rewritten text."
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), polish, paste, AppConfig.Default(), metrics);
+            new StubStt(), polish, paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
 
         var states = new List<RecordingState>();
         orch.StateChanged += s => states.Add(s);
@@ -197,7 +227,7 @@ public class OrchestratorTests
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics);
+            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
         orch.Start();
 
         hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
@@ -224,7 +254,7 @@ public class OrchestratorTests
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics);
+            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
         orch.Start();
 
         hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
@@ -245,7 +275,7 @@ public class OrchestratorTests
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics);
+            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
         orch.Start();
 
         hotkey.FireStart();
@@ -264,7 +294,7 @@ public class OrchestratorTests
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics);
+            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
         orch.Start();
 
         // Start a PRIMARY dictation capture, then fire the REWRITE hotkey's end event
@@ -292,7 +322,7 @@ public class OrchestratorTests
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics);
+            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
 
         var states = new List<RecordingState>();
         orch.StateChanged += s => states.Add(s);

@@ -2,6 +2,7 @@ using Kivi.App;
 using Kivi.Core.Abstractions;
 using Kivi.Core.Config;
 using Kivi.Core.Diagnostics;
+using Kivi.Core.History;
 using Kivi.Core.Http;
 using Kivi.Core.Orchestration;
 using Kivi.Core.Polish;
@@ -87,6 +88,7 @@ public partial class App : Application
         services.AddSingleton<IAudioCaptureService, WasapiAudioCaptureService>();
         services.AddSingleton<IScreenContextProvider, UiaScreenContextProvider>();
         services.AddSingleton<IPasteService, SendInputPasteService>();
+        services.AddSingleton<ITranscriptStore>(_ => new JsonTranscriptStore());
         services.AddSingleton<IDictationOrchestrator, DictationOrchestrator>();
         services.AddTransient<ViewModels.ConfigViewModel>();
 

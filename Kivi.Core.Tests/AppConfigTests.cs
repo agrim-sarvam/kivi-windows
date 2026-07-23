@@ -50,4 +50,13 @@ public class AppConfigTests
         Assert.Null(c.ProfileAvatarUrl);
         Assert.Null(c.PrimaryUseCase);
     }
+
+    [Fact]
+    public void Default_HasSoundIncognitoAndPressHoldDelayDefaults()
+    {
+        var c = AppConfig.Default();
+        Assert.True(c.SoundOnPasteEnabled);
+        Assert.False(c.IncognitoDictationEnabled);
+        Assert.Equal(100, c.PressAndHoldDelayMs);
+    }
 }

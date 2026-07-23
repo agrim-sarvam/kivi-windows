@@ -12,6 +12,9 @@ namespace Kivi.App.Views.MainApp;
 /// (the titlebar X) hides it instead of destroying it -- Kivi keeps running via the tray icon
 /// and orb -- so the window can be reopened without losing its Frame/nav state. Only an
 /// explicit Kivi-wide quit (tray "Quit Kivi") actually destroys it, as part of process exit.
+/// Record, History, Analytics, and Settings are fully real; Personas, Presets, and Memory are
+/// real, navigable pages backed by in-memory-only mock data (WorkspaceMockData). Only
+/// "leaderboard" remains a non-interactive stub.
 /// </summary>
 public sealed partial class MainAppWindow : Window
 {
@@ -42,17 +45,63 @@ public sealed partial class MainAppWindow : Window
         base.Activate();
     }
 
+    private void DeactivateAll()
+    {
+        NavRecord.IsActive = false;
+        NavHistory.IsActive = false;
+        NavAnalytics.IsActive = false;
+        NavSettings.IsActive = false;
+        NavPersonas.IsActive = false;
+        NavPresets.IsActive = false;
+        NavMemory.IsActive = false;
+    }
+
     private void OnNavRecord(object sender, RoutedEventArgs e)
     {
+        DeactivateAll();
         NavRecord.IsActive = true;
-        NavHistory.IsActive = false;
         ContentFrame.Navigate(typeof(RecordPage));
     }
 
     private void OnNavHistory(object sender, RoutedEventArgs e)
     {
-        NavRecord.IsActive = false;
+        DeactivateAll();
         NavHistory.IsActive = true;
         ContentFrame.Navigate(typeof(HistoryPage));
+    }
+
+    private void OnNavAnalytics(object sender, RoutedEventArgs e)
+    {
+        DeactivateAll();
+        NavAnalytics.IsActive = true;
+        ContentFrame.Navigate(typeof(AnalyticsPage));
+    }
+
+    private void OnNavSettings(object sender, RoutedEventArgs e)
+    {
+        DeactivateAll();
+        NavSettings.IsActive = true;
+        ContentFrame.Navigate(typeof(SettingsPage));
+    }
+
+    private void OnNavPersonas(object sender, RoutedEventArgs e)
+    {
+        DeactivateAll();
+        NavPersonas.IsActive = true;
+        ContentFrame.Navigate(typeof(PersonasPage));
+    }
+
+    private void OnNavPresets(object sender, RoutedEventArgs e)
+    {
+        DeactivateAll();
+        NavPresets.IsActive = true;
+        ContentFrame.Navigate(typeof(PresetsPage));
+    }
+
+    private void OnNavMemory(object sender, RoutedEventArgs e)
+    {
+        DeactivateAll();
+        NavMemory.IsActive = true;
+        ContentFrame.Navigate(typeof(MemoryPage));
     }
 }
