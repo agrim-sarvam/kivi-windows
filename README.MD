@@ -2,11 +2,11 @@
 
 Kivi is a Windows dictation app: hold a hotkey, speak, and your cleaned-up
 transcript is pasted into whatever app has focus. It's a Windows port of the
-macOS app FreeFlow, re-architected around Groq's hosted STT + LLM APIs
+macOS app FreeFlow, re-architected around Sarvam AI's hosted STT + LLM APIs
 instead of rewriting the whole pipeline from scratch.
 
-Pipeline: **hotkey (hold right-Ctrl) → mic capture (WASAPI) → Groq Whisper
-transcription → Groq LLM cleanup/polish → paste into the focused app.**
+Pipeline: **hotkey (hold right-Ctrl) → mic capture (WASAPI) → Saaras v3
+transcription → Sarvam-30B LLM cleanup/polish → paste into the focused app.**
 
 It also captures on-screen context (focused app name, window title, selected
 text) via Windows UI Automation to help the cleanup step, with a fail-closed
@@ -15,7 +15,7 @@ guard that skips capture entirely for password fields.
 ## Project layout
 
 - **Kivi.Core** — portable engine (net8.0, no Windows/UI dependencies).
-  Orchestration, Groq HTTP clients, polish/cleanup pipeline, config, secrets
+  Orchestration, Sarvam HTTP clients, polish/cleanup pipeline, config, secrets
   interface, metrics. Fully unit-tested.
 - **Kivi.Platform** — Windows-specific glue (net8.0-windows). WASAPI audio
   capture with device-change resilience, the global low-level keyboard hook,
@@ -28,12 +28,12 @@ guard that skips capture entirely for password fields.
 
 ## Running locally
 
-1. Copy `.env.example` to `.env` and set your Groq API key:
+1. Copy `.env.example` to `.env` and set your Sarvam API key:
    ```
-   GROQ_API_KEY=gsk_...
+   SARVAM_API_KEY=sk_...
    ```
    (`.env` is git-ignored — never commit real keys. Get a key at
-   https://console.groq.com/keys.)
+   https://dashboard.sarvam.ai.)
 
 2. Run the app:
    ```powershell
