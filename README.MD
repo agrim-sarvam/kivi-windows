@@ -57,13 +57,18 @@ dotnet test
 
 ## Building a release
 
-1. `powershell -File scripts/build-release.ps1 -SarvamApiKey "<key>" -Version "<version>"` —
-   publishes a self-contained build and stamps in the embedded Sarvam API key
-   (never commit the real key; it's read from the command-line parameter only).
-2. `powershell -File scripts/build-installer.ps1 -Version "<version>"` — packages the
-   publish output into `release/releases/Setup.exe` via Velopack.
+Kivi ships for both x64 and ARM64 (Windows 11 requires a 64-bit CPU to install at all, so
+there's no genuine 32-bit-only hardware to target — x86 is intentionally not built).
 
-The resulting `Setup.exe` is unsigned (no code-signing certificate yet) — Windows
+1. `powershell -File scripts/build-release.ps1 -SarvamApiKey "<key>" -Version "<version>"` —
+   publishes a self-contained build for both `win-x64` and `win-arm64`, stamping the
+   embedded Sarvam API key into each (never commit the real key; it's read from the
+   command-line parameter only).
+2. `powershell -File scripts/build-installer.ps1 -Version "<version>"` — packages both
+   publish outputs into separate installers under `release/releases/` via Velopack: an
+   x64 `Kivi-win-Setup.exe` and an ARM64 `Kivi-win-arm64-Setup.exe`.
+
+Both resulting installers are unsigned (no code-signing certificate yet) — Windows
 SmartScreen will show a warning on first run; this is expected until a certificate
 is obtained.
 
