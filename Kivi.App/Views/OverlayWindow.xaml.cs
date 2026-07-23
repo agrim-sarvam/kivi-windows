@@ -21,7 +21,6 @@ public sealed partial class OverlayWindow : Window
 {
     private readonly OverlayViewModel _vm;
     private readonly LayeredOrb _orb;
-    private Views.Onboarding.OnboardingWindow? _settingsWindow;
     private Views.MainApp.MainAppWindow? _mainAppWindow;
     private bool _dictationPaused;
 
@@ -67,21 +66,13 @@ public sealed partial class OverlayWindow : Window
         Activate();
     }
 
-    // Raised (on this same UI thread) when the orb's hover gear icon is clicked. Reopens the
-    // existing Config page as a standalone settings window, or refocuses it if already open.
+    // Raised (on this same UI thread) when the orb's hover gear icon is clicked. Opens (or
+    // refocuses) the main app window and navigates it straight to the real Settings page --
+    // previously reopened the legacy onboarding-style Config popup instead.
     private void OnSettingsRequested()
     {
-        if (_settingsWindow is not null)
-        {
-            _settingsWindow.Activate();
-            return;
-        }
-
-        var win = Views.Onboarding.OnboardingWindow.ForSettingsReentry();
-        win.Completed += () => win.Close();
-        win.Closed += (_, _) => _settingsWindow = null;
-        _settingsWindow = win;
-        win.Activate();
+        OnMainAppRequested();
+        _mainAppWindow?.ShowSettings();
     }
 
     /// <summary>
@@ -124,19 +115,25 @@ public sealed partial class OverlayWindow : Window
     {
         // MainAppWindow normally hides instead of closing (so the titlebar X doesn't quit
         // the whole app) -- if it's open, that same Closing handler would otherwise cancel
-        // this close too and silently defeat Quit. Let it through, then close everything
-        // and force the process to end: Application.Current.Exit() alone isn't reliably
-        // enough to terminate a WinUI3 process that has an off-screen anchor window plus a
-        // native (non-WinUI) tray icon and layered orb still holding native resources open.
-        if (_mainAppWindow is not null)
+        // this close too and silently defeat Quit. Let it through, then close everything and
+        // force the process to end. Every cleanup step is individually try/caught so a
+        // failure in any one of them (a disposed-twice tray icon, a window already gone,
+        // etc.) can never prevent reaching the final hard Environment.Exit -- Quit must
+        // always actually end the process, never get silently stuck partway through cleanup.
+        try
         {
-            _mainAppWindow.AllowRealClose = true;
-            _mainAppWindow.Close();
+            if (_mainAppWindow is not null)
+            {
+                _mainAppWindow.AllowRealClose = true;
+                _mainAppWindow.Close();
+            }
         }
+        catch { /* best-effort cleanup only -- must not block the exit below */ }
 
-        _orb.Dispose();
-        TrayIcon.Dispose();
-        Application.Current.Exit();
+        try { _orb.Dispose(); } catch { /* best-effort cleanup only -- must not block the exit below */ }
+        try { TrayIcon.Dispose(); } catch { /* best-effort cleanup only -- must not block the exit below */ }
+        try { Application.Current.Exit(); } catch { /* best-effort cleanup only -- must not block the exit below */ }
+
         Environment.Exit(0);
     }
 }

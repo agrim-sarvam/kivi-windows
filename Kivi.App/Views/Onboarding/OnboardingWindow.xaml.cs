@@ -33,14 +33,6 @@ public sealed partial class OnboardingWindow : Window
     {
     }
 
-    /// <summary>
-    /// Reopens just the Config page as a standalone settings re-entry after onboarding has
-    /// already completed (triggered by the orb's hover gear icon). Here, Completed means
-    /// "close this window" -- the caller wires it that way -- distinct from the first-run /
-    /// permission-recheck constructor above, where Completed means "show the orb".
-    /// </summary>
-    public static OnboardingWindow ForSettingsReentry() => new(typeof(ConfigPage), permissionsOnly: false, "Kivi Settings");
-
     public void NavigateTo(Type page) => RootFrame.Navigate(page, this);
 
     public void RaiseCompleted() => Completed?.Invoke();

@@ -35,9 +35,9 @@ public sealed partial class LoginPage : Page
         StatusText.Text = "Waiting for sign-in in your browser…";
         StatusText.Visibility = Visibility.Visible;
 
-        var profile = await GoogleSignIn.SignInAsync(GoogleClientId, default);
+        var result = await GoogleSignIn.SignInAsync(GoogleClientId, default);
 
-        if (profile is not null)
+        if (result.Profile is { } profile)
         {
             var config = Kivi.App.App.Services.GetRequiredService<Kivi.Core.Config.AppConfig>();
             config.ProfileName = profile.Name;
@@ -46,6 +46,17 @@ public sealed partial class LoginPage : Page
             _host?.NavigateTo(typeof(PreferencesPage));
             return;
         }
+
+        // Log the real reason to crash.log (same file App.xaml.cs's UnhandledException
+        // handler writes to) so a failed sign-in is diagnosable instead of just "incomplete".
+        try
+        {
+            var dir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Kivi");
+            System.IO.Directory.CreateDirectory(dir);
+            System.IO.File.AppendAllText(System.IO.Path.Combine(dir, "crash.log"),
+                $"{DateTime.Now:o}\nGoogle sign-in failed: {result.Error}\n\n");
+        }
+        catch { /* best-effort logging only */ }
 
         GoogleButton.IsEnabled = true;
         StatusText.Text = "Sign-in didn't complete. Try again, or use your work email instead.";

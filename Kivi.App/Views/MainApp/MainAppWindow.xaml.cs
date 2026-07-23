@@ -83,6 +83,11 @@ public sealed partial class MainAppWindow : Window
         base.Activate();
     }
 
+    /// <summary>Navigates straight to the Settings tab -- used by the orb's gear icon and
+    /// the tray's "Settings" command, so both land on the real SettingsPage instead of the
+    /// legacy onboarding-style Config popup.</summary>
+    public void ShowSettings() => OnNavSettings(this, new RoutedEventArgs());
+
     private void DeactivateAll()
     {
         NavRecord.IsActive = false;

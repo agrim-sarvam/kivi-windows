@@ -25,6 +25,9 @@ public static class GoogleSignIn
 {
     public sealed record GoogleProfile(string Name, string Email, string? AvatarUrl);
 
+    /// <summary>Non-null Error means SignInAsync failed; check it before assuming Profile is set.</summary>
+    public sealed record SignInResult(GoogleProfile? Profile, string? Error);
+
     public static string BuildAuthUrl(string clientId, string redirectUri, string state, string codeChallenge)
     {
         // Note: System.Web.HttpUtility is not available under net8.0-windows without an
@@ -43,7 +46,7 @@ public static class GoogleSignIn
         return $"https://accounts.google.com/o/oauth2/v2/auth?{query}";
     }
 
-    public static async Task<GoogleProfile?> SignInAsync(string clientId, CancellationToken ct)
+    public static async Task<SignInResult> SignInAsync(string clientId, CancellationToken ct)
     {
         using var listener = new HttpListener();
         // Port 0 is not valid for HttpListener prefixes; pick a fixed high port used only
@@ -52,7 +55,14 @@ public static class GoogleSignIn
         const int port = 51738;
         var redirectUri = $"http://127.0.0.1:{port}/callback";
         listener.Prefixes.Add($"{redirectUri}/");
-        listener.Start();
+        try
+        {
+            listener.Start();
+        }
+        catch (Exception ex)
+        {
+            return new SignInResult(null, $"Couldn't start local sign-in listener on port {port}: {ex.Message}");
+        }
 
         var state = Guid.NewGuid().ToString("N");
         var codeVerifier = GenerateCodeVerifier();
@@ -63,9 +73,9 @@ public static class GoogleSignIn
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(authUrl) { UseShellExecute = true });
         }
-        catch
+        catch (Exception ex)
         {
-            return null; // couldn't launch a browser
+            return new SignInResult(null, $"Couldn't launch the browser: {ex.Message}");
         }
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -80,11 +90,11 @@ public static class GoogleSignIn
         }
         catch (Exception) when (timeoutCts.IsCancellationRequested)
         {
-            return null; // timed out or cancelled
+            return new SignInResult(null, "Timed out waiting for the browser to redirect back.");
         }
-        catch
+        catch (Exception ex)
         {
-            return null;
+            return new SignInResult(null, $"Redirect listener failed: {ex.Message}");
         }
 
         // Authorization Code flow returns `code`/`state` as real query-string parameters
@@ -94,8 +104,8 @@ public static class GoogleSignIn
         string code;
         if (request.QueryString["error"] is { } error)
         {
-            await RespondAsync(context, $"<html><body>Sign-in failed: {error}. You can close this tab.</body></html>", ct);
-            return null;
+            await RespondAsync(context, BrandedHtml("Sign-in failed", $"Google reported: {WebUtility.HtmlEncode(error)}."), ct);
+            return new SignInResult(null, $"Google returned error: {error}");
         }
         else if (request.QueryString["code"] is { } c && request.QueryString["state"] == state)
         {
@@ -103,15 +113,53 @@ public static class GoogleSignIn
         }
         else
         {
-            await RespondAsync(context, "<html><body>Unexpected response. You can close this tab.</body></html>", ct);
-            return null;
+            await RespondAsync(context, BrandedHtml("Something went wrong", "That link didn't look right. You can close this tab and try again."), ct);
+            return new SignInResult(null, "Redirect had no code or a mismatched state parameter.");
         }
 
-        await RespondAsync(context, "<html><body>Signed in — you can close this tab and return to Kivi.</body></html>", ct);
+        var (idToken, exchangeError) = await ExchangeCodeForIdTokenAsync(clientId, code, redirectUri, codeVerifier, ct);
+        if (idToken is null)
+        {
+            await RespondAsync(context, BrandedHtml("Something went wrong", "Kivi couldn't finish signing you in. You can close this tab and try again."), ct);
+            return new SignInResult(null, exchangeError ?? "Token exchange failed for an unknown reason.");
+        }
 
-        var idToken = await ExchangeCodeForIdTokenAsync(clientId, code, redirectUri, codeVerifier, ct);
-        return idToken is null ? null : DecodeProfile(idToken);
+        var (profile, decodeError) = DecodeProfile(idToken);
+        if (profile is null)
+        {
+            await RespondAsync(context, BrandedHtml("Something went wrong", "Kivi couldn't read your Google profile. You can close this tab and try again."), ct);
+            return new SignInResult(null, decodeError ?? "Could not decode profile from id_token.");
+        }
+
+        await RespondAsync(context, BrandedHtml("You're signed in", "You can close this tab and return to Kivi."), ct);
+        return new SignInResult(profile, null);
     }
+
+    private static string BrandedHtml(string heading, string body) => $$"""
+        <!doctype html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Kivi</title>
+            <style>
+                body { background: #F1F4EC; color: #14180E; font-family: 'Segoe UI', sans-serif;
+                       display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+                .card { text-align: center; }
+                .word { font-size: 40px; font-weight: 600; margin-bottom: 12px; }
+                .word .i { color: #6EA335; }
+                h1 { font-size: 20px; font-weight: 600; margin: 0 0 8px; }
+                p { color: #5C6454; margin: 0; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <div class="word">k<span class="i">i</span>v<span class="i">i</span></div>
+                <h1>{{WebUtility.HtmlEncode(heading)}}</h1>
+                <p>{{body}}</p>
+            </div>
+        </body>
+        </html>
+        """;
 
     private static async Task RespondAsync(HttpListenerContext context, string html, CancellationToken ct)
     {
@@ -122,7 +170,7 @@ public static class GoogleSignIn
         context.Response.OutputStream.Close();
     }
 
-    private static async Task<string?> ExchangeCodeForIdTokenAsync(
+    private static async Task<(string? IdToken, string? Error)> ExchangeCodeForIdTokenAsync(
         string clientId, string code, string redirectUri, string codeVerifier, CancellationToken ct)
     {
         try
@@ -138,14 +186,17 @@ public static class GoogleSignIn
             });
             using var response = await http.PostAsync("https://oauth2.googleapis.com/token", form, ct);
             var body = await response.Content.ReadAsStringAsync(ct);
-            if (!response.IsSuccessStatusCode) return null;
+            if (!response.IsSuccessStatusCode)
+                return (null, $"Token endpoint returned {(int)response.StatusCode}: {body}");
 
             using var doc = JsonDocument.Parse(body);
-            return doc.RootElement.TryGetProperty("id_token", out var t) ? t.GetString() : null;
+            if (!doc.RootElement.TryGetProperty("id_token", out var t))
+                return (null, $"Token response had no id_token. Full response: {body}");
+            return (t.GetString(), null);
         }
-        catch
+        catch (Exception ex)
         {
-            return null;
+            return (null, $"Token exchange threw: {ex}");
         }
     }
 
@@ -164,24 +215,25 @@ public static class GoogleSignIn
     private static string Base64UrlEncode(byte[] bytes)
         => Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
-    private static GoogleProfile? DecodeProfile(string idToken)
+    private static (GoogleProfile? Profile, string? Error) DecodeProfile(string idToken)
     {
         try
         {
             var parts = idToken.Split('.');
-            if (parts.Length < 2) return null;
+            if (parts.Length < 2) return (null, "id_token did not have the expected JWT shape (header.payload.signature).");
             var payloadJson = Encoding.UTF8.GetString(Base64UrlDecode(parts[1]));
             using var doc = JsonDocument.Parse(payloadJson);
             var root = doc.RootElement;
             var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
             var email = root.TryGetProperty("email", out var e) ? e.GetString() : null;
             var picture = root.TryGetProperty("picture", out var p) ? p.GetString() : null;
-            if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(email)) return null;
-            return new GoogleProfile(name, email, picture);
+            if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(email))
+                return (null, $"id_token payload was missing name/email. Payload: {payloadJson}");
+            return (new GoogleProfile(name, email, picture), null);
         }
-        catch
+        catch (Exception ex)
         {
-            return null;
+            return (null, $"Failed to decode id_token: {ex}");
         }
     }
 
