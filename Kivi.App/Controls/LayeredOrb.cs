@@ -62,13 +62,16 @@ public sealed class LayeredOrb : IDisposable
     private const nint HTCLIENT          = 1;
 
     // Design sizes in effective (96-dpi) px; scaled by the monitor DPI when drawn.
-    private const double CanvasW = 520, CanvasH = 170;
-    private const double Baseline = CanvasH - 30;       // shared bottom edge; postures grow upward
-    private const double PillW = 39, PillH = 15;
-    private const double OrbDiameter = 61;
-    private const double SatelliteGap = 23;             // from the orb's edge
-    private const double BoxW = 322, BoxH = 108, BoxRadius = 20;
-    private const double BoxMaxWidthHeyKivi = 480;
+    // Uniformly reduced ~20% from the original mockup-derived sizes (520/170/39/15/61/23/
+    // 322/108/20/480) so the orb, pill, and review box all read smaller on screen while
+    // keeping their relative proportions and hit-region math intact.
+    private const double CanvasW = 416, CanvasH = 136;
+    private const double Baseline = CanvasH - 24;       // shared bottom edge; postures grow upward
+    private const double PillW = 31, PillH = 12;
+    private const double OrbDiameter = 49;
+    private const double SatelliteGap = 18;              // from the orb's edge
+    private const double BoxW = 258, BoxH = 86, BoxRadius = 16;
+    private const double BoxMaxWidthHeyKivi = 384;
     private const double WokenHoldSeconds = 0.25;        // how long the woken orb holds before growing into a box
 
     private static readonly Color Forest     = Color.FromArgb(255, 0x18, 0x30, 0x0F); // --brand-orbforest (rest pill only)

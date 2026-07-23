@@ -50,6 +50,7 @@
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <SelfContained>true</SelfContained>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\Icons\kivi.ico</ApplicationIcon>
     <EnableMsixTooling>true</EnableMsixTooling>
     <EnableDefaultPageItems>false</EnableDefaultPageItems>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>

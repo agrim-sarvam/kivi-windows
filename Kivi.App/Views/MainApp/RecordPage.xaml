@@ -13,7 +13,7 @@
 
             <!-- Reuses the same dot-matrix mask rendering as the desktop orb (KiviOrbControl),
                  just sized bigger and left at its default Idle (muted) colouring. -->
-            <controls:KiviOrbControl Width="130" Height="176" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+            <controls:KiviOrbControl Width="92" Height="124" HorizontalAlignment="Center" Margin="0,0,0,8"/>
 
             <TextBlock Text="your voice, polished" HorizontalAlignment="Center"
                        FontFamily="{ThemeResource KiviFontFamily}"
@@ -23,7 +23,7 @@
                        Margin="0,0,0,24"/>
 
             <Border Style="{StaticResource KiviCardStyle}" CornerRadius="20" Padding="0"
-                    Height="176" Margin="0,0,0,16">
+                    Height="120" Margin="0,0,0,16">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
