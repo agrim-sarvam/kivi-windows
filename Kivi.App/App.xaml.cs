@@ -78,7 +78,28 @@ public partial class App : Application
         {
             var envKey = configuration["SARVAM_API_KEY"];
             var dpapi = new DpapiSecretStore();
-            if (!string.IsNullOrEmpty(envKey)) dpapi.SetApiKey(envKey); // cache into store for this session
+            if (!string.IsNullOrEmpty(envKey))
+            {
+                dpapi.SetApiKey(envKey);
+            }
+            else
+            {
+                var embeddedKeyPath = Path.Combine(AppContext.BaseDirectory, "kivi-key.local.json");
+                if (File.Exists(embeddedKeyPath))
+                {
+                    try
+                    {
+                        var json = File.ReadAllText(embeddedKeyPath);
+                        using var doc = System.Text.Json.JsonDocument.Parse(json);
+                        if (doc.RootElement.TryGetProperty("SarvamApiKey", out var keyProp))
+                        {
+                            var embeddedKey = keyProp.GetString();
+                            if (!string.IsNullOrEmpty(embeddedKey)) dpapi.SetApiKey(embeddedKey);
+                        }
+                    }
+                    catch { /* malformed key file -- fall through with no key, same as today's missing-key behavior */ }
+                }
+            }
             return dpapi;
         });
 

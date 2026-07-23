@@ -19,6 +19,7 @@ artifacts/
 secrets.json
 *.env
 .env
+kivi-key.local.json
 
 ## FreeFlow reference clones (read-only, never committed)
 _reference/
