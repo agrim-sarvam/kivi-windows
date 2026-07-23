@@ -161,7 +161,11 @@ public partial class App : Application
             if (!appConfig.OnboardingCompleted)
             {
                 var win = new Views.Onboarding.OnboardingWindow(startAtPermissions: false);
-                win.Completed += () => win.Close();
+                win.Completed += () =>
+                {
+                    win.Close();
+                    _overlayWindow?.ShowMainApp();
+                };
                 win.Activate();
                 return;
             }

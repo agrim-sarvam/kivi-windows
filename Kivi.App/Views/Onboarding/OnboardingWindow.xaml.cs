@@ -25,6 +25,7 @@ public sealed partial class OnboardingWindow : Window
         Title = title;
         PermissionsOnly = permissionsOnly;
         RootFrame.Navigate(startPage, this);
+        Services.WindowIcon.Apply(this);
     }
 
     public OnboardingWindow(bool startAtPermissions)

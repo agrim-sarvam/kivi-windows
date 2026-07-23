@@ -84,6 +84,12 @@ public sealed partial class OverlayWindow : Window
         win.Activate();
     }
 
+    /// <summary>
+    /// Opens (or refocuses) the main app window. Public so App.xaml.cs's startup gate can
+    /// call it directly once onboarding finishes, in addition to the orb/tray triggers below.
+    /// </summary>
+    public void ShowMainApp() => OnMainAppRequested();
+
     // Raised (on this same UI thread) when the orb's hover expand icon is clicked. Opens the
     // main app window (sidebar + record/history), or refocuses it if already open.
     private void OnMainAppRequested()
@@ -116,7 +122,21 @@ public sealed partial class OverlayWindow : Window
 
     private void OnTrayQuit(object sender, RoutedEventArgs e)
     {
+        // MainAppWindow normally hides instead of closing (so the titlebar X doesn't quit
+        // the whole app) -- if it's open, that same Closing handler would otherwise cancel
+        // this close too and silently defeat Quit. Let it through, then close everything
+        // and force the process to end: Application.Current.Exit() alone isn't reliably
+        // enough to terminate a WinUI3 process that has an off-screen anchor window plus a
+        // native (non-WinUI) tray icon and layered orb still holding native resources open.
+        if (_mainAppWindow is not null)
+        {
+            _mainAppWindow.AllowRealClose = true;
+            _mainAppWindow.Close();
+        }
+
+        _orb.Dispose();
         TrayIcon.Dispose();
         Application.Current.Exit();
+        Environment.Exit(0);
     }
 }

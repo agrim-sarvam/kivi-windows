@@ -33,6 +33,7 @@ public sealed partial class MainAppWindow : Window
         nint hwnd = WindowNative.GetWindowHandle(this);
         _appWindow = AppWindow.GetFromWindowId(Win32Interop.GetWindowIdFromWindow(hwnd));
         _appWindow.Closing += OnAppWindowClosing;
+        Kivi.App.Services.WindowIcon.Apply(this);
     }
 
     /// <summary>
@@ -60,8 +61,17 @@ public sealed partial class MainAppWindow : Window
         }
     }
 
+    /// <summary>
+    /// Set by the tray's "Quit Kivi" command before it closes every window, so this
+    /// window's Closing handler lets the real close through instead of hiding it --
+    /// otherwise a hidden-not-closed MainAppWindow would keep the process alive and
+    /// silently defeat Quit.
+    /// </summary>
+    public bool AllowRealClose { get; set; }
+
     private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
+        if (AllowRealClose) return;
         args.Cancel = true;
         _appWindow.Hide();
     }
