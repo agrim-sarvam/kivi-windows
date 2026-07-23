@@ -1,0 +1,23 @@
+<!-- Kivi.App/Views/MainApp/MemoryPage.xaml -->
+<!-- UI-only per the design spec: backed by WorkspaceMockData.MemoryEntries (in-memory,
+     resets on restart). A simple two-column list (original -> corrected) with delete. -->
+<Page
+    x:Class="Kivi.App.Views.MainApp.MemoryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{ThemeResource KiviSurfaceAltBrush}">
+    <ScrollViewer Padding="32,28,32,28">
+        <StackPanel Spacing="16" MaxWidth="720">
+            <TextBlock Text="memory" FontFamily="{ThemeResource KiviFontFamily}"
+                       FontSize="{ThemeResource KiviFontSizeTitle}"
+                       FontWeight="{ThemeResource KiviFontWeightSemibold}"
+                       Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
+            <TextBlock Text="Names, spellings, and phrasing Kivi has learned from your corrections."
+                       FontFamily="{ThemeResource KiviFontFamily}"
+                       FontSize="13" Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
+            <Border Style="{StaticResource KiviCardStyle}" Padding="8">
+                <StackPanel x:Name="MemoryPanel" Spacing="0"/>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>
