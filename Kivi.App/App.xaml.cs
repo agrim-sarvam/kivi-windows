@@ -134,32 +134,34 @@ public partial class App : Application
         Controls.KiviOrbControl.AccentBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
             ColorFromHex(appConfig.OrbAccentColor));
 
-        _ = RunStartupGateAsync(appConfig, orchestrator, dispatcher, logger);
+        // The orb + tray icon are created up front, before the onboarding gate, so both
+        // exist (and the hotkey/tray are visibly "live") for the whole app lifetime --
+        // including during onboarding's interactive walkthrough, which needs the user to
+        // be able to see *something* respond while they try the hotkey. A WinUI app also
+        // exits when its last Window closes, so this window must exist before any
+        // onboarding window before it, not just before it closes.
+        var overlayVm = new ViewModels.OverlayViewModel(orchestrator, dispatcher);
+        var languageLabel = string.IsNullOrWhiteSpace(appConfig.TranscriptionLanguage) ? "auto" : appConfig.TranscriptionLanguage!;
+        var hotkeyLabel = HotkeyLabel(appConfig.HotkeyVirtualKeyCode);
+        _overlayWindow = new Views.OverlayWindow(overlayVm, GdiColorFromHex(appConfig.OrbAccentColor), languageLabel, hotkeyLabel);
+
+        _ = RunStartupGateAsync(appConfig, logger);
     }
 
     /// <summary>
-    /// First launch: Login -> Permissions -> Config, then the orb. Later launches:
-    /// re-check mic permission; if revoked, re-show only Permissions (which completes
-    /// without re-running Config); otherwise go straight to the orb.
+    /// First launch: Login -> Preferences -> Permissions -> Walkthrough -> Config. Later
+    /// launches: re-check mic permission; if revoked, re-show only Permissions (which
+    /// completes without re-running Config). The orb/tray icon already exist by the time
+    /// this runs (created in OnLaunched), so onboarding is just a window shown on top.
     /// </summary>
-    private async Task RunStartupGateAsync(AppConfig appConfig, IDictationOrchestrator orchestrator, DispatcherQueue dispatcher, ILogger<App> logger)
+    private async Task RunStartupGateAsync(AppConfig appConfig, ILogger<App> logger)
     {
-        void ShowOrb()
-        {
-            var overlayVm = new ViewModels.OverlayViewModel(orchestrator, dispatcher);
-            var languageLabel = string.IsNullOrWhiteSpace(appConfig.TranscriptionLanguage) ? "auto" : appConfig.TranscriptionLanguage!;
-            var hotkeyLabel = HotkeyLabel(appConfig.HotkeyVirtualKeyCode);
-            _overlayWindow = new Views.OverlayWindow(overlayVm, GdiColorFromHex(appConfig.OrbAccentColor), languageLabel, hotkeyLabel);
-        }
-
         try
         {
             if (!appConfig.OnboardingCompleted)
             {
                 var win = new Views.Onboarding.OnboardingWindow(startAtPermissions: false);
-                // Show the orb BEFORE closing onboarding: a WinUI app exits when its last
-                // window closes, so a live overlay window must already exist at that moment.
-                win.Completed += () => { ShowOrb(); win.Close(); };
+                win.Completed += () => win.Close();
                 win.Activate();
                 return;
             }
@@ -169,19 +171,14 @@ public partial class App : Application
             if (!micOk)
             {
                 var win = new Views.Onboarding.OnboardingWindow(startAtPermissions: true);
-                // Show the orb BEFORE closing onboarding: a WinUI app exits when its last
-                // window closes, so a live overlay window must already exist at that moment.
-                win.Completed += () => { ShowOrb(); win.Close(); };
+                win.Completed += () => win.Close();
                 win.Activate();
                 return;
             }
-
-            ShowOrb();
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Startup gate failed; falling back to showing the orb.");
-            try { ShowOrb(); } catch { /* last-resort: nothing more we can do */ }
+            logger.LogError(ex, "Startup gate failed; the orb/tray are already up, so the app remains usable.");
         }
     }
 

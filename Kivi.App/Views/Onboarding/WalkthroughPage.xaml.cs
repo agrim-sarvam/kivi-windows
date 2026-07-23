@@ -36,10 +36,28 @@ public sealed partial class WalkthroughPage : Page
     {
         _dispatcher.TryEnqueue(() =>
         {
-            if (!_step1Completed && state == RecordingState.Idle && PracticeField.Text.Length > 0)
+            if (_step1Completed) return;
+
+            switch (state)
             {
-                _step1Completed = true;
-                ShowStep2();
+                case RecordingState.Listening:
+                    StatusChip.Text = "Listening… speak now.";
+                    break;
+                case RecordingState.Processing:
+                    StatusChip.Text = "Transcribing…";
+                    break;
+                case RecordingState.Error:
+                    StatusChip.Text = _orchestrator.LastErrorMessage is { Length: > 0 } msg
+                        ? $"Couldn't dictate: {msg}"
+                        : "Couldn't dictate that. Try again, or check Settings > API key.";
+                    break;
+                case RecordingState.Idle when PracticeField.Text.Length > 0:
+                    _step1Completed = true;
+                    ShowStep2();
+                    break;
+                case RecordingState.Idle:
+                    StatusChip.Text = "Hold Right Ctrl and say something";
+                    break;
             }
         });
     }

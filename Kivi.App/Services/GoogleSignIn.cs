@@ -1,5 +1,7 @@
 // Kivi.App/Services/GoogleSignIn.cs
 using System.Net;
+using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -10,12 +12,20 @@ namespace Kivi.App.Services;
 /// avatar). Not an auth boundary: the id_token is decoded for display fields only, never
 /// verified against a server, and never used to grant access to anything. No backend,
 /// no account creation, no token persistence beyond the profile fields on AppConfig.
+///
+/// Uses the Authorization Code + PKCE flow (response_type=code), not the older implicit
+/// flow (response_type=id_token) -- Google rejects the implicit flow for OAuth clients
+/// created after it was deprecated, returning "Error 400: unsupported_response_type".
+/// PKCE lets a public/desktop client (no client secret) exchange the code for tokens
+/// safely: a random code_verifier is hashed into a code_challenge sent up front, and the
+/// raw verifier is presented at token-exchange time so Google can confirm the same app
+/// instance that started the flow is the one completing it.
 /// </summary>
 public static class GoogleSignIn
 {
     public sealed record GoogleProfile(string Name, string Email, string? AvatarUrl);
 
-    public static string BuildAuthUrl(string clientId, string redirectUri, string state)
+    public static string BuildAuthUrl(string clientId, string redirectUri, string state, string codeChallenge)
     {
         // Note: System.Web.HttpUtility is not available under net8.0-windows without an
         // extra package reference, so query-string construction is done manually via
@@ -24,10 +34,11 @@ public static class GoogleSignIn
         {
             $"client_id={Uri.EscapeDataString(clientId)}",
             $"redirect_uri={Uri.EscapeDataString(redirectUri)}",
-            "response_type=id_token",
+            "response_type=code",
             $"scope={Uri.EscapeDataString("openid email profile")}",
-            $"nonce={Uri.EscapeDataString(state)}",
             $"state={Uri.EscapeDataString(state)}",
+            $"code_challenge={Uri.EscapeDataString(codeChallenge)}",
+            "code_challenge_method=S256",
         });
         return $"https://accounts.google.com/o/oauth2/v2/auth?{query}";
     }
@@ -44,7 +55,9 @@ public static class GoogleSignIn
         listener.Start();
 
         var state = Guid.NewGuid().ToString("N");
-        var authUrl = BuildAuthUrl(clientId, redirectUri, state);
+        var codeVerifier = GenerateCodeVerifier();
+        var codeChallenge = ToCodeChallenge(codeVerifier);
+        var authUrl = BuildAuthUrl(clientId, redirectUri, state, codeChallenge);
 
         try
         {
@@ -74,58 +87,82 @@ public static class GoogleSignIn
             return null;
         }
 
-        // Google's id_token flow returns the token in the URL *fragment*, which browsers
-        // never send to the server. So the redirect page is a tiny script that reads
-        // location.hash and re-submits it as a query string to this same endpoint.
+        // Authorization Code flow returns `code`/`state` as real query-string parameters
+        // (unlike the old implicit flow's URL fragment), so a single request is enough --
+        // no redirect-and-resubmit dance is needed here.
         var request = context.Request;
-        string responseHtml;
-        GoogleProfile? profile = null;
-
-        if (request.QueryString["id_token"] is { } idToken && request.QueryString["state"] == state)
+        string code;
+        if (request.QueryString["error"] is { } error)
         {
-            profile = DecodeProfile(idToken);
-            responseHtml = "<html><body>Signed in — you can close this tab and return to Kivi.</body></html>";
+            await RespondAsync(context, $"<html><body>Sign-in failed: {error}. You can close this tab.</body></html>", ct);
+            return null;
+        }
+        else if (request.QueryString["code"] is { } c && request.QueryString["state"] == state)
+        {
+            code = c;
         }
         else
         {
-            // First hit: browser landed with the token in the fragment. Serve a redirect
-            // script that resubmits it as a query string.
-            responseHtml = $$"""
-                <html><body><script>
-                    var params = new URLSearchParams(location.hash.substring(1));
-                    location.href = "{{redirectUri}}?" + params.toString() + "&state={{state}}";
-                </script></body></html>
-                """;
+            await RespondAsync(context, "<html><body>Unexpected response. You can close this tab.</body></html>", ct);
+            return null;
         }
 
-        var buffer = Encoding.UTF8.GetBytes(responseHtml);
+        await RespondAsync(context, "<html><body>Signed in — you can close this tab and return to Kivi.</body></html>", ct);
+
+        var idToken = await ExchangeCodeForIdTokenAsync(clientId, code, redirectUri, codeVerifier, ct);
+        return idToken is null ? null : DecodeProfile(idToken);
+    }
+
+    private static async Task RespondAsync(HttpListenerContext context, string html, CancellationToken ct)
+    {
+        var buffer = Encoding.UTF8.GetBytes(html);
         context.Response.ContentType = "text/html";
         context.Response.ContentLength64 = buffer.Length;
         await context.Response.OutputStream.WriteAsync(buffer, ct);
         context.Response.OutputStream.Close();
+    }
 
-        if (profile is not null) return profile;
-
-        // Second hit expected next (the resubmitted query-string request) — wait once more.
+    private static async Task<string?> ExchangeCodeForIdTokenAsync(
+        string clientId, string code, string redirectUri, string codeVerifier, CancellationToken ct)
+    {
         try
         {
-            var context2 = await listener.GetContextAsync();
-            if (context2.Request.QueryString["id_token"] is { } idToken2 && context2.Request.QueryString["state"] == state)
-                profile = DecodeProfile(idToken2);
+            using var http = new HttpClient();
+            var form = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["client_id"] = clientId,
+                ["code"] = code,
+                ["code_verifier"] = codeVerifier,
+                ["grant_type"] = "authorization_code",
+                ["redirect_uri"] = redirectUri,
+            });
+            using var response = await http.PostAsync("https://oauth2.googleapis.com/token", form, ct);
+            var body = await response.Content.ReadAsStringAsync(ct);
+            if (!response.IsSuccessStatusCode) return null;
 
-            var buffer2 = Encoding.UTF8.GetBytes("<html><body>Signed in — you can close this tab and return to Kivi.</body></html>");
-            context2.Response.ContentType = "text/html";
-            context2.Response.ContentLength64 = buffer2.Length;
-            await context2.Response.OutputStream.WriteAsync(buffer2, ct);
-            context2.Response.OutputStream.Close();
+            using var doc = JsonDocument.Parse(body);
+            return doc.RootElement.TryGetProperty("id_token", out var t) ? t.GetString() : null;
         }
         catch
         {
             return null;
         }
-
-        return profile;
     }
+
+    private static string GenerateCodeVerifier()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(32);
+        return Base64UrlEncode(bytes);
+    }
+
+    private static string ToCodeChallenge(string codeVerifier)
+    {
+        var hash = SHA256.HashData(Encoding.ASCII.GetBytes(codeVerifier));
+        return Base64UrlEncode(hash);
+    }
+
+    private static string Base64UrlEncode(byte[] bytes)
+        => Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
     private static GoogleProfile? DecodeProfile(string idToken)
     {
