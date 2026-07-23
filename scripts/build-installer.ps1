@@ -15,6 +15,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $publishDir = Join-Path $repoRoot "release\publish"
 $releasesDir = Join-Path $repoRoot "release\releases"
 $iconPath = Join-Path $repoRoot "Kivi.App\Assets\Icons\kivi.ico"
+$splashPath = Join-Path $repoRoot "Kivi.App\Assets\Icons\kivi-installer-splash.png"
 
 if (-not (Test-Path $publishDir)) {
     throw "release\publish not found -- run build-release.ps1 first."
@@ -22,7 +23,16 @@ if (-not (Test-Path $publishDir)) {
 if (-not (Test-Path $iconPath)) {
     throw "Kivi.App\Assets\Icons\kivi.ico not found -- convert kivi-mask.png to .ico first."
 }
+if (-not (Test-Path $splashPath)) {
+    throw "Kivi.App\Assets\Icons\kivi-installer-splash.png not found."
+}
 
+# --icon brands the exe/shortcut/dialog icon; --splashImage shows the branded image
+# during install; --packTitle sets the app name shown in the installer, Start Menu,
+# and Apps & Features. Kivi.App/Program.cs calls VelopackApp.Build().Run() at the top
+# of Main, so no --skipVeloAppCheck is needed -- Velopack's own install/update/uninstall
+# hooks run properly (skipping that check previously caused the installer to report
+# "Install Partially Succeeded" after a successful-looking install).
 Write-Host "Packing Kivi ($Version) with Velopack..."
 vpk pack `
     --packId Kivi `
@@ -31,7 +41,8 @@ vpk pack `
     --mainExe Kivi.App.exe `
     --outputDir $releasesDir `
     --icon $iconPath `
-    --skipVeloAppCheck true
+    --splashImage $splashPath `
+    --packTitle "Kivi"
 
 if ($LASTEXITCODE -ne 0) {
     throw "vpk pack failed with exit code $LASTEXITCODE"
