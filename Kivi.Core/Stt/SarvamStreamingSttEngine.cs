@@ -8,8 +8,9 @@ namespace Kivi.Core.Stt;
 
 /// <summary>
 /// Streaming STT over Sarvam's WebSocket endpoint (wss://api.sarvam.ai/speech-to-text/ws).
-/// Audio is pushed as base64 PCM messages while the user speaks; the server returns "data"
-/// messages carrying the cumulative transcript, and a "flush" finalizes the last segment.
+/// Audio is pushed as base64 WAV chunks (Sarvam's WS only accepts encoding "audio/wav") while
+/// the user speaks; the server returns "data" messages carrying transcript segments, and a
+/// "flush" finalizes the last segment.
 ///
 /// This engine keeps NO cross-session state beyond the single in-flight socket, so a new
 /// StartAsync fully re-initializes. Never logs transcript text or the API key.
@@ -60,7 +61,7 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
                   $"?model={Uri.EscapeDataString(_config.TranscriptionModel)}" +
                   $"&mode={Uri.EscapeDataString(mode)}" +
                   $"&language-code={Uri.EscapeDataString(lang)}" +
-                  $"&sample_rate=16000&input_audio_codec=pcm_s16le";
+                  $"&sample_rate=16000&input_audio_codec=wav";
 
         Log($"CONNECT {url}");
         var ws = new ClientWebSocket();
@@ -78,23 +79,49 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
         var ws = _ws;
         if (ws is null || ws.State != WebSocketState.Open || pcm.Length == 0) return;
 
-        // NOTE: audio format is governed by the connection query (sample_rate=16000,
-        // input_audio_codec=pcm_s16le). The per-message encoding here must describe the SAME
-        // raw 16-bit PCM we actually send -- NOT "audio/wav" (we send headerless PCM, not a
-        // WAV). If Sarvam rejects/garbles audio, this field's exact expected value is the first
-        // thing to verify against a live session, since the docs example used a WAV payload.
+        // Sarvam's WS validation only accepts encoding "audio/wav" (it rejects raw pcm_s16le),
+        // so each chunk is wrapped in a minimal 16k mono PCM16 WAV header before base64. The
+        // header's data-size field just needs to cover this chunk's bytes.
+        var wav = WrapPcmInWav(pcm);
         var msg = JsonSerializer.Serialize(new
         {
             audio = new
             {
-                data = Convert.ToBase64String(pcm),
+                data = Convert.ToBase64String(wav),
                 sample_rate = "16000",
-                encoding = "pcm_s16le",
+                encoding = "audio/wav",
             }
         });
         var bytes = Encoding.UTF8.GetBytes(msg);
         await ws.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, ct);
-        Log($"SEND audio {pcm.Length} bytes pcm");
+        Log($"SEND audio {pcm.Length} bytes pcm -> {wav.Length} bytes wav");
+    }
+
+    // Builds a 16 kHz, mono, 16-bit PCM WAV (44-byte canonical header) around a raw PCM chunk.
+    private static byte[] WrapPcmInWav(byte[] pcm)
+    {
+        const int sampleRate = 16000, channels = 1, bitsPerSample = 16;
+        int byteRate = sampleRate * channels * bitsPerSample / 8;
+        short blockAlign = (short)(channels * bitsPerSample / 8);
+
+        using var ms = new MemoryStream(44 + pcm.Length);
+        using var w = new BinaryWriter(ms);
+        w.Write(Encoding.ASCII.GetBytes("RIFF"));
+        w.Write(36 + pcm.Length);            // ChunkSize
+        w.Write(Encoding.ASCII.GetBytes("WAVE"));
+        w.Write(Encoding.ASCII.GetBytes("fmt "));
+        w.Write(16);                         // Subchunk1Size (PCM)
+        w.Write((short)1);                   // AudioFormat = PCM
+        w.Write((short)channels);
+        w.Write(sampleRate);
+        w.Write(byteRate);
+        w.Write(blockAlign);
+        w.Write((short)bitsPerSample);
+        w.Write(Encoding.ASCII.GetBytes("data"));
+        w.Write(pcm.Length);                 // Subchunk2Size
+        w.Write(pcm);
+        w.Flush();
+        return ms.ToArray();
     }
 
     public async Task<string> FinishAsync(CancellationToken ct)
