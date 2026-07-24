@@ -22,6 +22,11 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService, IDisposabl
     private WaveFileWriter? _writer;
     private TaskCompletionSource? _stopped;
 
+    // Raw PCM captured but not yet handed out by ReadNewPcm (the streaming path drains this
+    // while recording). Separate from the WAV writer/_stream, which stay the source of truth
+    // for the batch-fallback path. Guarded by _gate like the rest of the capture state.
+    private readonly MemoryStream _pcmPending = new();
+
     // True only while a StartRecordingAsync...StopRecordingAsync span is open. Distinct from
     // "_capture != null" because during a reconnect attempt _capture is briefly null while we
     // are still logically recording (the writer/stream keep accumulating regardless).
@@ -50,6 +55,7 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService, IDisposabl
             _currentEndpointId = device.ID;
             _stream = new MemoryStream();
             _writer = new WaveFileWriter(_stream, Format);
+            _pcmPending.SetLength(0); // discard any leftover raw audio from a prior session
             _capture.DataAvailable += OnData;
             _capture.RecordingStopped += OnRecordingStopped;
             _capture.StartRecording();
@@ -124,6 +130,18 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService, IDisposabl
         lock (_gate)
         {
             _writer?.Write(e.Buffer, 0, e.BytesRecorded);
+            if (_isRecording) _pcmPending.Write(e.Buffer, 0, e.BytesRecorded);
+        }
+    }
+
+    public byte[] ReadNewPcm()
+    {
+        lock (_gate)
+        {
+            if (_pcmPending.Length == 0) return Array.Empty<byte>();
+            var bytes = _pcmPending.ToArray();
+            _pcmPending.SetLength(0); // drained -- next call returns only newer audio
+            return bytes;
         }
     }
 
@@ -273,6 +291,7 @@ public sealed class WasapiAudioCaptureService : IAudioCaptureService, IDisposabl
             _stream?.Dispose();
             _writer = null;
             _stream = null;
+            _pcmPending.Dispose();
         }
 
         _enumerator.Dispose();

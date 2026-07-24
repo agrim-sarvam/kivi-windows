@@ -14,24 +14,23 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     private readonly IHotkeyService _hotkey;
     private readonly IAudioCaptureService _audio;
     private readonly IScreenContextProvider _context;
-    private readonly ISttEngine _stt;
+    private readonly ISttEngine _stt;                  // batch REST engine -- the streaming fallback
+    private readonly IStreamingSttEngine _streaming;   // live WebSocket engine -- the primary path
     private readonly IPolishClient _polish;
     private readonly IPasteService _paste;
     private readonly AppConfig _config;
     private readonly KiviMetrics _metrics;
     private readonly ITranscriptStore _transcriptStore;
     private readonly object _lock = new();
-    // Each partial poll re-transcribes ALL audio so far via a full Sarvam REST call, so this
-    // is a balance: faster = smoother live text but more STT calls / rate-limit pressure. The
-    // orb layers a client-side typewriter animation on top so the perceived smoothness doesn't
-    // depend on polling any faster than this.
-    private const int PartialIntervalMs = 500;
-    private const int PartialWarmupMs = 400;
+    // How often the PCM pump drains newly-captured audio into the streaming socket.
+    private const int PumpIntervalMs = 100;
 
     private Task<string> _contextTask = Task.FromResult("");
     private CancellationTokenSource _cts = new();
-    private CancellationTokenSource _partialLoopCts = new();
+    private CancellationTokenSource _pumpCts = new();
+    private Task _pumpTask = Task.CompletedTask;
     private bool _capturing;
+    private bool _streamingLive;   // true once the WebSocket session opened for this capture
     // The Sarvam STT mode for the in-flight capture, chosen by which hotkey started it:
     // primary hotkey -> Hinglish (romanized code-mix), English hotkey -> translate-to-English.
     private string _activeMode = SttMode.Hinglish;
@@ -43,12 +42,14 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     public event Action<string>? PartialTranscriptChanged;
 
     public DictationOrchestrator(IHotkeyService hotkey, IAudioCaptureService audio, IScreenContextProvider context,
-        ISttEngine stt, IPolishClient polish, IPasteService paste, AppConfig config, KiviMetrics metrics,
-        ITranscriptStore transcriptStore)
+        ISttEngine stt, IStreamingSttEngine streaming, IPolishClient polish, IPasteService paste, AppConfig config,
+        KiviMetrics metrics, ITranscriptStore transcriptStore)
     {
-        (_hotkey, _audio, _context, _stt, _polish, _paste, _config, _metrics, _transcriptStore)
-           = (hotkey, audio, context, stt, polish, paste, config, metrics, transcriptStore);
+        (_hotkey, _audio, _context, _stt, _streaming, _polish, _paste, _config, _metrics, _transcriptStore)
+           = (hotkey, audio, context, stt, streaming, polish, paste, config, metrics, transcriptStore);
         _polish.EnteringCooldown += _ => SetState(RecordingState.Waiting);
+        // The streaming server returns transcript segments live -- surface them to the orb.
+        _streaming.PartialReceived += t => PartialTranscriptChanged?.Invoke(t);
     }
 
     public void Start()
@@ -88,34 +89,44 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
         if (_capturing) return; // both hotkeys held at once is unsupported -- ignore the second
         _capturing = true;
         _activeMode = mode;
+        _streamingLive = false;
         _cts = new CancellationTokenSource();
-        _partialLoopCts = new CancellationTokenSource();
+        _pumpCts = new CancellationTokenSource();
         SetState(RecordingState.Listening);
         _ = _audio.StartRecordingAsync(_cts.Token);
         _contextTask = _config.ScreenContextEnabled
             ? _context.CaptureContextAsync(_cts.Token)
             : Task.FromResult("");
-        _ = RunPartialLoopAsync(_partialLoopCts.Token);
+        _pumpTask = RunPumpLoopAsync(mode, _pumpCts.Token);
     }
 
-    private async Task RunPartialLoopAsync(CancellationToken ct)
+    // Opens the streaming STT session and pumps live PCM into it for the duration of the hold.
+    // If the socket can't open (or errors), _streamingLive stays false and the stop path falls
+    // back to a single batch transcription of the whole recording.
+    private async Task RunPumpLoopAsync(string mode, CancellationToken ct)
     {
         try
         {
-            await Task.Delay(PartialWarmupMs, ct);
+            await _streaming.StartAsync(mode, ct);
+            _streamingLive = true;
+        }
+        catch
+        {
+            _streamingLive = false; // fall back to batch on stop
+            return;
+        }
+
+        try
+        {
             while (!ct.IsCancellationRequested)
             {
-                var wav = _audio.SnapshotRecording();
-                if (wav.Length > 0)
-                {
-                    var partial = await _stt.TranscribeAsync(wav, _activeMode, ct);
-                    if (!string.IsNullOrEmpty(partial))
-                        PartialTranscriptChanged?.Invoke(partial);
-                }
-                await Task.Delay(PartialIntervalMs, ct);
+                var pcm = _audio.ReadNewPcm();
+                if (pcm.Length > 0) await _streaming.SendAudioAsync(pcm, ct);
+                await Task.Delay(PumpIntervalMs, ct);
             }
         }
-        catch (OperationCanceledException) { /* recording ended -> stop snapshotting */ }
+        catch (OperationCanceledException) { /* hold ended -> stop pumping */ }
+        catch { /* send failed mid-stream -- FinishAsync/fallback handles recovery */ }
     }
 
     private void OnHoldEnded() => EndCapture();
@@ -125,7 +136,7 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     {
         if (!_capturing) return;
         _capturing = false;
-        _partialLoopCts.Cancel();
+        _pumpCts.Cancel();
         _ = RunPipelineAsync();
     }
 
@@ -134,16 +145,41 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
         var total = Stopwatch.StartNew();
         try
         {
-            SetState(RecordingState.Processing);
+            // Send any last captured PCM before flushing, and stop the WASAPI capture. We always
+            // stop the recorder (its WAV is the fallback source); its result is only used if
+            // streaming didn't produce a transcript.
+            try { await _pumpTask; } catch { /* pump already unwound */ }
+
             var recSw = Stopwatch.StartNew();
-            var wav = await _audio.StopRecordingAsync();
-            _metrics.RecordStage("record", recSw.Elapsed.TotalMilliseconds);
+            byte[] wav = Array.Empty<byte>();
+            string raw = "";
 
             var sttSw = Stopwatch.StartNew();
-            var raw = await _stt.TranscribeAsync(wav, _activeMode, _cts.Token);
+            if (_streamingLive)
+            {
+                // Drain the final PCM the pump loop may not have sent, then flush and collect the
+                // near-instant final transcript. Stop the recorder in parallel so its WAV is ready
+                // as a fallback if the stream produced nothing.
+                var tail = _audio.ReadNewPcm();
+                if (tail.Length > 0) { try { await _streaming.SendAudioAsync(tail, _cts.Token); } catch { } }
+                var stopTask = _audio.StopRecordingAsync();
+                raw = await _streaming.FinishAsync(_cts.Token);
+                wav = await stopTask;
+            }
+            else
+            {
+                wav = await _audio.StopRecordingAsync();
+            }
+            _metrics.RecordStage("record", recSw.Elapsed.TotalMilliseconds);
+
+            // Fallback: streaming yielded nothing (socket never opened, errored, or returned
+            // empty) -> transcribe the whole WAV in one batch REST call, same as the old path.
+            if (string.IsNullOrEmpty(raw) && wav.Length > 0)
+                raw = await _stt.TranscribeAsync(wav, _activeMode, _cts.Token);
             _metrics.RecordStage("stt", sttSw.Elapsed.TotalMilliseconds);
             if (string.IsNullOrEmpty(raw)) { SetState(RecordingState.Idle); return; }
 
+            SetState(RecordingState.Processing);
             var cmd = TranscriptCommands.Parse(raw, _config.PressEnterCommandEnabled);
             string textToPaste;
 
@@ -189,6 +225,9 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
         }
         finally
         {
+            // Make sure the streaming socket is always torn down, even on the error path where
+            // FinishAsync wasn't reached, so a failed capture never leaks an open WebSocket.
+            try { await _streaming.CancelAsync(); } catch { }
             _metrics.RecordTotal(total.Elapsed.TotalMilliseconds);
         }
     }

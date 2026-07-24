@@ -22,7 +22,7 @@ public class OrchestratorTests
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
+            new StubStt(), new FakeStreamingStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
 
         var states = new List<RecordingState>();
         orch.StateChanged += s => states.Add(s);
@@ -48,7 +48,7 @@ public class OrchestratorTests
         using var metrics = new KiviMetrics();
         var transcriptStore = new FakeTranscriptStore();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, transcriptStore);
+            new StubStt(), new FakeStreamingStt(), new StubPolish(), paste, AppConfig.Default(), metrics, transcriptStore);
         orch.Start();
 
         hotkey.FireStart();
@@ -70,7 +70,7 @@ public class OrchestratorTests
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, cfg, metrics, new FakeTranscriptStore());
+            new StubStt(), new FakeStreamingStt(), new StubPolish(), paste, cfg, metrics, new FakeTranscriptStore());
         orch.Start();
 
         hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
@@ -86,7 +86,7 @@ public class OrchestratorTests
         using var metrics = new KiviMetrics();
         var polish = new CooldownStubPolish();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), polish, paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
+            new StubStt(), new FakeStreamingStt(), polish, paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
 
         var states = new List<RecordingState>();
         orch.StateChanged += s => states.Add(s);
@@ -108,7 +108,7 @@ public class OrchestratorTests
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
+            new StubStt(), new FakeStreamingStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
 
         var states = new List<RecordingState>();
         orch.StateChanged += s => states.Add(s);
@@ -136,7 +136,7 @@ public class OrchestratorTests
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), ctx,
-            new StubStt(), new StubPolish(), paste, cfg, metrics, new FakeTranscriptStore());
+            new StubStt(), new FakeStreamingStt(), new StubPolish(), paste, cfg, metrics, new FakeTranscriptStore());
         orch.Start();
 
         hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
@@ -146,21 +146,21 @@ public class OrchestratorTests
     }
 
     [Fact]
-    public async Task Listening_EmitsPartialTranscript_AfterWarmup()
+    public async Task Listening_EmitsPartialTranscript_FromStream()
     {
         var hotkey = new FakeHotkey();
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
-        var stt = new StubStt { Result = "partial words" };
+        var stream = new FakeStreamingStt { Result = "partial words" };
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            stt, new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
+            new StubStt(), stream, new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
 
         var partials = new List<string>();
         orch.PartialTranscriptChanged += p => partials.Add(p);
         orch.Start();
 
         hotkey.FireStart();
-        await Task.Delay(700); // past the 500ms warmup -> at least one snapshot should fire
+        await Task.Delay(300); // the pump sends PCM -> the stream surfaces a live partial
         hotkey.FireEnd();
         await Task.Delay(1500);
 
@@ -173,14 +173,14 @@ public class OrchestratorTests
         var hotkey = new FakeHotkey();
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
-        var stt = new StubStt();
+        var stream = new FakeStreamingStt();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            stt, new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
+            new StubStt(), stream, new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
         orch.Start();
 
         hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
 
-        Assert.Equal(SttMode.Hinglish, stt.LastMode);
+        Assert.Equal(SttMode.Hinglish, stream.LastMode);
     }
 
     [Fact]
@@ -189,15 +189,52 @@ public class OrchestratorTests
         var hotkey = new FakeHotkey();
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
-        var stt = new StubStt();
+        var stream = new FakeStreamingStt();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            stt, new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
+            new StubStt(), stream, new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
         orch.Start();
 
         hotkey.FireEnglishStart(); await Task.Delay(20); hotkey.FireEnglishEnd(); await Task.Delay(1500);
 
-        Assert.Equal(SttMode.English, stt.LastMode);
+        Assert.Equal(SttMode.English, stream.LastMode);
         Assert.Equal("Hello there.", paste.Pasted); // English hotkey runs the same clean+paste pipeline
+    }
+
+    [Fact]
+    public async Task StreamFailsToOpen_FallsBackToBatchTranscription()
+    {
+        var hotkey = new FakeHotkey();
+        var paste = new SpyPaste();
+        using var metrics = new KiviMetrics();
+        var stt = new StubStt { Result = "batch words" };
+        var stream = new FakeStreamingStt { FailOnStart = true };
+        var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
+            stt, stream, new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
+        orch.Start();
+
+        hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
+
+        // Stream never opened -> the whole WAV was transcribed via the batch REST engine instead.
+        Assert.Equal(SttMode.Hinglish, stt.LastMode);
+        Assert.Equal("Hello there.", paste.Pasted); // still cleaned + pasted normally
+    }
+
+    [Fact]
+    public async Task StreamReturnsEmpty_FallsBackToBatchTranscription()
+    {
+        var hotkey = new FakeHotkey();
+        var paste = new SpyPaste();
+        using var metrics = new KiviMetrics();
+        var stt = new StubStt();
+        var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
+            stt, new EmptyStreamingStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
+        orch.Start();
+
+        hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
+
+        // Stream opened but produced no transcript -> batch fallback ran and produced the result.
+        Assert.Equal(SttMode.Hinglish, stt.LastMode);
+        Assert.Equal("Hello there.", paste.Pasted);
     }
 
     [Fact]
@@ -206,9 +243,9 @@ public class OrchestratorTests
         var hotkey = new FakeHotkey();
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
-        var stt = new StubStt();
+        var stream = new FakeStreamingStt();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            stt, new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
+            new StubStt(), stream, new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
         orch.Start();
 
         hotkey.FireStart();
@@ -218,7 +255,7 @@ public class OrchestratorTests
         await Task.Delay(1500);
 
         Assert.Equal("Hello there.", paste.Pasted);
-        Assert.Equal(SttMode.Hinglish, stt.LastMode); // the primary (first) hotkey's mode won, not English
+        Assert.Equal(SttMode.Hinglish, stream.LastMode); // the primary (first) hotkey's mode won, not English
     }
 
     [Fact]
@@ -228,7 +265,7 @@ public class OrchestratorTests
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
+            new StubStt(), new FakeStreamingStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
         orch.Start();
 
         // Start a capture with the primary hotkey, then fire the English hotkey's end event

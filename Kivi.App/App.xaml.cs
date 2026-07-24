@@ -104,6 +104,7 @@ public partial class App : Application
         });
 
         services.AddSingleton<ISttEngine, SarvamSttEngine>();
+        services.AddSingleton<IStreamingSttEngine, SarvamStreamingSttEngine>();
         services.AddSingleton<IPolishClient, SarvamPolishClient>();
         services.AddSingleton<IHotkeyService, LowLevelKeyboardHookService>();
         services.AddSingleton<IAudioCaptureService, WasapiAudioCaptureService>();

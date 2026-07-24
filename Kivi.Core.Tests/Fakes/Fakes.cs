@@ -22,9 +22,51 @@ public sealed class FakeAudio : IAudioCaptureService
 {
     public event Action<string>? DeviceChanged;
     public byte[] Wav = { 0x52, 0x49, 0x46, 0x46 }; // "RIFF"
-    public Task StartRecordingAsync(CancellationToken ct) => Task.CompletedTask;
+    public byte[] Pcm = { 1, 2, 3, 4 };
+    private bool _pcmHandedOut;
+    public Task StartRecordingAsync(CancellationToken ct) { _pcmHandedOut = false; return Task.CompletedTask; }
     public Task<byte[]> StopRecordingAsync() => Task.FromResult(Wav);
     public byte[] SnapshotRecording() => Wav;
+    // Hand out PCM once (destructive read semantics), then empty -- enough to drive the pump.
+    public byte[] ReadNewPcm() { if (_pcmHandedOut) return Array.Empty<byte>(); _pcmHandedOut = true; return Pcm; }
+}
+
+// Streaming STT test double. By default returns Result from FinishAsync (simulating a working
+// stream). Set FailOnStart=true to simulate the socket never opening, which drives the batch
+// fallback path in the orchestrator.
+public sealed class FakeStreamingStt : Kivi.Core.Stt.IStreamingSttEngine
+{
+    public string Result = "hello there";
+    public bool FailOnStart;
+    public string? LastMode;
+    public bool Started, Finished, Cancelled;
+    public event Action<string>? PartialReceived;
+
+    public Task StartAsync(string mode, CancellationToken ct)
+    {
+        LastMode = mode;
+        if (FailOnStart) throw new InvalidOperationException("stream unavailable");
+        Started = true;
+        return Task.CompletedTask;
+    }
+    public Task SendAudioAsync(byte[] pcm, CancellationToken ct)
+    {
+        PartialReceived?.Invoke(Result); // surface a live partial as audio flows
+        return Task.CompletedTask;
+    }
+    public Task<string> FinishAsync(CancellationToken ct) { Finished = true; return Task.FromResult(Result); }
+    public Task CancelAsync() { Cancelled = true; return Task.CompletedTask; }
+}
+
+// A streaming stub that opens but returns nothing from FinishAsync -- exercises the
+// "stream produced empty -> batch fallback" branch.
+public sealed class EmptyStreamingStt : Kivi.Core.Stt.IStreamingSttEngine
+{
+    public event Action<string>? PartialReceived;
+    public Task StartAsync(string mode, CancellationToken ct) => Task.CompletedTask;
+    public Task SendAudioAsync(byte[] pcm, CancellationToken ct) => Task.CompletedTask;
+    public Task<string> FinishAsync(CancellationToken ct) => Task.FromResult("");
+    public Task CancelAsync() => Task.CompletedTask;
 }
 
 public sealed class FakeContext : IScreenContextProvider
