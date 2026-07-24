@@ -25,6 +25,21 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
     private readonly StringBuilder _transcript = new();
     private readonly object _lock = new();
 
+    // Temporary diagnostics: when %APPDATA%\Kivi\stream-debug.on exists, connection/send/receive
+    // events are appended to stream-debug.log so we can see exactly what Sarvam's WS returns and
+    // when. No transcript text policy concern here -- it's an opt-in local debug file the user
+    // creates deliberately. Remove once streaming partials are confirmed working.
+    private static readonly bool DebugEnabled =
+        File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Kivi", "stream-debug.on"));
+    private static readonly string DebugLogPath =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Kivi", "stream-debug.log");
+
+    private static void Log(string line)
+    {
+        if (!DebugEnabled) return;
+        try { File.AppendAllText(DebugLogPath, $"{DateTime.Now:HH:mm:ss.fff} {line}\n"); } catch { }
+    }
+
     public event Action<string>? PartialReceived;
 
     public SarvamStreamingSttEngine(AppConfig config, ISecretStore secrets)
@@ -47,9 +62,11 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
                   $"&language-code={Uri.EscapeDataString(lang)}" +
                   $"&sample_rate=16000&input_audio_codec=pcm_s16le";
 
+        Log($"CONNECT {url}");
         var ws = new ClientWebSocket();
         ws.Options.SetRequestHeader("api-subscription-key", key);
         await ws.ConnectAsync(new Uri(url), ct);
+        Log($"CONNECTED state={ws.State}");
 
         _ws = ws;
         _receiveCts = new CancellationTokenSource();
@@ -77,6 +94,7 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
         });
         var bytes = Encoding.UTF8.GetBytes(msg);
         await ws.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, ct);
+        Log($"SEND audio {pcm.Length} bytes pcm");
     }
 
     public async Task<string> FinishAsync(CancellationToken ct)
@@ -90,6 +108,7 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
             {
                 var flush = Encoding.UTF8.GetBytes("{\"type\":\"flush\"}");
                 await ws.SendAsync(flush, WebSocketMessageType.Text, true, ct);
+                Log("SEND flush");
             }
 
             // Give the server a moment to emit the final "data" for the flushed tail. The
@@ -123,15 +142,16 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
                 do
                 {
                     result = await ws.ReceiveAsync(buffer, ct);
-                    if (result.MessageType == WebSocketMessageType.Close) return;
+                    if (result.MessageType == WebSocketMessageType.Close) { Log($"RECV close status={result.CloseStatus} desc={result.CloseStatusDescription}"); return; }
                     sb.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
                 } while (!result.EndOfMessage);
 
+                Log($"RECV {sb}");
                 HandleMessage(sb.ToString());
             }
         }
-        catch (OperationCanceledException) { /* finishing/cancelling */ }
-        catch { /* socket error -- FinishAsync returns whatever was accumulated, caller falls back */ }
+        catch (OperationCanceledException) { Log("RECV loop cancelled"); }
+        catch (Exception ex) { Log($"RECV loop error: {ex.GetType().Name}: {ex.Message}"); }
     }
 
     private void HandleMessage(string json)
