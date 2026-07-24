@@ -19,6 +19,9 @@ public interface IStreamingSttEngine
 
     Task StartAsync(string mode, CancellationToken ct);
     Task SendAudioAsync(byte[] pcm, CancellationToken ct);
+    // Force-finalize whatever's been recognized so far, mid-stream -- called periodically
+    // during a long hold so live captions keep appearing even without a natural speech pause.
+    Task FlushAsync(CancellationToken ct);
     Task<string> FinishAsync(CancellationToken ct);
     Task CancelAsync();
 }

@@ -24,6 +24,8 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     private readonly object _lock = new();
     // How often the PCM pump drains newly-captured audio into the streaming socket.
     private const int PumpIntervalMs = 100;
+    // How often to force a mid-stream finalize so captions appear during continuous speech.
+    private const int FlushIntervalMs = 1500;
 
     private Task<string> _contextTask = Task.FromResult("");
     private CancellationTokenSource _cts = new();
@@ -118,10 +120,20 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
 
         try
         {
+            var lastFlush = DateTime.UtcNow;
             while (!ct.IsCancellationRequested)
             {
                 var pcm = _audio.ReadNewPcm();
                 if (pcm.Length > 0) await _streaming.SendAudioAsync(pcm, ct);
+
+                // Force a mid-stream finalize every ~1.5s so captions keep appearing even during
+                // continuous, pause-free speech (matches Sarvam's own realtime example).
+                if ((DateTime.UtcNow - lastFlush).TotalMilliseconds >= FlushIntervalMs)
+                {
+                    await _streaming.FlushAsync(ct);
+                    lastFlush = DateTime.UtcNow;
+                }
+
                 await Task.Delay(PumpIntervalMs, ct);
             }
         }

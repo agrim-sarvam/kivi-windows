@@ -7,13 +7,21 @@ using Kivi.Core.Config;
 namespace Kivi.Core.Stt;
 
 /// <summary>
-/// Streaming STT over Sarvam's WebSocket endpoint (wss://api.sarvam.ai/speech-to-text/ws).
-/// Audio is pushed as base64 WAV chunks (Sarvam's WS only accepts encoding "audio/wav") while
-/// the user speaks; the server returns "data" messages carrying transcript segments, and a
-/// "flush" finalizes the last segment.
+/// Real-time streaming STT over Sarvam's realtime WebSocket
+/// (wss://api.sarvam.ai/speech-to-text-realtime/ws, model saaras:v3-realtime). Protocol taken
+/// from Sarvam's own cookbook (Realtime_Speech_Captioning):
+///   - headerless raw 16k mono PCM16 is sent as {"event":"audio_input","audio":"<base64>"}
+///     (encoding=linear16 is declared in the connection query, so no WAV header per chunk);
+///   - the server emits {"event":"transcript.partial"|"transcript.final","text":"..."} as VAD
+///     segments speech; "flush" force-finalizes the current segment (sent periodically so
+///     captions appear even during continuous speech), "end" closes the session.
 ///
-/// This engine keeps NO cross-session state beyond the single in-flight socket, so a new
-/// StartAsync fully re-initializes. Never logs transcript text or the API key.
+/// stream_type=fast + endpointing=vad + a short silence window are what make it feel live
+/// rather than arriving seconds late. The realtime model is beta/gated on Sarvam's side; if the
+/// socket can't open, the orchestrator falls back to batch REST transcription.
+///
+/// Keeps NO cross-session state beyond the single in-flight socket. Never logs transcript text
+/// or the API key.
 /// </summary>
 public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
 {
@@ -23,13 +31,15 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
     private ClientWebSocket? _ws;
     private CancellationTokenSource? _receiveCts;
     private Task? _receiveLoop;
-    private readonly StringBuilder _transcript = new();
+    // Finalized segments (from transcript.final) joined into the committed transcript, plus the
+    // latest in-progress partial for live display. Final result = _finalized only.
+    private readonly StringBuilder _finalized = new();
+    private string _currentPartial = "";
     private readonly object _lock = new();
 
     // Temporary diagnostics: when %APPDATA%\Kivi\stream-debug.on exists, connection/send/receive
-    // events are appended to stream-debug.log so we can see exactly what Sarvam's WS returns and
-    // when. No transcript text policy concern here -- it's an opt-in local debug file the user
-    // creates deliberately. Remove once streaming partials are confirmed working.
+    // events are appended to stream-debug.log. Opt-in local debug file the user creates
+    // deliberately. Remove once streaming partials are confirmed working.
     private static readonly bool DebugEnabled =
         File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Kivi", "stream-debug.on"));
     private static readonly string DebugLogPath =
@@ -50,22 +60,29 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
     {
         var key = _secrets.GetApiKey() ?? throw new InvalidOperationException("Missing API key");
 
-        lock (_lock) { _transcript.Clear(); }
+        lock (_lock) { _finalized.Clear(); _currentPartial = ""; }
 
         var baseWs = _config.TranscriptionBaseUrl
             .Replace("https://", "wss://", StringComparison.OrdinalIgnoreCase)
             .Replace("http://", "ws://", StringComparison.OrdinalIgnoreCase)
             .TrimEnd('/');
-        var lang = string.IsNullOrWhiteSpace(_config.TranscriptionLanguage) ? "unknown" : _config.TranscriptionLanguage!;
-        var url = $"{baseWs}/speech-to-text/ws" +
-                  $"?model={Uri.EscapeDataString(_config.TranscriptionModel)}" +
+        // "unknown" (our auto-detect sentinel) maps to the realtime endpoint's "auto".
+        var lang = string.IsNullOrWhiteSpace(_config.TranscriptionLanguage) ? "auto" : _config.TranscriptionLanguage!;
+        var url = $"{baseWs}/speech-to-text-realtime/ws" +
+                  $"?model=saaras:v3-realtime" +
+                  $"&language_code={Uri.EscapeDataString(lang)}" +
                   $"&mode={Uri.EscapeDataString(mode)}" +
-                  $"&language-code={Uri.EscapeDataString(lang)}" +
-                  $"&sample_rate=16000&input_audio_codec=wav";
+                  $"&stream_type=fast" +
+                  $"&endpointing=vad" +
+                  $"&silence_duration_ms=300" +
+                  $"&min_speech_duration_ms=150" +
+                  $"&encoding=linear16" +
+                  $"&sample_rate=16000" +
+                  $"&return_timestamps=false";
 
         Log($"CONNECT {url}");
         var ws = new ClientWebSocket();
-        ws.Options.SetRequestHeader("api-subscription-key", key);
+        ws.Options.SetRequestHeader("API-SUBSCRIPTION-KEY", key);
         await ws.ConnectAsync(new Uri(url), ct);
         Log($"CONNECTED state={ws.State}");
 
@@ -79,79 +96,55 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
         var ws = _ws;
         if (ws is null || ws.State != WebSocketState.Open || pcm.Length == 0) return;
 
-        // Sarvam's WS validation only accepts encoding "audio/wav" (it rejects raw pcm_s16le),
-        // so each chunk is wrapped in a minimal 16k mono PCM16 WAV header before base64. The
-        // header's data-size field just needs to cover this chunk's bytes.
-        var wav = WrapPcmInWav(pcm);
+        // Headerless raw PCM -- encoding=linear16/sample_rate=16000 are declared in the query,
+        // so the payload is the raw sample bytes (no WAV header per chunk).
         var msg = JsonSerializer.Serialize(new
         {
-            audio = new
-            {
-                data = Convert.ToBase64String(wav),
-                sample_rate = "16000",
-                encoding = "audio/wav",
-            }
+            @event = "audio_input",
+            audio = Convert.ToBase64String(pcm),
         });
-        var bytes = Encoding.UTF8.GetBytes(msg);
-        await ws.SendAsync(bytes, WebSocketMessageType.Text, endOfMessage: true, ct);
-        Log($"SEND audio {pcm.Length} bytes pcm -> {wav.Length} bytes wav");
+        await ws.SendAsync(Encoding.UTF8.GetBytes(msg), WebSocketMessageType.Text, endOfMessage: true, ct);
+        Log($"SEND audio_input {pcm.Length} bytes");
     }
 
-    // Builds a 16 kHz, mono, 16-bit PCM WAV (44-byte canonical header) around a raw PCM chunk.
-    private static byte[] WrapPcmInWav(byte[] pcm)
+    // Periodic mid-stream flush so a caption appears even during long, pause-free speech (the
+    // orchestrator calls this on an interval while the user is still holding the key).
+    public async Task FlushAsync(CancellationToken ct)
     {
-        const int sampleRate = 16000, channels = 1, bitsPerSample = 16;
-        int byteRate = sampleRate * channels * bitsPerSample / 8;
-        short blockAlign = (short)(channels * bitsPerSample / 8);
-
-        using var ms = new MemoryStream(44 + pcm.Length);
-        using var w = new BinaryWriter(ms);
-        w.Write(Encoding.ASCII.GetBytes("RIFF"));
-        w.Write(36 + pcm.Length);            // ChunkSize
-        w.Write(Encoding.ASCII.GetBytes("WAVE"));
-        w.Write(Encoding.ASCII.GetBytes("fmt "));
-        w.Write(16);                         // Subchunk1Size (PCM)
-        w.Write((short)1);                   // AudioFormat = PCM
-        w.Write((short)channels);
-        w.Write(sampleRate);
-        w.Write(byteRate);
-        w.Write(blockAlign);
-        w.Write((short)bitsPerSample);
-        w.Write(Encoding.ASCII.GetBytes("data"));
-        w.Write(pcm.Length);                 // Subchunk2Size
-        w.Write(pcm);
-        w.Flush();
-        return ms.ToArray();
+        var ws = _ws;
+        if (ws is null || ws.State != WebSocketState.Open) return;
+        await ws.SendAsync(Encoding.UTF8.GetBytes("{\"event\":\"flush\"}"), WebSocketMessageType.Text, true, ct);
+        Log("SEND flush");
     }
 
     public async Task<string> FinishAsync(CancellationToken ct)
     {
         var ws = _ws;
-        if (ws is null) return CurrentTranscript();
+        if (ws is null) return CurrentFinal();
 
         try
         {
             if (ws.State == WebSocketState.Open)
             {
-                var flush = Encoding.UTF8.GetBytes("{\"type\":\"flush\"}");
-                await ws.SendAsync(flush, WebSocketMessageType.Text, true, ct);
-                Log("SEND flush");
+                // Flush the last buffered audio, then end the session; the server emits the
+                // final transcript.final(s) before closing.
+                await ws.SendAsync(Encoding.UTF8.GetBytes("{\"event\":\"flush\"}"), WebSocketMessageType.Text, true, ct);
+                await ws.SendAsync(Encoding.UTF8.GetBytes("{\"event\":\"end\"}"), WebSocketMessageType.Text, true, ct);
+                Log("SEND flush+end");
             }
 
-            // Give the server a moment to emit the final "data" for the flushed tail. The
-            // receive loop keeps updating _transcript until the socket closes or this window
-            // elapses -- whichever comes first.
+            // Wait for the receive loop to drain the remaining finals (socket close or timeout).
             var deadline = Task.Delay(TimeSpan.FromSeconds(3), ct);
             if (_receiveLoop is not null)
                 await Task.WhenAny(_receiveLoop, deadline);
         }
-        catch { /* network hiccup on flush -- return whatever we accumulated */ }
+        catch { /* network hiccup -- return whatever finalized so far */ }
         finally
         {
             await CloseAndCleanupAsync();
         }
 
-        return CurrentTranscript();
+        return CurrentFinal();
     }
 
     public async Task CancelAsync() => await CloseAndCleanupAsync();
@@ -187,30 +180,48 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
         {
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
-            if (!root.TryGetProperty("type", out var typeProp) || typeProp.GetString() != "data") return;
-            if (!root.TryGetProperty("data", out var data)) return;
-            if (!data.TryGetProperty("transcript", out var t)) return;
+            if (!root.TryGetProperty("event", out var evProp)) return;
+            var ev = evProp.GetString();
+            if (ev != "transcript.partial" && ev != "transcript.final") return;
 
-            var piece = t.GetString();
-            if (string.IsNullOrEmpty(piece)) return;
+            var text = (root.TryGetProperty("text", out var t) ? t.GetString() : null)?.Trim();
+            if (string.IsNullOrEmpty(text)) return;
 
-            string full;
+            string live;
             lock (_lock)
             {
-                // Sarvam streams each finalized segment as its own "data" message, so segments
-                // are appended (with a separating space) to build the whole utterance.
-                if (_transcript.Length > 0) _transcript.Append(' ');
-                _transcript.Append(piece);
-                full = _transcript.ToString();
+                if (ev == "transcript.final")
+                {
+                    // Commit this utterance and clear the in-progress partial.
+                    if (_finalized.Length > 0) _finalized.Append(' ');
+                    _finalized.Append(text);
+                    _currentPartial = "";
+                }
+                else
+                {
+                    // Partial = the growing current utterance (replaces, not appends).
+                    _currentPartial = text;
+                }
+                // Live display = committed finals + the current partial.
+                live = _currentPartial.Length > 0
+                    ? (_finalized.Length > 0 ? _finalized + " " + _currentPartial : _currentPartial)
+                    : _finalized.ToString();
             }
-            PartialReceived?.Invoke(full);
+            PartialReceived?.Invoke(live);
         }
         catch { /* malformed frame -- ignore */ }
     }
 
-    private string CurrentTranscript()
+    private string CurrentFinal()
     {
-        lock (_lock) { return _transcript.ToString(); }
+        lock (_lock)
+        {
+            // On finish, fold any still-uncommitted partial into the result so a final
+            // utterance that never got its own transcript.final isn't lost.
+            if (_currentPartial.Length > 0)
+                return _finalized.Length > 0 ? _finalized + " " + _currentPartial : _currentPartial;
+            return _finalized.ToString();
+        }
     }
 
     private async Task CloseAndCleanupAsync()

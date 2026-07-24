@@ -54,6 +54,7 @@ public sealed class FakeStreamingStt : Kivi.Core.Stt.IStreamingSttEngine
         PartialReceived?.Invoke(Result); // surface a live partial as audio flows
         return Task.CompletedTask;
     }
+    public Task FlushAsync(CancellationToken ct) => Task.CompletedTask;
     public Task<string> FinishAsync(CancellationToken ct) { Finished = true; return Task.FromResult(Result); }
     public Task CancelAsync() { Cancelled = true; return Task.CompletedTask; }
 }
@@ -65,6 +66,7 @@ public sealed class EmptyStreamingStt : Kivi.Core.Stt.IStreamingSttEngine
     public event Action<string>? PartialReceived;
     public Task StartAsync(string mode, CancellationToken ct) => Task.CompletedTask;
     public Task SendAudioAsync(byte[] pcm, CancellationToken ct) => Task.CompletedTask;
+    public Task FlushAsync(CancellationToken ct) => Task.CompletedTask;
     public Task<string> FinishAsync(CancellationToken ct) => Task.FromResult("");
     public Task CancelAsync() => Task.CompletedTask;
 }
