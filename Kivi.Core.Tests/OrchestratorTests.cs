@@ -2,6 +2,7 @@ using Kivi.Core.Config;
 using Kivi.Core.Diagnostics;
 using Kivi.Core.History;
 using Kivi.Core.Orchestration;
+using Kivi.Core.Stt;
 using Xunit;
 
 public class OrchestratorTests
@@ -167,105 +168,36 @@ public class OrchestratorTests
     }
 
     [Fact]
-    public async Task RewriteHotkey_WithNoPriorDictation_ShowsErrorAndReturnsToIdle()
+    public async Task PrimaryHotkey_UsesHinglishMode()
     {
         var hotkey = new FakeHotkey();
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
+        var stt = new StubStt();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
-
-        var states = new List<RecordingState>();
-        orch.StateChanged += s => states.Add(s);
-        orch.Start();
-
-        hotkey.FireRewriteStart();
-        await Task.Delay(20);
-        hotkey.FireRewriteEnd();
-        await Task.Delay(1500);
-
-        Assert.Contains(RecordingState.Error, states);
-        Assert.Equal(RecordingState.Idle, orch.State);
-        Assert.Null(paste.Pasted); // nothing was ever pasted
-    }
-
-    [Fact]
-    public async Task RewriteHotkey_AfterDictation_ComputesDiff_AndArmsReviewKeys()
-    {
-        var hotkey = new FakeHotkey();
-        var paste = new SpyPaste();
-        using var metrics = new KiviMetrics();
-        var polish = new StubPolish(); // RewriteAsync -> "Rewritten text."
-        var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), polish, paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
-
-        var states = new List<RecordingState>();
-        orch.StateChanged += s => states.Add(s);
-        orch.Start();
-
-        // First, a normal dictation so there's something to rewrite.
-        hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
-        Assert.Equal("Hello there.", paste.Pasted);
-
-        // Now hold the rewrite hotkey.
-        hotkey.FireRewriteStart();
-        await Task.Delay(20);
-        hotkey.FireRewriteEnd();
-        await Task.Delay(500);
-
-        Assert.Contains(RecordingState.RewritePending, states);
-        Assert.Equal(RecordingState.RewriteReview, orch.State);
-        Assert.True(hotkey.ReviewArmed);
-        Assert.NotNull(orch.Diff);
-        Assert.Equal("Rewritten text.", string.Concat(orch.Diff!.Where(t => t.Op != Kivi.Core.Text.DiffOp.Delete).Select(t => t.Text)));
-    }
-
-    [Fact]
-    public async Task ReviewAccepted_UndoesThenPastesRewrittenText()
-    {
-        var hotkey = new FakeHotkey();
-        var paste = new SpyPaste();
-        using var metrics = new KiviMetrics();
-        var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
+            stt, new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
         orch.Start();
 
         hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
-        hotkey.FireRewriteStart(); await Task.Delay(20); hotkey.FireRewriteEnd(); await Task.Delay(500);
 
-        hotkey.FireReviewAccepted();
-        await Task.Delay(1500);
-
-        Assert.Equal(1, paste.UndoCalls);
-        Assert.Equal("Rewritten text.", paste.Pasted);
-        Assert.Equal(RecordingState.Idle, orch.State);
-        Assert.False(hotkey.ReviewArmed);
-
-        var undoIndex = paste.CallOrder.IndexOf("Undo");
-        var pasteIndex = paste.CallOrder.IndexOf("Inject:Rewritten text.");
-        Assert.True(undoIndex >= 0 && pasteIndex >= 0 && undoIndex < pasteIndex,
-            "Undo must happen before the rewritten text is pasted, or the real document would be corrupted.");
+        Assert.Equal(SttMode.Hinglish, stt.LastMode);
     }
 
     [Fact]
-    public async Task ReviewCancelled_LeavesOriginalPasteUntouched()
+    public async Task EnglishHotkey_UsesTranslateMode_AndPastesCleanedText()
     {
         var hotkey = new FakeHotkey();
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
+        var stt = new StubStt();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
+            stt, new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
         orch.Start();
 
-        hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
-        hotkey.FireRewriteStart(); await Task.Delay(20); hotkey.FireRewriteEnd(); await Task.Delay(500);
+        hotkey.FireEnglishStart(); await Task.Delay(20); hotkey.FireEnglishEnd(); await Task.Delay(1500);
 
-        hotkey.FireReviewCancelled();
-
-        Assert.Equal(0, paste.UndoCalls);
-        Assert.Equal("Hello there.", paste.Pasted); // still the original dictation, never overwritten
-        Assert.Equal(RecordingState.Idle, orch.State);
-        Assert.False(hotkey.ReviewArmed);
+        Assert.Equal(SttMode.English, stt.LastMode);
+        Assert.Equal("Hello there.", paste.Pasted); // English hotkey runs the same clean+paste pipeline
     }
 
     [Fact]
@@ -274,17 +206,19 @@ public class OrchestratorTests
         var hotkey = new FakeHotkey();
         var paste = new SpyPaste();
         using var metrics = new KiviMetrics();
+        var stt = new StubStt();
         var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
+            stt, new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
         orch.Start();
 
         hotkey.FireStart();
-        hotkey.FireRewriteStart(); // ignored: a capture is already in progress
+        hotkey.FireEnglishStart(); // ignored: a capture is already in progress
         await Task.Delay(20);
         hotkey.FireEnd();
         await Task.Delay(1500);
 
-        Assert.Equal("Hello there.", paste.Pasted); // normal dictation completed; rewrite never ran
+        Assert.Equal("Hello there.", paste.Pasted);
+        Assert.Equal(SttMode.Hinglish, stt.LastMode); // the primary (first) hotkey's mode won, not English
     }
 
     [Fact]
@@ -297,60 +231,14 @@ public class OrchestratorTests
             new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
         orch.Start();
 
-        // Start a PRIMARY dictation capture, then fire the REWRITE hotkey's end event
-        // (never started) -- OnRewriteHoldEnded must no-op since IsRewriteCapture is false.
+        // Start a capture with the primary hotkey, then fire the English hotkey's end event
+        // (never started) -- EndCapture must no-op cleanly, primary capture keeps running.
         hotkey.FireStart();
         await Task.Delay(20);
-        hotkey.FireRewriteEnd(); // mismatched: should be ignored, primary capture keeps running
-        await Task.Delay(20);
-
-        // The primary capture must still be exactly where it was -- not derailed into the
-        // rewrite pipeline, and not yet finished (only the real FireEnd() below completes it).
-        Assert.Null(paste.Pasted);
-
-        hotkey.FireEnd(); // the REAL end event for the primary capture
+        hotkey.FireEnglishEnd();
+        hotkey.FireEnd(); // the real end for the primary capture
         await Task.Delay(1500);
 
-        Assert.Equal("Hello there.", paste.Pasted); // primary pipeline completed normally
-        Assert.Equal(0, paste.UndoCalls); // rewrite pipeline never ran
-    }
-
-    [Fact]
-    public async Task MismatchedPrimaryHoldEnded_IsIgnored_RewriteCaptureContinuesUninterrupted()
-    {
-        var hotkey = new FakeHotkey();
-        var paste = new SpyPaste();
-        using var metrics = new KiviMetrics();
-        var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
-            new StubStt(), new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
-
-        var states = new List<RecordingState>();
-        orch.StateChanged += s => states.Add(s);
-        orch.Start();
-
-        // A normal dictation first, so there's something for the rewrite to target.
-        hotkey.FireStart(); await Task.Delay(20); hotkey.FireEnd(); await Task.Delay(1500);
-        Assert.Equal("Hello there.", paste.Pasted);
-        states.Clear();
-
-        // Start a REWRITE capture, then fire the PRIMARY hotkey's end event (never started
-        // in this capture) -- OnHoldEnded must no-op since IsRewriteCapture is true.
-        hotkey.FireRewriteStart();
-        await Task.Delay(20);
-        hotkey.FireEnd(); // mismatched: should be ignored, rewrite capture keeps running
-        await Task.Delay(20);
-
-        // The rewrite capture must not have been derailed into the normal dictation
-        // pipeline -- no second normal paste happened, and we're still mid-capture.
-        Assert.Equal("Hello there.", paste.Pasted); // unchanged since the dictation above
-        Assert.DoesNotContain(RecordingState.Processing, states); // normal pipeline never ran
-
-        hotkey.FireRewriteEnd(); // the REAL end event for the rewrite capture
-        await Task.Delay(500);
-
-        // The rewrite pipeline completed normally: computed a diff and armed review keys.
-        Assert.Equal(RecordingState.RewriteReview, orch.State);
-        Assert.True(hotkey.ReviewArmed);
-        Assert.NotNull(orch.Diff);
+        Assert.Equal("Hello there.", paste.Pasted); // completed exactly once, normally
     }
 }

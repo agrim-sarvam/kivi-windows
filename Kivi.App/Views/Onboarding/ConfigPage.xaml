@@ -1,7 +1,7 @@
 <!-- Kivi.App/Views/Onboarding/ConfigPage.xaml -->
 <!-- Final onboarding screen: settings card grid with only the controls that have real
      backing (hotkey capture, orb accent color, transcription language, launch-at-login,
-     screen context). The Hey-kivi hotkey, press-and-hold delay, memory, incognito,
+     screen context). The English hotkey, press-and-hold delay, memory, incognito,
      clear-history and sound-on-paste controls from the Figma frame are intentionally
      omitted — no backend exists for them yet. -->
 <Page
@@ -60,15 +60,15 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                            <TextBlock Text="Hey-kivi rewrite hotkey" FontFamily="{ThemeResource KiviFontFamily}"
+                            <TextBlock Text="English hotkey" FontFamily="{ThemeResource KiviFontFamily}"
                                        FontSize="{ThemeResource KiviFontSizeBody}"
                                        FontWeight="{ThemeResource KiviFontWeightMedium}"
                                        Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
-                            <TextBlock Text="hold and speak an edit for what kivi last typed" FontFamily="{ThemeResource KiviFontFamily}"
+                            <TextBlock Text="hold to dictate — anything you say is translated into English" FontFamily="{ThemeResource KiviFontFamily}"
                                        FontSize="{ThemeResource KiviFontSizeCaption}"
                                        Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
                         </StackPanel>
-                        <controls:HotkeyCaptureBox x:Name="RewriteHotkeyBox" Grid.Column="1"
+                        <controls:HotkeyCaptureBox x:Name="EnglishHotkeyBox" Grid.Column="1"
                                 Background="{ThemeResource KiviSurfaceAltBrush}"
                                 BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
                                 CornerRadius="{ThemeResource KiviRadiusSm}"

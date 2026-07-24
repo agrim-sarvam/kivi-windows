@@ -5,7 +5,6 @@ using System.Drawing.Text;
 using Kivi.App.Interop;
 using Kivi.App.ViewModels;
 using Kivi.Core.Orchestration;
-using Kivi.Core.Text;
 using Microsoft.UI.Dispatching;
 
 namespace Kivi.App.Controls;
@@ -23,8 +22,6 @@ namespace Kivi.App.Controls;
 ///    subsequent pipeline state. Its geometry (not just opacity) grows from the orb's footprint
 ///    up to full size, so the transition reads as "the orb grows into the box" rather than a
 ///    full-size card materializing above a still-solid orb.
-///  - <b>Hey kivi</b> -> the same box, wider, rendering a word diff instead of plain body text,
-///    while awaiting an accept (Enter) or reject (Esc).
 ///
 /// Click-through everywhere except a handful of small hotspots: hovering the rest pill (detected
 /// by polling the cursor position each frame, independent of window messages) morphs the pill
@@ -71,7 +68,6 @@ public sealed class LayeredOrb : IDisposable
     private const double OrbDiameter = 49;
     private const double SatelliteGap = 18;              // from the orb's edge
     private const double BoxW = 258, BoxH = 86, BoxRadius = 16;
-    private const double BoxMaxWidthHeyKivi = 384;
     private const double WokenHoldSeconds = 0.25;        // how long the woken orb holds before growing into a box
 
     private static readonly Color Forest     = Color.FromArgb(255, 0x18, 0x30, 0x0F); // --brand-orbforest (rest pill only)
@@ -92,8 +88,6 @@ public sealed class LayeredOrb : IDisposable
     private static readonly Color Fg1        = Color.FromArgb(255, 0x14, 0x18, 0x0E); // --color-fg1
     private static readonly Color Fg2        = Color.FromArgb(255, 0x5C, 0x64, 0x54); // --color-fg2
     private static readonly Color Fg3        = Color.FromArgb(255, 0x92, 0x9A, 0x8A); // --color-fg3
-    private static readonly Color Positive   = Color.FromArgb(255, 0x6E, 0xA3, 0x35); // --color-positive
-    private static readonly Color PositiveBg = Color.FromArgb(255, 0xF2, 0xF8, 0xEB); // --color-positivebg
 
     // Fixed, distinct per-state colours (foundation palette) so transitions are unmistakable.
     private static readonly Color CIdle       = Color.FromArgb(0x6E, 0xA3, 0x35);
@@ -395,14 +389,12 @@ public sealed class LayeredOrb : IDisposable
 
     private Color StateColor(RecordingState s) => s switch
     {
-        RecordingState.Listening  => _vm.IsRewriteCapture ? CProcessing : CListening,
+        RecordingState.Listening  => CListening,
         RecordingState.Processing => CProcessing,
         RecordingState.Speaking   => CSpeaking,
         RecordingState.Waiting    => CWaiting,
         RecordingState.Done       => CDone,
         RecordingState.Error      => CError,
-        RecordingState.RewritePending => CProcessing,
-        RecordingState.RewriteReview  => CProcessing,
         _                         => IdleGlow(),
     };
 
@@ -595,22 +587,14 @@ public sealed class LayeredOrb : IDisposable
         DrawBird(g, cx, cy - (float)(1.5 * s), (float)(OrbDiameter * 0.74 * s), Mul(BirdDots, alpha));
     }
 
-    // ---- dictating / hey-kivi posture ----
+    // ---- dictating posture ----
     private void DrawBox(Graphics g, float cx, float baseline, float alpha)
     {
         var state = _vm.State;
-        bool isHeyKivi = _vm.IsRewriteCapture || state is RecordingState.RewritePending or RecordingState.RewriteReview;
         double s = _scale;
 
         string header = HeaderLabel(state);
         float desiredW = (float)(BoxW * s);
-        if (isHeyKivi)
-        {
-            using var headerFont = MakeFont(11f, mono: true);
-            var headerSize = g.MeasureString(header, headerFont);
-            float contentW = headerSize.Width + (float)(40 * s);
-            desiredW = Math.Max(desiredW, Math.Min(contentW, (float)(BoxMaxWidthHeyKivi * s)));
-        }
 
         // Grow the box's actual geometry from the orb's small footprint up to full size (not
         // just its opacity), so the transition reads as "the orb grows into the box" rather than
@@ -654,38 +638,27 @@ public sealed class LayeredOrb : IDisposable
 
         using (var headerFont = MakeFont(11f, mono: true))
         {
-            var headerColor = isHeyKivi ? CProcessing : Fg3;
-            using var hb = new SolidBrush(Mul(headerColor, contentAlpha));
+            using var hb = new SolidBrush(Mul(Fg3, contentAlpha));
             g.DrawString(header, headerFont, hb, left + padX, headerY);
 
-            if (!isHeyKivi)
-            {
-                using var chipFont = MakeFont(12f, mono: true);
-                var chipSize = g.MeasureString(_languageLabel, chipFont);
-                using var cb = new SolidBrush(Mul(Fg2, contentAlpha));
-                g.DrawString(_languageLabel, chipFont, cb, left + bw - padX - chipSize.Width, headerY);
-            }
+            using var chipFont = MakeFont(12f, mono: true);
+            var chipSize = g.MeasureString(_languageLabel, chipFont);
+            using var cb = new SolidBrush(Mul(Fg2, contentAlpha));
+            g.DrawString(_languageLabel, chipFont, cb, left + bw - padX - chipSize.Width, headerY);
         }
 
         float bodyTop = headerY + (float)(22 * s);
         float bodyBottom = top + bh - (float)(12 * s) - (float)(18 * s);
         var bodyRect = new RectangleF(left + padX, bodyTop, bw - padX * 2, Math.Max(0, bodyBottom - bodyTop));
 
-        if (state == RecordingState.RewriteReview && _vm.Diff is { Count: > 0 } diff)
+        var body = BodyText(state);
+        if (body.Length > 0)
         {
-            DrawDiffText(g, bodyRect, diff, contentAlpha);
-        }
-        else
-        {
-            var body = BodyText(state);
-            if (body.Length > 0)
-            {
-                bool placeholder = state == RecordingState.Listening && !_vm.IsRewriteCapture && string.IsNullOrEmpty(_vm.PartialTranscript);
-                using var bodyFont = MakeFont(15f);
-                using var bb = new SolidBrush(Mul(placeholder ? Fg3 : Fg1, contentAlpha));
-                using var fmt = new StringFormat { Trimming = StringTrimming.EllipsisCharacter };
-                g.DrawString(body, bodyFont, bb, bodyRect, fmt);
-            }
+            bool placeholder = state == RecordingState.Listening && string.IsNullOrEmpty(_vm.PartialTranscript);
+            using var bodyFont = MakeFont(15f);
+            using var bb = new SolidBrush(Mul(placeholder ? Fg3 : Fg1, contentAlpha));
+            using var fmt = new StringFormat { Trimming = StringTrimming.EllipsisCharacter };
+            g.DrawString(body, bodyFont, bb, bodyRect, fmt);
         }
 
         var footer = FooterText(state);
@@ -697,87 +670,33 @@ public sealed class LayeredOrb : IDisposable
         }
     }
 
-    private void DrawDiffText(Graphics g, RectangleF bounds, IReadOnlyList<DiffToken> diff, float alpha)
+    private string HeaderLabel(RecordingState s) => s switch
     {
-        using var font = MakeFont(15f);
-        float lineHeight = (float)(15 * 1.65 * _scale);
-        float x = bounds.Left, y = bounds.Top;
-
-        foreach (var token in diff)
-        {
-            if (token.Text.Length == 0) continue;
-            if (string.IsNullOrWhiteSpace(token.Text))
-            {
-                if (token.Text.Contains('\n')) { x = bounds.Left; y += lineHeight; }
-                else x += g.MeasureString(token.Text, font).Width;
-                continue;
-            }
-
-            var size = g.MeasureString(token.Text, font);
-            if (x + size.Width > bounds.Right) { x = bounds.Left; y += lineHeight; }
-            if (y + lineHeight > bounds.Bottom) break; // clip silently past the box's visible height
-
-            switch (token.Op)
-            {
-                case DiffOp.Insert:
-                    using (var bg = new SolidBrush(Mul(PositiveBg, alpha)))
-                        g.FillRectangle(bg, x, y, size.Width, lineHeight * 0.82f);
-                    using (var fg = new SolidBrush(Mul(Positive, alpha)))
-                        g.DrawString(token.Text, font, fg, x, y);
-                    break;
-                case DiffOp.Delete:
-                    using (var fg = new SolidBrush(Mul(Fg2, alpha)))
-                        g.DrawString(token.Text, font, fg, x, y);
-                    using (var pen = new Pen(Mul(Fg2, alpha), (float)(1 * _scale)))
-                        g.DrawLine(pen, x, y + lineHeight * 0.5f, x + size.Width, y + lineHeight * 0.5f);
-                    break;
-                default:
-                    using (var fg = new SolidBrush(Mul(Fg1, alpha)))
-                        g.DrawString(token.Text, font, fg, x, y);
-                    break;
-            }
-            x += size.Width;
-        }
-    }
-
-    private string HeaderLabel(RecordingState s)
-    {
-        bool heyKivi = _vm.IsRewriteCapture || s is RecordingState.RewritePending or RecordingState.RewriteReview;
-        if (heyKivi)
-        {
-            var instr = s == RecordingState.Listening ? _vm.PartialTranscript : _vm.Instruction;
-            return string.IsNullOrWhiteSpace(instr) ? "HEY KIVI" : $"HEY KIVI · \"{instr}\"";
-        }
-        return s switch
-        {
-            RecordingState.Listening  => "LIVE",
-            RecordingState.Processing => "POLISHING",
-            RecordingState.Speaking   => "INSERTING",
-            RecordingState.Waiting    => "COOLING DOWN",
-            RecordingState.Done       => "DONE",
-            RecordingState.Error      => "ERROR",
-            _                         => "KIVI",
-        };
-    }
+        RecordingState.Listening  => "LIVE",
+        RecordingState.Processing => "POLISHING",
+        RecordingState.Speaking   => "INSERTING",
+        RecordingState.Waiting    => "COOLING DOWN",
+        RecordingState.Done       => "DONE",
+        RecordingState.Error      => "ERROR",
+        _                         => "KIVI",
+    };
 
     private string BodyText(RecordingState s) => s switch
     {
         RecordingState.Listening      => string.IsNullOrEmpty(_vm.PartialTranscript)
-            ? "Press right ctrl and speak — finished text appears here, in your style…"
+            ? "Press a dictation key and speak — finished text appears here, in your style…"
             : _vm.PartialTranscript,
         RecordingState.Processing     => "Cleaning up your text…",
         RecordingState.Speaking       => "Pasting…",
         RecordingState.Waiting        => "Rate limited — retrying shortly…",
         RecordingState.Done           => "Done.",
         RecordingState.Error          => _vm.LastErrorMessage ?? "Couldn't catch that.",
-        RecordingState.RewritePending => "Rewriting…",
         _                              => "",
     };
 
     private string FooterText(RecordingState s) => s switch
     {
-        RecordingState.Listening     => _vm.IsRewriteCapture ? "release to rewrite · esc to discard" : "right ctrl to stop · esc to discard",
-        RecordingState.RewriteReview => "⏎ paste · esc keep original",
+        RecordingState.Listening     => $"{_hotkeyLabel} to stop · esc to discard",
         _                             => "",
     };
 

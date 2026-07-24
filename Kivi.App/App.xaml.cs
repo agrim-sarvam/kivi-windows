@@ -129,7 +129,7 @@ public partial class App : Application
         // Re-apply the user's saved hotkey on every launch.
         var hotkey = Services.GetRequiredService<IHotkeyService>();
         hotkey.SetHotkey(appConfig.HotkeyVirtualKeyCode);
-        hotkey.SetRewriteHotkey(appConfig.RewriteHotkeyVirtualKeyCode);
+        hotkey.SetEnglishHotkey(appConfig.EnglishHotkeyVirtualKeyCode);
 
         var dispatcher = DispatcherQueue.GetForCurrentThread();
         Controls.KiviOrbControl.AccentBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(

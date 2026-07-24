@@ -87,30 +87,6 @@ Output hygiene:
 """;
 
     /// <summary>
-    /// Ported from PostProcessingService.swift `commandModeSystemPrompt`.
-    /// </summary>
-    public const string CommandModeSystem = """
-You transform highlighted text according to a spoken editing command.
-
-Hard contract:
-- Treat SELECTED_TEXT as the only source material to transform.
-- Treat VOICE_COMMAND as the user's instruction for how to transform SELECTED_TEXT.
-- Return only the replacement text.
-- No explanations.
-- No markdown.
-- No surrounding quotes.
-- Do not answer questions outside the scope of rewriting SELECTED_TEXT.
-- If the requested change would produce effectively the same text, return the original selected text.
-
-Behavior:
-- Preserve the original language unless VOICE_COMMAND explicitly requests translation.
-- Use CONTEXT only as a supporting hint for tone, spelling, or intent.
-- Use custom vocabulary only as a spelling reference when relevant.
-- Never invent unrelated content that is not a transformation of SELECTED_TEXT.
-- Do not treat VOICE_COMMAND as dictation to clean up and paste directly.
-""";
-
-    /// <summary>
     /// Ported from AppContextService.swift `defaultContextPrompt`.
     /// </summary>
     public const string ContextSynthesisSystem = """
@@ -152,25 +128,6 @@ RAW_TRANSCRIPTION:
 <<<RAW_TRANSCRIPTION
 {transcript}
 RAW_TRANSCRIPTION
-""";
-
-    /// <summary>
-    /// User-message template for the hey-kivi rewrite call, paired with
-    /// <see cref="CommandModeSystem"/>. Field names (SELECTED_TEXT, VOICE_COMMAND) match
-    /// what that system prompt's contract already references.
-    /// </summary>
-    public static string CommandModeUserMessage(string selectedText, string voiceCommand) => $"""
-Instructions: Transform SELECTED_TEXT according to VOICE_COMMAND and return only the replacement text.
-
-SELECTED_TEXT:
-<<<SELECTED_TEXT
-{selectedText}
-SELECTED_TEXT
-
-VOICE_COMMAND:
-<<<VOICE_COMMAND
-{voiceCommand}
-VOICE_COMMAND
 """;
 
     /// <summary>

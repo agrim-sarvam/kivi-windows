@@ -4,18 +4,14 @@ public interface IHotkeyService
 {
     event Action? HoldStarted;
     event Action? HoldEnded;
-    event Action? RewriteHoldStarted;
-    event Action? RewriteHoldEnded;
-    // Fire only while ArmReviewKeys() is active -- the hey-kivi accept/reject step.
-    event Action? ReviewAccepted;
-    event Action? ReviewCancelled;
+    // The second dictation hotkey: hold to dictate in English-translate mode.
+    event Action? EnglishHoldStarted;
+    event Action? EnglishHoldEnded;
     void Start();
     void Stop();
     void SetHotkey(uint virtualKeyCode);
-    void SetRewriteHotkey(uint virtualKeyCode);
-    void ArmReviewKeys();
-    void DisarmReviewKeys();
+    void SetEnglishHotkey(uint virtualKeyCode);
     // Temporarily pauses/resumes hook handling without changing which key is bound (unlike
-    // SetHotkey/SetRewriteHotkey). Used by the tray icon's "Pause dictation" command.
+    // SetHotkey/SetEnglishHotkey). Used by the tray icon's "Pause dictation" command.
     void SetEnabled(bool enabled);
 }

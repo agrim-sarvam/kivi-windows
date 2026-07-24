@@ -6,7 +6,6 @@ using Kivi.Core.History;
 using Kivi.Core.Macros;
 using Kivi.Core.Polish;
 using Kivi.Core.Stt;
-using Kivi.Core.Text;
 
 namespace Kivi.Core.Orchestration;
 
@@ -30,14 +29,12 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     private CancellationTokenSource _cts = new();
     private CancellationTokenSource _partialLoopCts = new();
     private bool _capturing;
-    private string _lastDictatedText = "";
-    private string _pendingRewrite = "";
+    // The Sarvam STT mode for the in-flight capture, chosen by which hotkey started it:
+    // primary hotkey -> Hinglish (romanized code-mix), English hotkey -> translate-to-English.
+    private string _activeMode = SttMode.Hinglish;
 
     public RecordingState State { get; private set; } = RecordingState.Idle;
-    public bool IsRewriteCapture { get; private set; }
-    public string? Instruction { get; private set; }
     public string? LastErrorMessage { get; private set; }
-    public IReadOnlyList<DiffToken>? Diff { get; private set; }
 
     public event Action<RecordingState>? StateChanged;
     public event Action<string>? PartialTranscriptChanged;
@@ -55,10 +52,8 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     {
         _hotkey.HoldStarted += OnHoldStarted;
         _hotkey.HoldEnded += OnHoldEnded;
-        _hotkey.RewriteHoldStarted += OnRewriteHoldStarted;
-        _hotkey.RewriteHoldEnded += OnRewriteHoldEnded;
-        _hotkey.ReviewAccepted += OnReviewAccepted;
-        _hotkey.ReviewCancelled += OnReviewCancelled;
+        _hotkey.EnglishHoldStarted += OnEnglishHoldStarted;
+        _hotkey.EnglishHoldEnded += OnEnglishHoldEnded;
         _hotkey.Start();
     }
 
@@ -66,10 +61,8 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     {
         _hotkey.HoldStarted -= OnHoldStarted;
         _hotkey.HoldEnded -= OnHoldEnded;
-        _hotkey.RewriteHoldStarted -= OnRewriteHoldStarted;
-        _hotkey.RewriteHoldEnded -= OnRewriteHoldEnded;
-        _hotkey.ReviewAccepted -= OnReviewAccepted;
-        _hotkey.ReviewCancelled -= OnReviewCancelled;
+        _hotkey.EnglishHoldStarted -= OnEnglishHoldStarted;
+        _hotkey.EnglishHoldEnded -= OnEnglishHoldEnded;
         _hotkey.Stop();
     }
 
@@ -79,31 +72,26 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
         StateChanged?.Invoke(s);
     }
 
-    private void OnHoldStarted()
+    // Primary hotkey (Right Ctrl): Hinglish dictation -- English stays English, Hindi is
+    // romanized into Latin letters, all mixed in one transcript.
+    private void OnHoldStarted() => BeginCapture(SttMode.Hinglish);
+
+    // English hotkey (Right Alt): translate whatever was spoken (Hindi/other/English) into
+    // proper English.
+    private void OnEnglishHoldStarted() => BeginCapture(SttMode.English);
+
+    private void BeginCapture(string mode)
     {
         if (_capturing) return; // both hotkeys held at once is unsupported -- ignore the second
         _capturing = true;
-        IsRewriteCapture = false;
-        StartCaptureCommon();
-        _contextTask = _config.ScreenContextEnabled
-            ? _context.CaptureContextAsync(_cts.Token)
-            : Task.FromResult("");
-    }
-
-    private void OnRewriteHoldStarted()
-    {
-        if (_capturing) return;
-        _capturing = true;
-        IsRewriteCapture = true;
-        StartCaptureCommon();
-    }
-
-    private void StartCaptureCommon()
-    {
+        _activeMode = mode;
         _cts = new CancellationTokenSource();
         _partialLoopCts = new CancellationTokenSource();
         SetState(RecordingState.Listening);
         _ = _audio.StartRecordingAsync(_cts.Token);
+        _contextTask = _config.ScreenContextEnabled
+            ? _context.CaptureContextAsync(_cts.Token)
+            : Task.FromResult("");
         _ = RunPartialLoopAsync(_partialLoopCts.Token);
     }
 
@@ -117,7 +105,7 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
                 var wav = _audio.SnapshotRecording();
                 if (wav.Length > 0)
                 {
-                    var partial = await _stt.TranscribeAsync(wav, ct);
+                    var partial = await _stt.TranscribeAsync(wav, _activeMode, ct);
                     if (!string.IsNullOrEmpty(partial))
                         PartialTranscriptChanged?.Invoke(partial);
                 }
@@ -127,20 +115,15 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
         catch (OperationCanceledException) { /* recording ended -> stop snapshotting */ }
     }
 
-    private void OnHoldEnded()
+    private void OnHoldEnded() => EndCapture();
+    private void OnEnglishHoldEnded() => EndCapture();
+
+    private void EndCapture()
     {
-        if (!_capturing || IsRewriteCapture) return;
+        if (!_capturing) return;
         _capturing = false;
         _partialLoopCts.Cancel();
         _ = RunPipelineAsync();
-    }
-
-    private void OnRewriteHoldEnded()
-    {
-        if (!_capturing || !IsRewriteCapture) return;
-        _capturing = false;
-        _partialLoopCts.Cancel();
-        _ = RunRewritePipelineAsync();
     }
 
     private async Task RunPipelineAsync()
@@ -154,7 +137,7 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
             _metrics.RecordStage("record", recSw.Elapsed.TotalMilliseconds);
 
             var sttSw = Stopwatch.StartNew();
-            var raw = await _stt.TranscribeAsync(wav, _cts.Token);
+            var raw = await _stt.TranscribeAsync(wav, _activeMode, _cts.Token);
             _metrics.RecordStage("stt", sttSw.Elapsed.TotalMilliseconds);
             if (string.IsNullOrEmpty(raw)) { SetState(RecordingState.Idle); return; }
 
@@ -180,7 +163,6 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
             var pasteSw = Stopwatch.StartNew();
             await _paste.InjectTextAsync(textToPaste, cmd.ShouldPressEnter);
             _metrics.RecordStage("paste", pasteSw.Elapsed.TotalMilliseconds);
-            _lastDictatedText = textToPaste;
 
             _transcriptStore.Append(new TranscriptEntry(
                 Guid.NewGuid().ToString("N"),
@@ -206,89 +188,5 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
         {
             _metrics.RecordTotal(total.Elapsed.TotalMilliseconds);
         }
-    }
-
-    private async Task RunRewritePipelineAsync()
-    {
-        try
-        {
-            SetState(RecordingState.RewritePending);
-            var wav = await _audio.StopRecordingAsync();
-            var instructionRaw = await _stt.TranscribeAsync(wav, _cts.Token);
-            if (string.IsNullOrEmpty(instructionRaw)) { IsRewriteCapture = false; SetState(RecordingState.Idle); return; }
-            var instruction = instructionRaw.Trim();
-            Instruction = instruction;
-
-            if (string.IsNullOrEmpty(_lastDictatedText))
-            {
-                await FailRewriteAsync("Nothing to rewrite yet.");
-                return;
-            }
-
-            var rewritten = await _polish.RewriteAsync(_lastDictatedText, instruction, _cts.Token);
-            Diff = WordDiff.Compute(_lastDictatedText, rewritten);
-            _pendingRewrite = rewritten;
-            SetState(RecordingState.RewriteReview);
-            _hotkey.ArmReviewKeys();
-        }
-        catch
-        {
-            await FailRewriteAsync("Couldn't catch that.");
-        }
-    }
-
-    private async Task FailRewriteAsync(string message)
-    {
-        LastErrorMessage = message;
-        SetState(RecordingState.Error);
-        await Task.Delay(DoneDisplayMs, CancellationToken.None);
-        IsRewriteCapture = false;
-        SetState(RecordingState.Idle);
-    }
-
-    private void OnReviewAccepted()
-    {
-        _hotkey.DisarmReviewKeys();
-        _ = ApplyAcceptedRewriteAsync();
-    }
-
-    private async Task ApplyAcceptedRewriteAsync()
-    {
-        try
-        {
-            await _paste.UndoAsync();
-            await _paste.InjectTextAsync(_pendingRewrite, false);
-            _lastDictatedText = _pendingRewrite;
-
-            _transcriptStore.Append(new TranscriptEntry(
-                Guid.NewGuid().ToString("N"),
-                _pendingRewrite,
-                DateTimeOffset.UtcNow,
-                "", // no foreground-app-name signal exists yet -- see RunPipelineAsync's note.
-                _config.TranscriptionLanguage,
-                _pendingRewrite.Split(new[] { ' ', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length,
-                true));
-
-            SetState(RecordingState.Done);
-            await Task.Delay(DoneDisplayMs);
-        }
-        catch
-        {
-            LastErrorMessage = "Couldn't catch that.";
-            SetState(RecordingState.Error);
-            await Task.Delay(DoneDisplayMs);
-        }
-        finally
-        {
-            IsRewriteCapture = false;
-            SetState(RecordingState.Idle);
-        }
-    }
-
-    private void OnReviewCancelled()
-    {
-        _hotkey.DisarmReviewKeys();
-        IsRewriteCapture = false;
-        SetState(RecordingState.Idle);
     }
 }

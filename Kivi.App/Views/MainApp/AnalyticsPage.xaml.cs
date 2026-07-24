@@ -147,13 +147,12 @@ public sealed partial class AnalyticsPage : Page
     {
         var textPrimary = (Brush)Application.Current.Resources["KiviTextPrimaryBrush"];
         var textSecondary = (Brush)Application.Current.Resources["KiviTextSecondaryBrush"];
-        var accent = (Brush)Application.Current.Resources["KiviAccentBrush"];
 
-        int dictations = entries.Count(e => !e.WasRewrite);
-        int rewrites = entries.Count(e => e.WasRewrite);
-        int total = Math.Max(1, dictations + rewrites);
+        int dictations = entries.Count;
+        int totalWords = entries.Sum(e => e.WordCount);
+        int avgWords = dictations > 0 ? (int)Math.Round((double)totalWords / dictations) : 0;
 
-        void AddRow(string label, int count)
+        void AddRow(string label, string value)
         {
             var row = new Grid { ColumnSpacing = 12 };
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -162,30 +161,16 @@ public sealed partial class AnalyticsPage : Page
             var labelText = new TextBlock { Text = label, Foreground = textSecondary, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(labelText, 0);
 
-            var countText = new TextBlock { Text = count.ToString("N0"), Foreground = textPrimary, FontSize = 14,
+            var valueText = new TextBlock { Text = value, Foreground = textPrimary, FontSize = 14,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
-            Grid.SetColumn(countText, 1);
+            Grid.SetColumn(valueText, 1);
 
             row.Children.Add(labelText);
-            row.Children.Add(countText);
+            row.Children.Add(valueText);
             DictationTypePanel.Children.Add(row);
         }
 
-        AddRow("dictations", dictations);
-        AddRow("hey kivi rewrites", rewrites);
-
-        var barTrack = new Border { Height = 8, CornerRadius = new CornerRadius(4), Background = (Brush)Application.Current.Resources["KiviStrokeBrush"] };
-        var barGrid = new Grid();
-        barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(dictations, GridUnitType.Star) });
-        barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(rewrites, 0.0001), GridUnitType.Star) });
-        var dictationsFill = new Border { CornerRadius = new CornerRadius(4, 0, 0, 4), Background = accent };
-        var rewritesFill = new Border { CornerRadius = new CornerRadius(0, 4, 4, 0), Background = (Brush)Application.Current.Resources["KiviTextTertiaryBrush"] };
-        Grid.SetColumn(dictationsFill, 0);
-        Grid.SetColumn(rewritesFill, 1);
-        barGrid.Children.Add(dictationsFill);
-        barGrid.Children.Add(rewritesFill);
-        barTrack.Child = barGrid;
-        DictationTypePanel.Children.Add(barTrack);
-        _ = total;
+        AddRow("total dictations", dictations.ToString("N0"));
+        AddRow("avg words / dictation", avgWords.ToString("N0"));
     }
 }

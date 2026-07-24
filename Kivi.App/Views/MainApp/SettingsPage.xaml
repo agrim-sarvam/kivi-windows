@@ -3,7 +3,7 @@
      ConfigPage which stays as the first-run flow. Every control here persists immediately
      via ConfigViewModel (no terminal "Done" step; Settings is always-editable). Adds the
      hotkeys/languages/behavior/privacy controls from the mockup that ConfigPage intentionally
-     omits (hey-kivi hotkey, press-and-hold delay, incognito dictation, sound on paste,
+     omits (English hotkey, press-and-hold delay, incognito dictation, sound on paste,
      clear-all-history). -->
 <Page
     x:Class="Kivi.App.Views.MainApp.SettingsPage"
@@ -32,7 +32,7 @@
                                        FontSize="{ThemeResource KiviFontSizeBody}"
                                        FontWeight="{ThemeResource KiviFontWeightMedium}"
                                        Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
-                            <TextBlock Text="hold this key to dictate" FontFamily="{ThemeResource KiviFontFamily}"
+                            <TextBlock Text="hold to dictate — English stays English, Hindi comes out as Hinglish" FontFamily="{ThemeResource KiviFontFamily}"
                                        FontSize="{ThemeResource KiviFontSizeCaption}"
                                        Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
                         </StackPanel>
@@ -54,15 +54,15 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
-                            <TextBlock Text="Hey-kivi rewrite hotkey" FontFamily="{ThemeResource KiviFontFamily}"
+                            <TextBlock Text="English hotkey" FontFamily="{ThemeResource KiviFontFamily}"
                                        FontSize="{ThemeResource KiviFontSizeBody}"
                                        FontWeight="{ThemeResource KiviFontWeightMedium}"
                                        Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
-                            <TextBlock Text="hold and speak an edit for what kivi last typed" FontFamily="{ThemeResource KiviFontFamily}"
+                            <TextBlock Text="hold to dictate — anything you say is translated into English" FontFamily="{ThemeResource KiviFontFamily}"
                                        FontSize="{ThemeResource KiviFontSizeCaption}"
                                        Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
                         </StackPanel>
-                        <controls:HotkeyCaptureBox x:Name="RewriteHotkeyBox" Grid.Column="1"
+                        <controls:HotkeyCaptureBox x:Name="EnglishHotkeyBox" Grid.Column="1"
                                 Background="{ThemeResource KiviSurfaceAltBrush}"
                                 BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
                                 CornerRadius="{ThemeResource KiviRadiusSm}"

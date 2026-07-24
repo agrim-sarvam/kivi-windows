@@ -37,8 +37,8 @@ public sealed partial class SettingsPage : Page
 
         HotkeyBox.SetInitial(ViewModel.HotkeyVk);
         HotkeyBox.HotkeyChanged += vk => ViewModel.HotkeyVk = vk;
-        RewriteHotkeyBox.SetInitial(ViewModel.RewriteHotkeyVk);
-        RewriteHotkeyBox.HotkeyChanged += vk => ViewModel.RewriteHotkeyVk = vk;
+        EnglishHotkeyBox.SetInitial(ViewModel.EnglishHotkeyVk);
+        EnglishHotkeyBox.HotkeyChanged += vk => ViewModel.EnglishHotkeyVk = vk;
 
         BuildLanguageChips();
         RenderPressAndHoldDelay();

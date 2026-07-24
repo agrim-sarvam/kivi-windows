@@ -26,7 +26,7 @@ public partial class ConfigViewModel : ObservableObject
         TranscriptionLanguage = config.TranscriptionLanguage ?? "auto";
         ScreenContextEnabled = config.ScreenContextEnabled;
         HotkeyVk = config.HotkeyVirtualKeyCode;
-        RewriteHotkeyVk = config.RewriteHotkeyVirtualKeyCode;
+        EnglishHotkeyVk = config.EnglishHotkeyVirtualKeyCode;
         SoundOnPasteEnabled = config.SoundOnPasteEnabled;
         IncognitoDictationEnabled = config.IncognitoDictationEnabled;
         PressAndHoldDelayMs = config.PressAndHoldDelayMs;
@@ -38,7 +38,7 @@ public partial class ConfigViewModel : ObservableObject
     [ObservableProperty] private bool _screenContextEnabled = true;
     [ObservableProperty] private bool _launchAtLogin;
     [ObservableProperty] private uint _hotkeyVk = 0xA3;
-    [ObservableProperty] private uint _rewriteHotkeyVk = 0xA5;
+    [ObservableProperty] private uint _englishHotkeyVk = 0xA5;
     [ObservableProperty] private bool _soundOnPasteEnabled = true;
     [ObservableProperty] private bool _incognitoDictationEnabled;
     [ObservableProperty] private int _pressAndHoldDelayMs = 100;
@@ -62,10 +62,10 @@ public partial class ConfigViewModel : ObservableObject
         _store.Save(_config);
     }
 
-    partial void OnRewriteHotkeyVkChanged(uint value)
+    partial void OnEnglishHotkeyVkChanged(uint value)
     {
-        _config.RewriteHotkeyVirtualKeyCode = value;
-        _hotkey.SetRewriteHotkey(value);
+        _config.EnglishHotkeyVirtualKeyCode = value;
+        _hotkey.SetEnglishHotkey(value);
         _store.Save(_config);
     }
 

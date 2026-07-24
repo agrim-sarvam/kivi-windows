@@ -7,12 +7,6 @@ namespace Kivi.Core.Stt;
 
 public sealed class SarvamSttEngine : ISttEngine
 {
-    // "codemix" outputs Indic words in native script (Devanagari for Hindi) -- "translit"
-    // instead transliterates them into Roman letters (e.g. "ab batao maine kya likha hai"),
-    // which is what "Hinglish" means for this app: no Devanagari at all, romanized Hindi
-    // mixed with English, all in one Latin-alphabet transcript.
-    private const string Mode = "translit";
-
     private readonly OpenAiCompatibleClient _http;
     private readonly AppConfig _config;
     private readonly ISecretStore _secrets;
@@ -20,11 +14,14 @@ public sealed class SarvamSttEngine : ISttEngine
     public SarvamSttEngine(OpenAiCompatibleClient http, AppConfig config, ISecretStore secrets)
         => (_http, _config, _secrets) = (http, config, secrets);
 
-    public async Task<string> TranscribeAsync(byte[] wav, CancellationToken ct)
+    // mode: SttMode.Hinglish ("translit") romanizes Indic words into Latin letters mixed with
+    // English; SttMode.English ("translate") renders everything as proper English. The caller
+    // (the orchestrator) picks the mode based on which hotkey started the capture.
+    public async Task<string> TranscribeAsync(byte[] wav, string mode, CancellationToken ct)
     {
         var key = _secrets.GetApiKey() ?? throw new InvalidOperationException("Missing API key");
         var body = await _http.PostSarvamTranscriptionAsync(_config.TranscriptionBaseUrl, key, _config.TranscriptionModel,
-            Mode, _config.TranscriptionLanguage, wav, "audio.wav", TimeSpan.FromSeconds(_config.TimeoutSeconds), ct);
+            mode, _config.TranscriptionLanguage, wav, "audio.wav", TimeSpan.FromSeconds(_config.TimeoutSeconds), ct);
 
         using var doc = JsonDocument.Parse(body);
         var root = doc.RootElement;

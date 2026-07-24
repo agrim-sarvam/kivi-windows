@@ -17,6 +17,10 @@
             <Run Foreground="{ThemeResource KiviTextPrimaryBrush}">k</Run><Run Foreground="{ThemeResource KiviAccentBrush}">i</Run><Run Foreground="{ThemeResource KiviTextPrimaryBrush}">v</Run><Run Foreground="{ThemeResource KiviAccentBrush}">i</Run>
         </TextBlock>
 
+        <TextBlock Text="for windows" HorizontalAlignment="Center"
+                   FontFamily="{ThemeResource KiviMonoFontFamily}" FontSize="{ThemeResource KiviFontSizeCaption}"
+                   Foreground="{ThemeResource KiviTextTertiaryBrush}" Margin="0,2,0,0"/>
+
         <TextBlock Text="Your voice, polished." HorizontalAlignment="Center"
                    FontFamily="{ThemeResource KiviFontFamily}" FontSize="{ThemeResource KiviFontSizeBody}"
                    Foreground="{ThemeResource KiviTextSecondaryBrush}" Margin="0,8,0,0"/>
@@ -52,5 +56,11 @@
                    FontFamily="{ThemeResource KiviMonoFontFamily}"
                    FontSize="{ThemeResource KiviFontSizeCaption}" Foreground="{ThemeResource KiviTextTertiaryBrush}"
                    Margin="0,28,0,0"/>
+
+        <TextBlock Text="Powered by Sarvam AI"
+                   HorizontalAlignment="Center" TextAlignment="Center"
+                   FontFamily="{ThemeResource KiviMonoFontFamily}"
+                   FontSize="{ThemeResource KiviFontSizeCaption}" Foreground="{ThemeResource KiviTextTertiaryBrush}"
+                   Margin="0,10,0,0"/>
     </StackPanel>
 </Page>

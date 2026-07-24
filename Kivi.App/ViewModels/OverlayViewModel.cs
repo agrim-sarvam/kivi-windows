@@ -1,6 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Kivi.Core.Orchestration;
-using Kivi.Core.Text;
 using Microsoft.UI.Dispatching;
 
 namespace Kivi.App.ViewModels;
@@ -29,13 +28,8 @@ public partial class OverlayViewModel : ObservableObject
     public bool IsWaiting    => State == RecordingState.Waiting;
     public bool IsDone       => State == RecordingState.Done;
     public bool IsError      => State == RecordingState.Error;
-    public bool IsRewritePending => State == RecordingState.RewritePending;
-    public bool IsRewriteReview  => State == RecordingState.RewriteReview;
 
-    public bool IsRewriteCapture => _orch.IsRewriteCapture;
-    public string? Instruction => _orch.Instruction;
     public string? LastErrorMessage => _orch.LastErrorMessage;
-    public IReadOnlyList<DiffToken>? Diff => _orch.Diff;
 
     public string StateColorTokenKey => State switch
     {
@@ -46,8 +40,6 @@ public partial class OverlayViewModel : ObservableObject
         RecordingState.Waiting    => "OverlayWaitingBrush",
         RecordingState.Done       => "OverlayDoneBrush",
         RecordingState.Error      => "OverlayErrorBrush",
-        RecordingState.RewritePending => "OverlayProcessingBrush",
-        RecordingState.RewriteReview  => "OverlayProcessingBrush",
         _                         => "OverlayIdleBrush"
     };
 
@@ -65,12 +57,7 @@ public partial class OverlayViewModel : ObservableObject
         OnPropertyChanged(nameof(IsWaiting));
         OnPropertyChanged(nameof(IsDone));
         OnPropertyChanged(nameof(IsError));
-        OnPropertyChanged(nameof(IsRewritePending));
-        OnPropertyChanged(nameof(IsRewriteReview));
-        OnPropertyChanged(nameof(IsRewriteCapture));
-        OnPropertyChanged(nameof(Instruction));
         OnPropertyChanged(nameof(LastErrorMessage));
-        OnPropertyChanged(nameof(Diff));
         OnPropertyChanged(nameof(StateColorTokenKey));
     }
 }

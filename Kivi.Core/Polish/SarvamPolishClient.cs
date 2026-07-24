@@ -60,34 +60,6 @@ public sealed class SarvamPolishClient : IPolishClient
         return transcript; // all models failed -> safe fallback to raw
     }
 
-    public async Task<string> RewriteAsync(string selectedText, string voiceCommand, CancellationToken ct)
-    {
-        var key = _secrets.GetApiKey() ?? throw new InvalidOperationException("Missing API key");
-        var system = BuildRewriteSystemPrompt();
-        var user = Kivi.Core.Prompts.Prompts.CommandModeUserMessage(selectedText, voiceCommand);
-
-        foreach (var model in Models())
-        {
-            if (InCooldown(model)) continue;
-            try
-            {
-                var payload = BuildPayload(model, system, user);
-                var body = await _http.PostChatCompletionAsync(_config.ChatBaseUrl, key, payload,
-                    TimeSpan.FromSeconds(_config.TimeoutSeconds), ct);
-                var content = ExtractContent(body);
-                if (model == _config.FallbackModel) content = StripThinkTags(content);
-                if (string.IsNullOrWhiteSpace(content)) continue; // truly blank output -> try fallback
-                return Sanitize(content);
-            }
-            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
-            {
-                _cooldownUntil[model] = DateTimeOffset.UtcNow.AddSeconds(30);
-                EnteringCooldown?.Invoke(model);
-            }
-        }
-        return selectedText; // all models failed -> safe fallback to the unmodified text
-    }
-
     private IEnumerable<string> Models()
     {
         yield return _config.CleanupModel;
@@ -106,16 +78,6 @@ public sealed class SarvamPolishClient : IPolishClient
             .Distinct());
         if (vocab.Length > 0) s += "\n\n" + Kivi.Core.Prompts.Prompts.VocabularyAppend(vocab);
         if (!string.IsNullOrWhiteSpace(_config.OutputLanguage)) s += Kivi.Core.Prompts.Prompts.OutputLanguageAppend(_config.OutputLanguage!);
-        return s;
-    }
-
-    private string BuildRewriteSystemPrompt()
-    {
-        var s = Kivi.Core.Prompts.Prompts.CommandModeSystem;
-        var vocab = string.Join(", ", _config.CustomVocabulary
-            .Split(new[] { '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Distinct());
-        if (vocab.Length > 0) s += "\n\n" + Kivi.Core.Prompts.Prompts.VocabularyAppend(vocab);
         return s;
     }
 

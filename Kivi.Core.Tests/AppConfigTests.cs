@@ -35,10 +35,10 @@ public class AppConfigTests
     }
 
     [Fact]
-    public void Default_HasRewriteHotkeyDefault()
+    public void Default_HasEnglishHotkeyDefault()
     {
         var c = AppConfig.Default();
-        Assert.Equal(0xA5u, c.RewriteHotkeyVirtualKeyCode);
+        Assert.Equal(0xA5u, c.EnglishHotkeyVirtualKeyCode);
     }
 
     [Fact]
