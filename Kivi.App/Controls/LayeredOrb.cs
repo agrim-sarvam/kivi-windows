@@ -131,6 +131,13 @@ public sealed class LayeredOrb : IDisposable
     private long _lastTicks;
     private long _lastTopmostReassert;       // throttles the periodic HWND_TOPMOST re-assert
     private double _phase;                   // seconds, drives breathing + waveform
+
+    // Typewriter animation for the live transcript: the VM's PartialTranscript updates in ~500ms
+    // jumps (each a full re-transcription), so we reveal it character-by-character here at frame
+    // rate for a smooth "typing" feel instead of whole-line swaps.
+    private string _typeTarget = "";          // the latest full partial from the VM
+    private double _typeRevealed;             // how many chars of _typeTarget are currently shown (fractional, eased)
+    private const double CharsPerSecond = 45; // typewriter reveal speed
     private bool _disposed;
 
     private int _windowX, _windowY;          // last screen position pushed via UpdateLayeredWindow
@@ -149,6 +156,10 @@ public sealed class LayeredOrb : IDisposable
 
     /// <summary>Raised when the hover expand icon is clicked. Always raised on the UI thread.</summary>
     public event Action? MainAppRequested;
+
+    /// <summary>Raised when the hover dismiss (X) icon is clicked -- quits the whole app.
+    /// Always raised on the UI thread.</summary>
+    public event Action? QuitRequested;
 
     public LayeredOrb(OverlayViewModel vm, Color accent, string languageLabel, string hotkeyLabel)
     {
@@ -330,6 +341,7 @@ public sealed class LayeredOrb : IDisposable
             if (dx * dx + dy * dy > hr * hr) continue;
             if (icon == HoverIcon.Settings) SettingsRequested?.Invoke();
             else if (icon == HoverIcon.Expand) MainAppRequested?.Invoke();
+            else if (icon == HoverIcon.Dismiss) QuitRequested?.Invoke();
             return;
         }
     }
@@ -376,6 +388,8 @@ public sealed class LayeredOrb : IDisposable
         if (_prevState == RecordingState.Idle && !isIdle) _activeSeconds = 0;
         if (!isIdle) _activeSeconds += dt;
         _prevState = state;
+
+        UpdateTypewriter(state, dt);
 
         NativeMethods.GetCursorPos(out var cursor);
         float localX = cursor.X - _windowX, localY = cursor.Y - _windowY;
@@ -716,11 +730,49 @@ public sealed class LayeredOrb : IDisposable
         _                         => "KIVI",
     };
 
+    // Advances the character-by-character reveal of the live transcript. Called every frame.
+    private void UpdateTypewriter(RecordingState state, double dt)
+    {
+        if (state != RecordingState.Listening)
+        {
+            // Not dictating: reset so the next capture types from scratch.
+            _typeTarget = "";
+            _typeRevealed = 0;
+            return;
+        }
+
+        var target = _vm.PartialTranscript ?? "";
+        if (!ReferenceEquals(target, _typeTarget) && target != _typeTarget)
+        {
+            // A new partial arrived. Sarvam re-transcribes the whole clip and can revise earlier
+            // words, so keep the reveal position only up to where old and new still agree; if the
+            // revision changed text we'd already revealed, back the cursor up to the divergence
+            // point and re-type forward from there.
+            int commonPrefix = 0;
+            int max = Math.Min(target.Length, _typeTarget.Length);
+            while (commonPrefix < max && target[commonPrefix] == _typeTarget[commonPrefix]) commonPrefix++;
+            if (_typeRevealed > commonPrefix) _typeRevealed = commonPrefix;
+            _typeTarget = target;
+        }
+
+        if (_typeRevealed < _typeTarget.Length)
+        {
+            _typeRevealed = Math.Min(_typeTarget.Length, _typeRevealed + CharsPerSecond * dt);
+        }
+    }
+
+    // The portion of the live transcript revealed so far by the typewriter animation.
+    private string RevealedTranscript()
+    {
+        int n = Math.Clamp((int)_typeRevealed, 0, _typeTarget.Length);
+        return _typeTarget[..n];
+    }
+
     private string BodyText(RecordingState s) => s switch
     {
         RecordingState.Listening      => string.IsNullOrEmpty(_vm.PartialTranscript)
             ? "Press a dictation key and speak — finished text appears here, in your style…"
-            : _vm.PartialTranscript,
+            : RevealedTranscript(),
         RecordingState.Processing     => "Cleaning up your text…",
         RecordingState.Speaking       => "Pasting…",
         RecordingState.Waiting        => "Rate limited — retrying shortly…",

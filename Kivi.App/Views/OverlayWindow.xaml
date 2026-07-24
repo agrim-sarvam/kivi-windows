@@ -22,8 +22,6 @@
                     <MenuFlyoutItem Text="Open Kivi" Click="OnTrayOpenKivi" />
                     <MenuFlyoutItem x:Name="TrayPauseItem" Text="Pause dictation" Click="OnTrayPauseToggle" />
                     <MenuFlyoutItem Text="Settings" Click="OnTraySettings" />
-                    <MenuFlyoutSeparator />
-                    <MenuFlyoutItem Text="Quit Kivi" Click="OnTrayQuit" />
                 </MenuFlyout>
             </tb:TaskbarIcon.ContextFlyout>
         </tb:TaskbarIcon>

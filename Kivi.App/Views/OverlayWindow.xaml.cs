@@ -52,11 +52,13 @@ public sealed partial class OverlayWindow : Window
         _orb = new LayeredOrb(vm, accent, languageLabel, hotkeyLabel);
         _orb.SettingsRequested += OnSettingsRequested;
         _orb.MainAppRequested += OnMainAppRequested;
+        _orb.QuitRequested += QuitApp;
 
         Closed += (_, _) =>
         {
             _orb.SettingsRequested -= OnSettingsRequested;
             _orb.MainAppRequested -= OnMainAppRequested;
+            _orb.QuitRequested -= QuitApp;
             _orb.Dispose();
             TrayIcon.Dispose();
         };
@@ -111,15 +113,14 @@ public sealed partial class OverlayWindow : Window
 
     private void OnTraySettings(object sender, RoutedEventArgs e) => OnSettingsRequested();
 
-    private void OnTrayQuit(object sender, RoutedEventArgs e)
+    // Quits the whole app. Triggered by the orb's dismiss (X) hover icon. MainAppWindow
+    // normally hides instead of closing (so its titlebar X doesn't quit the app) -- if it's
+    // open, that same Closing handler would otherwise cancel this close too, so AllowRealClose
+    // lets it through. Every cleanup step is individually try/caught so a failure in any one of
+    // them can never prevent reaching the final hard Environment.Exit -- quitting must always
+    // actually end the process, never get stuck partway through cleanup.
+    private void QuitApp()
     {
-        // MainAppWindow normally hides instead of closing (so the titlebar X doesn't quit
-        // the whole app) -- if it's open, that same Closing handler would otherwise cancel
-        // this close too and silently defeat Quit. Let it through, then close everything and
-        // force the process to end. Every cleanup step is individually try/caught so a
-        // failure in any one of them (a disposed-twice tray icon, a window already gone,
-        // etc.) can never prevent reaching the final hard Environment.Exit -- Quit must
-        // always actually end the process, never get silently stuck partway through cleanup.
         try
         {
             if (_mainAppWindow is not null)

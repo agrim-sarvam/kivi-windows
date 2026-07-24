@@ -21,8 +21,12 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     private readonly KiviMetrics _metrics;
     private readonly ITranscriptStore _transcriptStore;
     private readonly object _lock = new();
-    private const int PartialIntervalMs = 1000;
-    private const int PartialWarmupMs = 500;
+    // Each partial poll re-transcribes ALL audio so far via a full Sarvam REST call, so this
+    // is a balance: faster = smoother live text but more STT calls / rate-limit pressure. The
+    // orb layers a client-side typewriter animation on top so the perceived smoothness doesn't
+    // depend on polling any faster than this.
+    private const int PartialIntervalMs = 500;
+    private const int PartialWarmupMs = 400;
 
     private Task<string> _contextTask = Task.FromResult("");
     private CancellationTokenSource _cts = new();
