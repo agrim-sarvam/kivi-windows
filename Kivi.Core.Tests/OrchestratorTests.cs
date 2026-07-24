@@ -102,7 +102,7 @@ public class OrchestratorTests
     }
 
     [Fact]
-    public async Task SuccessfulDictation_PassesThroughDone_BeforeIdle()
+    public async Task SuccessfulDictation_EndsAtIdle_WithoutADoneState()
     {
         var hotkey = new FakeHotkey();
         var paste = new SpyPaste();
@@ -117,13 +117,13 @@ public class OrchestratorTests
         hotkey.FireStart();
         await Task.Delay(20);
         hotkey.FireEnd();
-        await Task.Delay(1500); // allow pipeline + Done->Idle delay to complete
+        await Task.Delay(1500);
 
-        Assert.Contains(RecordingState.Done, states);
-        // Done must occur before the final Idle in the sequence.
-        var doneIndex = states.LastIndexOf(RecordingState.Done);
-        var lastIdleIndex = states.LastIndexOf(RecordingState.Idle);
-        Assert.True(doneIndex < lastIdleIndex, "Done must precede the final Idle transition.");
+        // The "Done" confirmation state was removed -- a successful dictation goes straight
+        // Speaking -> Idle after pasting, with no visible Done pause.
+        Assert.DoesNotContain(RecordingState.Done, states);
+        Assert.Contains(RecordingState.Speaking, states);
+        Assert.Equal(RecordingState.Idle, orch.State);
     }
 
     [Fact]

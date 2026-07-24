@@ -55,6 +55,7 @@ internal static class NativeMethods
     public const uint SWP_NOACTIVATE = 0x0010;
     public const uint SWP_NOSIZE     = 0x0001;
     public const uint SWP_NOZORDER   = 0x0004;
+    public const uint SWP_NOMOVE     = 0x0002;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT { public int X, Y; public POINT(int x, int y) { X = x; Y = y; } }
@@ -97,6 +98,11 @@ internal static class NativeMethods
     public static extern bool ShowWindow(nint hWnd, int nCmdShow);
 
     [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(nint hWnd);
+
+    public const int SW_RESTORE = 9;
+
+    [DllImport("user32.dll")]
     public static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
 
     [DllImport("user32.dll")]
@@ -128,4 +134,5 @@ internal static class NativeMethods
     public static extern bool DeleteObject(nint hObject);
 
     public static readonly nint HWND_TOPMOST = -1;
+    public static readonly nint HWND_NOTOPMOST = -2;
 }

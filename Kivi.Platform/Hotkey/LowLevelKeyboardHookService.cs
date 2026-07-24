@@ -10,7 +10,11 @@ public sealed class LowLevelKeyboardHookService : IHotkeyService, IDisposable
 {
     private uint _boundVk = 0xA3;    // VK_RCONTROL default; changeable via SetHotkey
     private uint _englishVk = 0xA5;  // VK_RMENU default; changeable via SetEnglishHotkey
-    private const uint WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101, WM_SYSKEYUP = 0x0105;
+    // Alt keys (VK_RMENU / Right Alt, the default English hotkey) are *system* keys, so
+    // Windows delivers WM_SYSKEYDOWN/WM_SYSKEYUP for them, not WM_KEYDOWN/WM_KEYUP. Both
+    // pairs must be handled or a Right-Alt hold's key-DOWN is never seen and the hotkey
+    // silently does nothing.
+    private const uint WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101, WM_SYSKEYDOWN = 0x0104, WM_SYSKEYUP = 0x0105;
 
     public event Action? HoldStarted;
     public event Action? HoldEnded;
@@ -68,7 +72,7 @@ public sealed class LowLevelKeyboardHookService : IHotkeyService, IDisposable
         {
             var data = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
             uint msg = (uint)wParam.Value;
-            bool isDown = msg == WM_KEYDOWN;
+            bool isDown = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
             bool isUp = msg == WM_KEYUP || msg == WM_SYSKEYUP;
 
             if (data.vkCode == _boundVk)

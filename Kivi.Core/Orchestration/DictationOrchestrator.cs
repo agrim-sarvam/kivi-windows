@@ -21,7 +21,6 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     private readonly KiviMetrics _metrics;
     private readonly ITranscriptStore _transcriptStore;
     private readonly object _lock = new();
-    private const int DoneDisplayMs = 1200;
     private const int PartialIntervalMs = 1000;
     private const int PartialWarmupMs = 500;
 
@@ -174,8 +173,8 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
                 textToPaste.Split(new[] { ' ', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length,
                 false));
 
-            SetState(RecordingState.Done);
-            await Task.Delay(DoneDisplayMs, _cts.Token);
+            // No "Done" confirmation state -- once the text is pasted, collapse straight back
+            // to the rest pill (Idle). The orb's box->pill shrink animation still plays.
             SetState(RecordingState.Idle);
         }
         catch

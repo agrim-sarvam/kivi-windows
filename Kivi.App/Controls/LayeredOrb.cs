@@ -129,6 +129,7 @@ public sealed class LayeredOrb : IDisposable
     private double _boxAmount;                // 0 = orb, 1 = box (eased)
     private ColorF _glow;                    // current glow colour (lerped)
     private long _lastTicks;
+    private long _lastTopmostReassert;       // throttles the periodic HWND_TOPMOST re-assert
     private double _phase;                   // seconds, drives breathing + waveform
     private bool _disposed;
 
@@ -358,6 +359,17 @@ public sealed class LayeredOrb : IDisposable
         double dt = Math.Clamp((now - _lastTicks) / 1000.0, 0, 0.1);
         _lastTicks = now;
         _phase += dt;
+
+        // Re-assert HWND_TOPMOST roughly once a second. WS_EX_TOPMOST set at creation isn't
+        // permanent -- other apps that also go topmost (or briefly cover the screen) can end up
+        // above the orb and it stays there. Periodically re-inserting at HWND_TOPMOST (without
+        // moving/resizing/activating it) keeps the pill reliably above everything.
+        if (now - _lastTopmostReassert > 1000)
+        {
+            _lastTopmostReassert = now;
+            NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST, 0, 0, 0, 0,
+                NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
+        }
 
         var state = _vm.State;
         bool isIdle = state == RecordingState.Idle;
@@ -657,8 +669,31 @@ public sealed class LayeredOrb : IDisposable
             bool placeholder = state == RecordingState.Listening && string.IsNullOrEmpty(_vm.PartialTranscript);
             using var bodyFont = MakeFont(15f);
             using var bb = new SolidBrush(Mul(placeholder ? Fg3 : Fg1, contentAlpha));
-            using var fmt = new StringFormat { Trimming = StringTrimming.EllipsisCharacter };
-            g.DrawString(body, bodyFont, bb, bodyRect, fmt);
+
+            // While the live transcript is growing, keep the NEWEST words in view: draw a
+            // single line pinned to the right edge of the body box so the sentence scrolls
+            // leftward as more is spoken (older text runs off the left), instead of the whole
+            // line getting ellipsis-truncated and freezing. Every other state is short static
+            // copy that fits, so it's drawn normally, left-aligned.
+            bool liveTranscript = state == RecordingState.Listening && !placeholder;
+            if (liveTranscript)
+            {
+                using var noWrap = new StringFormat(StringFormatFlags.NoWrap) { Trimming = StringTrimming.None };
+                var textSize = g.MeasureString(body, bodyFont, PointF.Empty, noWrap);
+                // Pin the right end of the text to the right edge of the body box; negative x
+                // pushes the already-typed start off the left. GDI+ clips to bodyRect.
+                float drawX = bodyRect.Right - textSize.Width;
+                if (drawX > bodyRect.Left) drawX = bodyRect.Left; // short enough to fit -> left-align
+                var saved = g.Save(); // clip to the body box so scrolled-off text doesn't spill outside
+                g.SetClip(bodyRect);
+                g.DrawString(body, bodyFont, bb, drawX, bodyRect.Top, noWrap);
+                g.Restore(saved);
+            }
+            else
+            {
+                using var fmt = new StringFormat { Trimming = StringTrimming.EllipsisCharacter };
+                g.DrawString(body, bodyFont, bb, bodyRect, fmt);
+            }
         }
 
         var footer = FooterText(state);
@@ -689,14 +724,13 @@ public sealed class LayeredOrb : IDisposable
         RecordingState.Processing     => "Cleaning up your text…",
         RecordingState.Speaking       => "Pasting…",
         RecordingState.Waiting        => "Rate limited — retrying shortly…",
-        RecordingState.Done           => "Done.",
         RecordingState.Error          => _vm.LastErrorMessage ?? "Couldn't catch that.",
         _                              => "",
     };
 
     private string FooterText(RecordingState s) => s switch
     {
-        RecordingState.Listening     => $"{_hotkeyLabel} to stop · esc to discard",
+        RecordingState.Listening     => "release to stop",
         _                             => "",
     };
 

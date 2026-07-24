@@ -76,11 +76,29 @@ public sealed partial class MainAppWindow : Window
         _appWindow.Hide();
     }
 
-    /// <summary>Reshows the window if it was hidden via the titlebar close button.</summary>
+    /// <summary>
+    /// Reshows the window (if hidden via the titlebar X) and forces it to the foreground,
+    /// above other apps' windows. Plain Activate()/AppWindow.Show() is unreliable here
+    /// because the click originates from the orb's WS_EX_NOACTIVATE layered window, so Kivi
+    /// never holds foreground rights and Windows blocks the new window from raising itself.
+    /// A brief HWND_TOPMOST toggle + SetForegroundWindow forces it above everything.
+    /// </summary>
     public new void Activate()
     {
         _appWindow.Show();
         base.Activate();
+
+        nint hwnd = WindowNative.GetWindowHandle(this);
+        Kivi.App.Interop.NativeMethods.ShowWindow(hwnd, Kivi.App.Interop.NativeMethods.SW_RESTORE);
+        // Toggle topmost on then off: the topmost insert raises it above normal windows even
+        // without foreground rights, then dropping back to non-topmost leaves it a normal
+        // (non-always-on-top) window sitting at the top of the z-order.
+        const uint flags = Kivi.App.Interop.NativeMethods.SWP_NOMOVE
+            | Kivi.App.Interop.NativeMethods.SWP_NOSIZE
+            | Kivi.App.Interop.NativeMethods.SWP_NOACTIVATE;
+        Kivi.App.Interop.NativeMethods.SetWindowPos(hwnd, Kivi.App.Interop.NativeMethods.HWND_TOPMOST, 0, 0, 0, 0, flags);
+        Kivi.App.Interop.NativeMethods.SetWindowPos(hwnd, Kivi.App.Interop.NativeMethods.HWND_NOTOPMOST, 0, 0, 0, 0, flags);
+        Kivi.App.Interop.NativeMethods.SetForegroundWindow(hwnd);
     }
 
     /// <summary>Navigates straight to the Settings tab -- used by the orb's gear icon and
