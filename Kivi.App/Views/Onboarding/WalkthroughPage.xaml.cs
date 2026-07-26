@@ -21,6 +21,7 @@ public sealed partial class WalkthroughPage : Page
     private IDictationOrchestrator _orchestrator = null!;
     private DispatcherQueue _dispatcher = null!;
     private bool _step1Completed;
+    private int _step = 1;
 
     public WalkthroughPage() => InitializeComponent();
 
@@ -66,8 +67,10 @@ public sealed partial class WalkthroughPage : Page
 
     private void ShowStep1()
     {
+        _step = 1;
         Step1Panel.Visibility = Visibility.Visible;
         Step2Panel.Visibility = Visibility.Collapsed;
+        Step3Panel.Visibility = Visibility.Collapsed;
         StatusChip.Text = "Hold Right Ctrl and say something";
 
         // Dictation pastes into whatever control has OS-level keyboard focus system-wide
@@ -79,14 +82,36 @@ public sealed partial class WalkthroughPage : Page
 
     private void ShowStep2()
     {
+        _step = 2;
         Step1Panel.Visibility = Visibility.Collapsed;
         Step2Panel.Visibility = Visibility.Visible;
+        Step3Panel.Visibility = Visibility.Collapsed;
         StatusChip.Text = "Now double-tap Right Ctrl for hands-free mode";
+    }
+
+    private void ShowStep3()
+    {
+        _step = 3;
+        Step1Panel.Visibility = Visibility.Collapsed;
+        Step2Panel.Visibility = Visibility.Collapsed;
+        Step3Panel.Visibility = Visibility.Visible;
+        StatusChip.Text = "Right Alt writes in English, in any language you speak";
+        _ = PracticeFieldAlt.Focus(FocusState.Programmatic);
     }
 
     private void OnSkip(object sender, RoutedEventArgs e) => Finish();
 
-    private void OnContinue(object sender, RoutedEventArgs e) => Finish();
+    // Continue steps through the walkthrough (Right Ctrl → hands-free → Right Alt) before finishing.
+    private void OnContinue(object sender, RoutedEventArgs e)
+    {
+        if (_step < 3)
+        {
+            if (_step == 1) ShowStep2();
+            else ShowStep3();
+            return;
+        }
+        Finish();
+    }
 
     private void Finish()
     {

@@ -70,8 +70,11 @@ public sealed class LayeredOrb : IDisposable
     private const double BoxW = 258, BoxH = 86, BoxRadius = 16;
     private const double WokenHoldSeconds = 0.25;        // how long the woken orb holds before growing into a box
 
-    private static readonly Color Forest     = Color.FromArgb(255, 0x18, 0x30, 0x0F); // --brand-orbforest (rest pill only)
+    private static readonly Color Forest     = Color.FromArgb(255, 0x18, 0x30, 0x0F); // --brand-orbforest (unused now)
     private static readonly Color Rim        = Color.FromArgb(255, 0x37, 0x63, 0x30);
+    // Rest pill: light-green fill with a dark-green outline (per request), minimal glow.
+    private static readonly Color PillFill    = Color.FromArgb(255, 0x8F, 0xBE, 0x63); // light leaf green
+    private static readonly Color PillOutline = Color.FromArgb(255, 0x41, 0x69, 0x1E); // KiviColorLegGreen (dark green)
 
     // The woken orb (both the real dictation transition and the hover preview) is a light
     // sage/cream fill, NOT the rest pill's dark forest green - sampled directly from the
@@ -89,6 +92,15 @@ public sealed class LayeredOrb : IDisposable
     private static readonly Color Fg2        = Color.FromArgb(255, 0x5C, 0x64, 0x54); // --color-fg2
     private static readonly Color Fg3        = Color.FromArgb(255, 0x92, 0x9A, 0x8A); // --color-fg3
 
+    // Satellite quick-action styling: a warm-white chip with a tinted ring + glyph, one green
+    // (open app), one muted red (dismiss), each on a soft shadow so it reads as a floating button.
+    private static readonly Color ChipFill    = Color.FromArgb(255, 0xFB, 0xFC, 0xF8);
+    private static readonly Color ChipShadow  = Color.FromArgb(70, 0x14, 0x18, 0x0E);
+    private static readonly Color ExpandRing  = Color.FromArgb(255, 0x9C, 0xC0, 0x6E);
+    private static readonly Color ExpandGlyph = Color.FromArgb(255, 0x3B, 0x5E, 0x1E);
+    private static readonly Color DismissRing = Color.FromArgb(255, 0xE2, 0xB4, 0xAE);
+    private static readonly Color DismissGlyph= Color.FromArgb(255, 0xB0, 0x4A, 0x42);
+
     // Fixed, distinct per-state colours (foundation palette) so transitions are unmistakable.
     private static readonly Color CIdle       = Color.FromArgb(0x6E, 0xA3, 0x35);
     private static readonly Color CListening  = Color.FromArgb(0xE9, 0x6C, 0x2F);
@@ -101,7 +113,7 @@ public sealed class LayeredOrb : IDisposable
     // Expand is a placeholder for a future "open the main Kivi app" action (per the approved
     // reference design) - the main app doesn't exist yet, so it stays an honest visual stub
     // alongside Edit/Theme/Dismiss until that's built.
-    private enum HoverIcon { Edit, Expand, Settings, Theme, Dismiss }
+    private enum HoverIcon { Expand, Dismiss }
 
     private readonly nint _hwnd;
     private readonly OverlayViewModel _vm;
@@ -214,16 +226,16 @@ public sealed class LayeredOrb : IDisposable
         float orbCy = baseline - r;
 
         float iconR = (float)(9 * s);
-        float dismissR = (float)(7 * s);
-        float ringOffset = r * 0.85f;
+        // The two actions flank the orb: pushed well clear horizontally (~1.75x the orb radius)
+        // and lifted only slightly, so they sit beside the orb (not hugging it, not stacked into
+        // the tooltip above it). Dismiss left, open-app right, matched size for balance.
+        float scatterX = r * 1.75f;
+        float lift = r * 0.55f;
 
         var icons = new (HoverIcon, float, float, float)[]
         {
-            (HoverIcon.Edit,     cx - ringOffset, orbCy - ringOffset, iconR),
-            (HoverIcon.Expand,   cx + ringOffset, orbCy - ringOffset, iconR),
-            (HoverIcon.Settings, cx - ringOffset, orbCy + ringOffset, iconR),
-            (HoverIcon.Theme,    cx + ringOffset, orbCy + ringOffset, iconR),
-            (HoverIcon.Dismiss,  cx + r * 1.7f,   orbCy - r,          dismissR),
+            (HoverIcon.Dismiss, cx - scatterX, orbCy - lift, iconR),
+            (HoverIcon.Expand,  cx + scatterX, orbCy - lift, iconR),
         };
 
         float left = cx - r, right = cx + r, top = orbCy - r, bottom = orbCy + r;
@@ -339,8 +351,7 @@ public sealed class LayeredOrb : IDisposable
         {
             float dx = localX - hx, dy = localY - hy;
             if (dx * dx + dy * dy > hr * hr) continue;
-            if (icon == HoverIcon.Settings) SettingsRequested?.Invoke();
-            else if (icon == HoverIcon.Expand) MainAppRequested?.Invoke();
+            if (icon == HoverIcon.Expand) MainAppRequested?.Invoke();
             else if (icon == HoverIcon.Dismiss) QuitRequested?.Invoke();
             return;
         }
@@ -468,13 +479,15 @@ public sealed class LayeredOrb : IDisposable
         float left = cx - w / 2f, top = baseline - h;
         double breath = 0.5 + 0.5 * Math.Sin(_phase * 1.6);
 
-        Color gc = _glow.ToColor();
-        float glowR = (float)(w * 0.9 + (6 + 4 * breath) * s);
-        DrawGlow(g, cx, top + h / 2f, glowR, Mul(gc, (float)(0.22 + 0.16 * breath) * alpha));
+        // Very subtle glow — a faint light-green halo, much less than before.
+        float glowR = (float)(w * 0.75 + (3 + 2 * breath) * s);
+        DrawGlow(g, cx, top + h / 2f, glowR, Mul(PillFill, (float)(0.08 + 0.05 * breath) * alpha));
 
         using var path = RoundedRect(left, top, w, h, h / 2f);
-        using var fill = new SolidBrush(Mul(Forest, alpha));
+        using var fill = new SolidBrush(Mul(PillFill, alpha));
         g.FillPath(fill, path);
+        using var pen = new Pen(Mul(PillOutline, alpha), (float)(1.4 * s));
+        g.DrawPath(pen, path);
     }
 
     // ---- hover-revealed quick-action menu (rings the woken orb once hover pulls it in) ----
@@ -485,9 +498,9 @@ public sealed class LayeredOrb : IDisposable
         foreach (var (icon, hx, hy, hr) in _iconHotspots)
             DrawHoverIcon(g, icon, hx, hy, hr, alpha);
 
-        // Tooltip sits above the topmost icon, wherever that currently is - keeps this correct
-        // even if the ring layout above changes later, without re-deriving the geometry here.
-        float topMost = float.MaxValue;
+        // Tooltip sits above whatever reaches highest - the orb body or the flanking icons -
+        // so it never overlaps either, wherever the layout puts them.
+        float topMost = _orbBodyCy - _orbBodyR;
         foreach (var (_, _, hy, hr) in _iconHotspots) topMost = Math.Min(topMost, hy - hr);
 
         // Matches the reference: a light pill with dark text, ending in a small dark-green
@@ -510,9 +523,16 @@ public sealed class LayeredOrb : IDisposable
         float tipY = topMost - gap - tipH;
         float tipX = cx - tipW / 2f;
 
+        // Soft shadow beneath the tooltip so it lifts off the desktop instead of sitting flat.
+        DrawGlow(g, cx, tipY + tipH * 0.75f, tipW * 0.62f, Mul(ChipShadow, 0.9f * alpha));
+
         using (var path = RoundedRect(tipX, tipY, tipW, tipH, tipH / 2f))
-        using (var fill = new SolidBrush(Mul(TooltipBg, 0.96f * alpha)))
+        using (var fill = new SolidBrush(Mul(TooltipBg, 0.97f * alpha)))
+        using (var stroke = new Pen(Mul(Border1, 0.9f * alpha), (float)(1 * _scale)))
+        {
             g.FillPath(fill, path);
+            g.DrawPath(stroke, path);
+        }
 
         float textY = tipY + padV;
         float x = tipX + padH;
@@ -533,47 +553,30 @@ public sealed class LayeredOrb : IDisposable
     }
 
     // Simple line-art glyphs (no image assets): pencil (edit), outward corner ticks (expand),
-    // gear (settings), sun (theme), cross (dismiss). Only Settings is wired to a real action;
-    // the rest are honest stubs.
+    // Two clearly-distinct quick actions: a green "open app" (diagonal expand arrows) and a muted
+    // red "dismiss" (cross). Each is a warm-white chip on a soft drop-shadow with a tinted ring,
+    // so they read as real floating buttons rather than two identical dots.
     private void DrawHoverIcon(Graphics g, HoverIcon icon, float cx, float cy, float r, float alpha)
     {
-        FillCircle(g, cx, cy, r, Mul(OrbFill, 0.96f * alpha));
-        using (var edge = new Pen(Mul(Border1, alpha), (float)(1 * _scale)))
+        (Color ring, Color glyph) = icon == HoverIcon.Expand
+            ? (ExpandRing, ExpandGlyph)
+            : (DismissRing, DismissGlyph);
+
+        // Soft shadow: a faint dark halo offset slightly downward gives the chip depth.
+        DrawGlow(g, cx, cy + (float)(1.5 * _scale), r * 1.55f, Mul(ChipShadow, alpha));
+
+        FillCircle(g, cx, cy, r, Mul(ChipFill, 0.98f * alpha));
+        using (var edge = new Pen(Mul(ring, alpha), (float)(1.5 * _scale)))
             g.DrawEllipse(edge, cx - r, cy - r, r * 2, r * 2);
 
-        using var pen = new Pen(Mul(Fg2, alpha), (float)(1.4 * _scale)) { StartCap = LineCap.Round, EndCap = LineCap.Round };
-        float u = r * 0.45f;
+        using var pen = new Pen(Mul(glyph, alpha), (float)(1.6 * _scale)) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+        float u = r * 0.42f;
         switch (icon)
         {
-            case HoverIcon.Edit:
-                g.DrawLine(pen, cx - u, cy + u, cx + u, cy - u);
-                g.DrawLine(pen, cx + u * 0.3f, cy - u * 1.3f, cx + u * 1.3f, cy - u * 0.3f);
-                break;
             case HoverIcon.Expand:
-                DrawCornerTick(g, pen, cx, cy, u, 1, 1);
-                DrawCornerTick(g, pen, cx, cy, u, -1, 1);
-                DrawCornerTick(g, pen, cx, cy, u, 1, -1);
-                DrawCornerTick(g, pen, cx, cy, u, -1, -1);
-                break;
-            case HoverIcon.Settings:
-                g.DrawEllipse(pen, cx - u * 0.6f, cy - u * 0.6f, u * 1.2f, u * 1.2f);
-                for (int i = 0; i < 6; i++)
-                {
-                    double ang = i * Math.PI / 3;
-                    float x1 = cx + (float)(Math.Cos(ang) * u * 0.8f), y1 = cy + (float)(Math.Sin(ang) * u * 0.8f);
-                    float x2 = cx + (float)(Math.Cos(ang) * u * 1.25f), y2 = cy + (float)(Math.Sin(ang) * u * 1.25f);
-                    g.DrawLine(pen, x1, y1, x2, y2);
-                }
-                break;
-            case HoverIcon.Theme:
-                g.DrawEllipse(pen, cx - u * 0.5f, cy - u * 0.5f, u, u);
-                for (int i = 0; i < 8; i++)
-                {
-                    double ang = i * Math.PI / 4;
-                    float x1 = cx + (float)(Math.Cos(ang) * u * 0.75f), y1 = cy + (float)(Math.Sin(ang) * u * 0.75f);
-                    float x2 = cx + (float)(Math.Cos(ang) * u * 1.15f), y2 = cy + (float)(Math.Sin(ang) * u * 1.15f);
-                    g.DrawLine(pen, x1, y1, x2, y2);
-                }
+                // Two diagonal arrows pointing apart (top-right & bottom-left) = "open / expand".
+                DrawExpandArrow(g, pen, cx, cy, u, +1); // toward top-right
+                DrawExpandArrow(g, pen, cx, cy, u, -1); // toward bottom-left
                 break;
             case HoverIcon.Dismiss:
                 g.DrawLine(pen, cx - u, cy - u, cx + u, cy + u);
@@ -582,11 +585,18 @@ public sealed class LayeredOrb : IDisposable
         }
     }
 
-    private static void DrawCornerTick(Graphics g, Pen pen, float cx, float cy, float u, int sx, int sy)
+    // One arm of the expand glyph: a short diagonal shaft with a little arrowhead at its outer
+    // tip. dir=+1 draws the top-right arm, dir=-1 the bottom-left arm.
+    private static void DrawExpandArrow(Graphics g, Pen pen, float cx, float cy, float u, int dir)
     {
-        float x0 = cx + sx * u * 0.5f, y0 = cy + sy * u * 0.5f;
-        float x1 = cx + sx * u * 1.2f, y1 = cy + sy * u * 1.2f;
-        g.DrawLine(pen, x0, y0, x1, y1);
+        // Outer tip and inner end of the shaft (top-right when dir=+1).
+        float tx = cx + dir * u, ty = cy - dir * u;
+        float ix = cx - dir * u * 0.55f, iy = cy + dir * u * 0.55f;
+        g.DrawLine(pen, ix, iy, tx, ty);
+        // Arrowhead: two short ticks back from the tip.
+        float head = u * 0.7f;
+        g.DrawLine(pen, tx, ty, tx - dir * head, ty);       // horizontal barb
+        g.DrawLine(pen, tx, ty, tx, ty + dir * head);       // vertical barb
     }
 
     // ---- woken posture ----

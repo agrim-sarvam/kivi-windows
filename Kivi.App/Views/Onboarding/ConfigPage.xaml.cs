@@ -48,12 +48,6 @@ public sealed partial class ConfigPage : Page
         ViewModel = Kivi.App.App.Services.GetRequiredService<ConfigViewModel>();
         InitializeComponent();
 
-        HotkeyBox.SetInitial(ViewModel.HotkeyVk);
-        HotkeyBox.HotkeyChanged += vk => ViewModel.HotkeyVk = vk;
-
-        EnglishHotkeyBox.SetInitial(ViewModel.EnglishHotkeyVk);
-        EnglishHotkeyBox.HotkeyChanged += vk => ViewModel.EnglishHotkeyVk = vk;
-
         BuildColorSwatches();
         BuildLanguageChips();
 

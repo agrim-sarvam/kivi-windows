@@ -31,6 +31,10 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
     private ClientWebSocket? _ws;
     private CancellationTokenSource? _receiveCts;
     private Task? _receiveLoop;
+    // Completes the instant the server acknowledges end-of-session (session.end) or the socket
+    // closes, so FinishAsync returns as soon as the final transcript is in -- not after a fixed
+    // timeout. Recreated per session in StartAsync.
+    private TaskCompletionSource _sessionDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
     // Finalized segments (from transcript.final) joined into the committed transcript, plus the
     // latest in-progress partial for live display. Final result = _finalized only.
     private readonly StringBuilder _finalized = new();
@@ -61,6 +65,7 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
         var key = _secrets.GetApiKey() ?? throw new InvalidOperationException("Missing API key");
 
         lock (_lock) { _finalized.Clear(); _currentPartial = ""; }
+        _sessionDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var baseWs = _config.TranscriptionBaseUrl
             .Replace("https://", "wss://", StringComparison.OrdinalIgnoreCase)
@@ -133,10 +138,10 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
                 Log("SEND flush+end");
             }
 
-            // Wait for the receive loop to drain the remaining finals (socket close or timeout).
+            // Return as soon as the server signals session.end (the final transcript is in by
+            // then) -- the 3s is only a safety cap for a socket that never acknowledges.
             var deadline = Task.Delay(TimeSpan.FromSeconds(3), ct);
-            if (_receiveLoop is not null)
-                await Task.WhenAny(_receiveLoop, deadline);
+            await Task.WhenAny(_sessionDone.Task, deadline);
         }
         catch { /* network hiccup -- return whatever finalized so far */ }
         finally
@@ -172,6 +177,12 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
         }
         catch (OperationCanceledException) { Log("RECV loop cancelled"); }
         catch (Exception ex) { Log($"RECV loop error: {ex.GetType().Name}: {ex.Message}"); }
+        finally
+        {
+            // Whatever ends the loop (close, cancel, error), release FinishAsync so it never
+            // waits out the full safety timeout when no session.end ack arrives.
+            _sessionDone.TrySetResult();
+        }
     }
 
     private void HandleMessage(string json)
@@ -182,6 +193,9 @@ public sealed class SarvamStreamingSttEngine : IStreamingSttEngine, IDisposable
             var root = doc.RootElement;
             if (!root.TryGetProperty("event", out var evProp)) return;
             var ev = evProp.GetString();
+            // The server acks end-of-session here; unblock FinishAsync immediately (the final
+            // transcript has already been delivered by this point).
+            if (ev == "session.end") { _sessionDone.TrySetResult(); return; }
             if (ev != "transcript.partial" && ev != "transcript.final") return;
 
             var text = (root.TryGetProperty("text", out var t) ? t.GetString() : null)?.Trim();

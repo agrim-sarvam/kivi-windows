@@ -16,6 +16,29 @@ public class OrchestratorTests
     }
 
     [Fact]
+    public async Task HandsFree_DoubleTapStarts_SingleTapStops_AndPastes()
+    {
+        var hotkey = new FakeHotkey();
+        var paste = new SpyPaste();
+        using var metrics = new KiviMetrics();
+        var stream = new FakeStreamingStt();
+        var orch = new DictationOrchestrator(hotkey, new FakeAudio(), new FakeContext(),
+            new StubStt(), stream, new StubPolish(), paste, AppConfig.Default(), metrics, new FakeTranscriptStore());
+        orch.Start();
+
+        hotkey.FireHandsFree(isEnglish: false); // double-tap -> start hands-free
+        await Task.Delay(50);
+        Assert.Equal(RecordingState.Listening, orch.State); // recording without a held key
+
+        hotkey.FireHandsFree(isEnglish: false); // single tap -> stop
+        await Task.Delay(1500);
+
+        Assert.Equal(SttMode.Hinglish, stream.LastMode);
+        Assert.Equal("Hello there.", paste.Pasted);
+        Assert.Equal(RecordingState.Idle, orch.State);
+    }
+
+    [Fact]
     public async Task FullDictation_RunsStateSequence_AndPastesCleanedText()
     {
         var hotkey = new FakeHotkey();

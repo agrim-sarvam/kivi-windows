@@ -36,14 +36,14 @@
                                        FontSize="{ThemeResource KiviFontSizeCaption}"
                                        Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
                         </StackPanel>
-                        <controls:HotkeyCaptureBox x:Name="HotkeyBox" Grid.Column="1"
-                                Background="{ThemeResource KiviSurfaceAltBrush}"
+                        <!-- Read-only: the hotkeys are fixed, not user-rebindable. -->
+                        <Border Grid.Column="1" Background="{ThemeResource KiviSurfaceAltBrush}"
                                 BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
-                                CornerRadius="{ThemeResource KiviRadiusSm}"
-                                Foreground="{ThemeResource KiviTextPrimaryBrush}"
-                                FontFamily="{ThemeResource KiviMonoFontFamily}"
-                                FontSize="{ThemeResource KiviFontSizeBody}"
-                                Padding="16,10"/>
+                                CornerRadius="{ThemeResource KiviRadiusSm}" Padding="16,10">
+                            <TextBlock Text="Right Ctrl" FontFamily="{ThemeResource KiviMonoFontFamily}"
+                                       FontSize="{ThemeResource KiviFontSizeBody}"
+                                       Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
+                        </Border>
                     </Grid>
 
                     <Rectangle Height="1" Fill="{ThemeResource KiviStrokeBrush}"/>
@@ -62,14 +62,13 @@
                                        FontSize="{ThemeResource KiviFontSizeCaption}"
                                        Foreground="{ThemeResource KiviTextSecondaryBrush}"/>
                         </StackPanel>
-                        <controls:HotkeyCaptureBox x:Name="EnglishHotkeyBox" Grid.Column="1"
-                                Background="{ThemeResource KiviSurfaceAltBrush}"
+                        <Border Grid.Column="1" Background="{ThemeResource KiviSurfaceAltBrush}"
                                 BorderBrush="{ThemeResource KiviStrokeBrush}" BorderThickness="1"
-                                CornerRadius="{ThemeResource KiviRadiusSm}"
-                                Foreground="{ThemeResource KiviTextPrimaryBrush}"
-                                FontFamily="{ThemeResource KiviMonoFontFamily}"
-                                FontSize="{ThemeResource KiviFontSizeBody}"
-                                Padding="16,10"/>
+                                CornerRadius="{ThemeResource KiviRadiusSm}" Padding="16,10">
+                            <TextBlock Text="Right Alt" FontFamily="{ThemeResource KiviMonoFontFamily}"
+                                       FontSize="{ThemeResource KiviFontSizeBody}"
+                                       Foreground="{ThemeResource KiviTextPrimaryBrush}"/>
+                        </Border>
                     </Grid>
 
                     <Rectangle Height="1" Fill="{ThemeResource KiviStrokeBrush}"/>

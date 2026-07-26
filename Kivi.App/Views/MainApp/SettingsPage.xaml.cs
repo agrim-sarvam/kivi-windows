@@ -35,11 +35,6 @@ public sealed partial class SettingsPage : Page
         ViewModel = Kivi.App.App.Services.GetRequiredService<ConfigViewModel>();
         InitializeComponent();
 
-        HotkeyBox.SetInitial(ViewModel.HotkeyVk);
-        HotkeyBox.HotkeyChanged += vk => ViewModel.HotkeyVk = vk;
-        EnglishHotkeyBox.SetInitial(ViewModel.EnglishHotkeyVk);
-        EnglishHotkeyBox.HotkeyChanged += vk => ViewModel.EnglishHotkeyVk = vk;
-
         BuildLanguageChips();
         RenderPressAndHoldDelay();
         PressAndHoldDelayText.Tapped += (_, _) => CyclePressAndHoldDelay();

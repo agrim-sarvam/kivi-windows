@@ -6,6 +6,7 @@ public sealed class FakeHotkey : IHotkeyService
     public event Action? HoldEnded;
     public event Action? EnglishHoldStarted;
     public event Action? EnglishHoldEnded;
+    public event Action<bool>? HandsFreeToggled;
 
     public void Start() { } public void Stop() { }
     public void SetHotkey(uint virtualKeyCode) { }
@@ -16,6 +17,7 @@ public sealed class FakeHotkey : IHotkeyService
     public void FireEnd() => HoldEnded?.Invoke();
     public void FireEnglishStart() => EnglishHoldStarted?.Invoke();
     public void FireEnglishEnd() => EnglishHoldEnded?.Invoke();
+    public void FireHandsFree(bool isEnglish) => HandsFreeToggled?.Invoke(isEnglish);
 }
 
 public sealed class FakeAudio : IAudioCaptureService

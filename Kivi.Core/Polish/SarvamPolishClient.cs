@@ -39,7 +39,7 @@ public sealed class SarvamPolishClient : IPolishClient
             if (InCooldown(model)) continue;
             try
             {
-                var payload = BuildPayload(model, system, user);
+                var payload = BuildPayload(model, system, user, transcript.Length);
                 var body = await _http.PostChatCompletionAsync(_config.ChatBaseUrl, key, payload,
                     TimeSpan.FromSeconds(_config.TimeoutSeconds), ct);
                 var content = ExtractContent(body);
@@ -56,6 +56,8 @@ public sealed class SarvamPolishClient : IPolishClient
                 _cooldownUntil[model] = DateTimeOffset.UtcNow.AddSeconds(30);
                 EnteringCooldown?.Invoke(model);
             }
+            catch (OperationCanceledException) { throw; } // capture cancelled -> let it unwind
+            catch { /* any other error on this model (bad request, transient 5xx) -> try next */ }
         }
         return transcript; // all models failed -> safe fallback to raw
     }
@@ -81,14 +83,21 @@ public sealed class SarvamPolishClient : IPolishClient
         return s;
     }
 
-    private object BuildPayload(string model, string system, string user)
+    private object BuildPayload(string model, string system, string user, int transcriptChars)
     {
         var msgs = new object[] {
             new { role = "system", content = system },
             new { role = "user", content = user }
         };
         if (model == _config.CleanupModel)
-            return new { model, temperature = 0.0, max_completion_tokens = 4096, reasoning_effort = "low", include_reasoning = false, messages = msgs };
+        {
+            // Cleanup is a mechanical rewrite (strip fillers, fix self-corrections), not a
+            // reasoning task -- "minimal" effort skips the slow reasoning pass that dominated the
+            // post-speech latency. Size the output budget to the transcript (~1 token per 3 chars,
+            // 1.5x headroom) instead of a flat 4096, so the model never plans for a huge response.
+            int budget = Math.Clamp((int)(transcriptChars / 3.0 * 1.5) + 64, 128, 2048);
+            return new { model, temperature = 0.0, max_completion_tokens = budget, reasoning_effort = "low", include_reasoning = false, messages = msgs };
+        }
         return new { model, temperature = 0.0, messages = msgs };
     }
 

@@ -60,6 +60,7 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
         _hotkey.HoldEnded += OnHoldEnded;
         _hotkey.EnglishHoldStarted += OnEnglishHoldStarted;
         _hotkey.EnglishHoldEnded += OnEnglishHoldEnded;
+        _hotkey.HandsFreeToggled += OnHandsFreeToggled;
         _hotkey.Start();
     }
 
@@ -69,6 +70,7 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
         _hotkey.HoldEnded -= OnHoldEnded;
         _hotkey.EnglishHoldStarted -= OnEnglishHoldStarted;
         _hotkey.EnglishHoldEnded -= OnEnglishHoldEnded;
+        _hotkey.HandsFreeToggled -= OnHandsFreeToggled;
         _hotkey.Stop();
     }
 
@@ -85,6 +87,15 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
     // English hotkey (Right Alt): translate whatever was spoken (Hindi/other/English) into
     // proper English.
     private void OnEnglishHoldStarted() => BeginCapture(SttMode.English);
+
+    // Double-tap a hotkey: first toggle starts a hands-free capture (key released), the next
+    // toggle (a single tap of that same key) stops it. Uses the same pipeline as hold-to-talk,
+    // just started/stopped by taps instead of a physical hold.
+    private void OnHandsFreeToggled(bool isEnglish)
+    {
+        if (_capturing) EndCapture();
+        else BeginCapture(isEnglish ? SttMode.English : SttMode.Hinglish);
+    }
 
     private void BeginCapture(string mode)
     {
@@ -229,8 +240,9 @@ public sealed class DictationOrchestrator : IDictationOrchestrator
             // to the rest pill (Idle). The orb's box->pill shrink animation still plays.
             SetState(RecordingState.Idle);
         }
-        catch
+        catch (Exception ex)
         {
+            _metrics.RecordStage($"pipeline-error:{ex.GetType().Name}", total.Elapsed.TotalMilliseconds);
             LastErrorMessage = "Couldn't catch that.";
             SetState(RecordingState.Error);
             SetState(RecordingState.Idle);
