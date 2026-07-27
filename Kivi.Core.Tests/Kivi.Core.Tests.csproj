@@ -18,6 +18,10 @@
     <ProjectReference Include="..\Kivi.Core\Kivi.Core.csproj" />
   </ItemGroup>
 
-  <!-- P2: consumes _reference/.../test/golden-frames/*.json as the engine-parity oracle. -->
+  <!-- P2: consumes golden-frames/*.json (copied from _reference/.../test/golden-frames/)
+       as the engine-parity oracle. -->
+  <ItemGroup>
+    <None Include="golden-frames\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>
