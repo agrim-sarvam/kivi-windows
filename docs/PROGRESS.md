@@ -9,6 +9,40 @@
 
 ---
 
+## Phase 3 — M0 dictation loop ✅ CODE-COMPLETE (awaiting live-service test)
+
+### The loop is wired end to end: hotkey → capture → STT → paste
+- **`Kivi.Core/Wire`** (wire-backend): `KiviServiceClient` over `ClientWebSocket`, `WireModels`
+  (deterministic sorted-key snake_case JSON), `Endpoints`, `DictationBudgets`, `Kivi.Core/Rest`
+  `KiviRestClient`. All wire invariants implemented + unit-tested: always-emit `formatting_enabled`,
+  closed-enum guard (`verbatim|casual|transliteration|formal`), `transcription_mode=codemix`,
+  drain-before-EOS, pre-connect buffer flush-in-order, backpressure drop-oldest@50, app-level
+  ping/pong, 3200-byte frames, budgets byte-exact, `/v1/edit` camelCase, anon-omits-Authorization.
+- **`Kivi.Platform`** (platform-native, rebuilt from scratch): `LowLevelKeyboardHookService`
+  (WH_KEYBOARD_LL on a dedicated message-pump thread, default Right-Ctrl, auto-repeat debounced),
+  `WasapiCaptureService` (+ `ContinuousResampler` → 16k Int16 mono LE 3200-byte frames, state
+  continuous across callbacks), `SendInputPasteService` (clipboard + release-held-modifiers +
+  Ctrl+V / terminal→Ctrl+Shift+V + no-refocus + clipboard-restore + secure-field gate),
+  `ForegroundAppResolver` (GetForegroundWindow→exe path, last-non-Kivi memo), `DpapiSecretStore`.
+- **`Kivi.App`** (orchestrator, this step): `WireDictationService` bridges the FlowEngine's
+  `IDictationService` seam to `KiviServiceClient` (maps wire events → engine `DictationEvent`s,
+  generation-guarded; raises PasteRequested on final). `DictationOrchestrator` owns the FlowEngine
+  + the seams: hotkey Down → capture frontmost target + start mic + `engine.FnDown()`; frames route
+  mic → wire client (buffered pre-handshake); hotkey Up → stop mic + `engine.FnUp()` (drain → EOS);
+  on final → paste formatted text into the captured target (terminal-detected `PasteMeta`).
+- **Verified:** `dotnet build` green (0/0); `dotnet test` 92 passed / 2 skipped (skips = live-service
+  integration test + mic smoke, both gated); `Kivi.App.exe` launches, DI resolves, orchestrator
+  starts, WH_KEYBOARD_LL hook installs, no crash.
+- **The ONE remaining hop to prove M0 live:** the full mic→STT→paste round-trip needs (a) the
+  NetBird VPN + local `kivi-service` reachable at `ws://127.0.0.1:8788`, and (b) mic permission.
+  Every seam AROUND it is tested. The live integration test auto-runs (un-skips) once `/ready` is
+  reachable — set `KIVI_WS_URL` / `KIVI_FIXTURE_PCM` to point at the service + a fixture WAV.
+
+**NEXT:** user connects NetBird VPN → run the live test + hold Right-Ctrl into Notepad and speak →
+confirm text pastes. Then P4 — orb visuals (the FlowFrame renderer + native layered window).
+
+---
+
 ## Phase 1 — solution skeleton ✅ (build green, app launches)
 
 ### `Kivi.sln` scaffolded per MASTER-PLAN §4
