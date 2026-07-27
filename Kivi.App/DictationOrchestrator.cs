@@ -57,6 +57,9 @@ public sealed class DictationOrchestrator : IDisposable
         _hotkey.Edge += OnHotkeyEdge;
     }
 
+    /// The live orb engine (rendered by FlowRuntime in the non-demo path).
+    public FlowEngine Engine => _engine;
+
     public void Start() => _hotkey.Start();
 
     private static KiviServiceClient CreateClient()

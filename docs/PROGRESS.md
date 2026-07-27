@@ -9,6 +9,48 @@
 
 ---
 
+## Phase 4 — orb visuals ✅ (renders + animates in demo mode)
+
+### The living orb is drawn in WPF from the FlowFrame, in a native layered window
+- **`Kivi.Platform/Overlay/LayeredOrbHost.cs`** (was a stub): real Win32 layered window
+  (`WS_EX_LAYERED|TOPMOST|NOACTIVATE|TOOLWINDOW`) painted per tick via `UpdateLayeredWindow` with a
+  premultiplied-ARGB DIB (true per-pixel alpha, never activates, no taskbar button). `SetClickThrough`
+  toggles `WS_EX_TRANSPARENT`; `WM_MOUSEACTIVATE→MA_NOACTIVATE`.
+- **`Kivi.App/Drawing/`** — the FlowFrame renderer (GDI+, pure functions of one frame):
+  `FlowRuntime` (the FlowRuntimeWeb port — 3-tier fps band 24/30/60, rest-park + 1 Hz heartbeat,
+  nudge; steps the engine, positions bottom-center DPI-aware), `OrbRenderer` (pill⇄orb morph,
+  fill@alpha, paper grain, 4-layer glow per-state, eyes, sphere gloss), `KiwiMarkRenderer` (dotted
+  walking kiwi: mask + 48×8 gait cache + coverage + wave glow + breathing, from the frozen
+  Kivi.Core.KiwiMark math), `PaperGrain` (128×128 LCG, seed 0x4B49564950415045 byte-exact),
+  `TranscriptBoxRenderer` (wedge box, header state narration, transcript lines, red-strike diff morph,
+  reveal mask), `SatellitesRenderer` + `OrbIcons` (SVG-path→GraphicsPath), `DemoDriver`, `DrawUtil`.
+- **Wiring:** `App.xaml.cs` shows the orb at launch on both paths; demo mode (`KIVI_ORB_DEMO=1` /
+  `--demo`) drives a standalone engine through rest→listening→processing→done with no socket/mic.
+  The M0 live loop is untouched (orchestrator exposes `Engine`; runtime renders it in the live path).
+- **Verified:** `dotnet build` green (0/0); 92/2 tests pass; demo launches, layered window + render
+  loop run, no crash; agent captured screenshots of forest orb + kiwi + per-state glow easing
+  (orange→blue→green) + wedge box + diff morph.
+
+### Rendered vs deferred (this phase = orb + box + satellites; box additions are incremental)
+- Rendered: orb morph/fill/grain/glow/eyes/gloss, kiwi mark (wave+gait), states rest/listening/
+  processing/done, wedge box + header + transcript + diff morph, left/right/below satellites + icons.
+- Deferred (additive, noted in code): maxi footer action bar, pager dots, context card, copy chip,
+  wave-sweep gradient, pill-take 7-bar mic face, hint pills, drag handle, edit pane.
+- Divergences: GDI+ has no gaussian blur → glow = stacked translucent expanded rects (hue/spread/alpha
+  from the engine, only the blur kernel differs; Win2D GaussianBlur is the pixel-exact upgrade path);
+  desktop-behind backdrop blur excluded (R1); fonts use the fallback stack (Matter/Space Grotesk
+  license-blocked/dev-only).
+
+### How to watch it
+```
+$env:KIVI_ORB_DEMO=1; dotnet run --project Kivi.App -c Debug
+```
+
+**NEXT:** P5 — main window shell + pages (Record/History/Settings/Personas), then tray (P6 start).
+Live M0 round-trip still pending the NetBird VPN approval.
+
+---
+
 ## Phase 3 — M0 dictation loop ✅ CODE-COMPLETE (awaiting live-service test)
 
 ### The loop is wired end to end: hotkey → capture → STT → paste
