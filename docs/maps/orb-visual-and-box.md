@@ -2,8 +2,9 @@
 
 Windows-only .NET port of `_reference/sarvam-kivi-electron/docs/maps/orb-visual-and-box.md`.
 Every geometry value, color hex, lerp coefficient, and motion duration below is **byte-exact**.
-The orb is drawn via a **native layered / Composition window** (`Kivi.Platform.Overlay`) + Win2D
-(`Kivi.App/Drawing`); the render model is a pure function of `FlowFrame`.
+The orb is drawn via a **native Win32 layered window** (`Kivi.Platform.Overlay`, `UpdateLayeredWindow`
+with an invisible WPF host for lifetime) onto a WPF-hosted 2D surface (Win2D or
+`WriteableBitmap`/`DrawingContext`, `Kivi.App/Drawing`); the render model is a pure function of `FlowFrame`.
 
 **Scope note (from the reference):** the **maxi mini-app** is the design to clone — it is the
 documented visual baseline. This map describes the maxi design.
@@ -16,7 +17,7 @@ documented visual baseline. This map describes the maxi design.
 
 - The entire orb + box is a **pure function of one value type**, `FlowFrame`. Views NEVER animate; they read `FlowFrame` fields and draw. All motion is produced by `FlowEngine.Step(now)` (see `orb-engine-behavior.md`), called per render-loop tick, returning a fresh `FlowFrame`.
 - **Easing is per-tick lerp, dt-corrected.** In `Step()`: `dtFrames = clamp((now-prev)/16, 0, 3)`, `ease60(k) = 1 - pow(1-k, dtFrames)`. Every coefficient below (0.30, 0.22, 0.18…) was tuned at a 16 ms cadence. A field snaps to target when `|target-value| < ~0.0005–0.0008` (kills sub-pixel re-render jitter). `reduceMotion` snaps instantly.
-- **For the .NET clone:** replicate as a `CompositionTarget.Rendering` loop computing a `FlowFrame`, with `k_eff = 1 - (1-k)^(dt/16)`. Views are frame-driven Win2D/XAML. **Do NOT use XAML Storyboards/transitions for the morphs** — the values are already eased per frame; drive geometry directly each frame.
+- **For the .NET clone:** replicate as a WPF `CompositionTarget.Rendering` loop computing a `FlowFrame`, with `k_eff = 1 - (1-k)^(dt/16)`. Views are frame-driven onto a WPF-hosted 2D surface (Win2D or `WriteableBitmap`/`DrawingContext`). **Do NOT use WPF `Storyboard`s/transitions for the morphs** — the values are already eased per frame; drive geometry directly each frame. (`Storyboard`/`KeySpline` is only for discrete eased UI transitions elsewhere, not the per-frame orb morphs.)
 - Frame-rate tiers: rest 24 fps (20–30), steady 30 (20–40), morph 60 (30–60).
 
 ---
@@ -27,7 +28,7 @@ documented visual baseline. This map describes the maxi design.
 `BrowserWindow`).
 
 - The orb lives in a **transparent, borderless, non-activating, always-on-top native window**:
-  - Windows: a layered/Composition window with `WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_TOOLWINDOW`, drawn via `UpdateLayeredWindow` (or DirectComposition), no taskbar button.
+  - Windows: a native Win32 layered window with `WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_TOOLWINDOW`, drawn via `UpdateLayeredWindow` (premultiplied ARGB) with an invisible WPF host for lifetime, no taskbar button.
   - Click-through by default (`WS_EX_TRANSPARENT`), toggled per-tick by the hit-test.
   - The window **never takes keyboard focus** (`WS_EX_NOACTIVATE`) — keeps the host app's text caret during dictation. (The editable-box case briefly makes it activatable — M4, see `orb-engine-behavior.md §2.1 focus contradiction`.)
 - **Envelope** (`PanelEnvelope`), swapped live:
@@ -84,13 +85,13 @@ state morphs body toward 39→`selectionPillWidth`, H→22, R→11.
 
 ## 3. Orb surface layers (z-stacked, drawn back-to-front, clipped to the rounded shape)
 
-1. **Backdrop glass** (`backdropBlur = 10*(1-open)` px — blur fades as the orb fills; hidden when `open>0.92`). macOS `NSVisualEffectView` / Electron `backdrop-filter` → Windows: an `AcrylicBrush` / Composition `GaussianBlur` on the pill element for the *local* frost. **The desktop-behind-window blur is physically unreproducible (R1)** — faked with a static frosted approximation, excluded from the pixel gate.
+1. **Backdrop glass** (`backdropBlur = 10*(1-open)` px — blur fades as the orb fills; hidden when `open>0.92`). macOS `NSVisualEffectView` / Electron `backdrop-filter` → Windows: a WPF `BlurEffect` (or a Win2D `GaussianBlur` on the 2D surface) over a tinted fill on the pill element for the *local* frost. **The desktop-behind-window blur is physically unreproducible (R1)** — faked with a static frosted approximation, excluded from the pixel gate.
 2. **Fill**: `orb.fillRGB` at `fillAlpha = restA + (1-restA)*open`. Forest orb fill `rgb(13,30,9)` restA 0.72; mist orb fill `rgb(223,234,209)` restA 0.66.
 3. **Paper grain**: a **128×128 deterministic noise tile** (seed `0x4B49564950415045`, LCG `seed*6364136223846793005+1442695040888963407`, alpha = high byte), template-tinted `inkPrimary`, tiled, nearest-neighbor. Opacity **0.035 light / 0.02 dark**; dark scaled 1.5×. Removed under reduced-transparency. Used on orb, box, satellites. **Port the LCG verbatim** to a Win2D-generated tile or a pre-baked PNG.
 4. **Selection chip** (word-count text mono 10.5 + app-icon glyph 14×14) when a host selection is captured.
 5. **Rest eyes** (collapsed pill face): two capsules, open-diameter `eyeD = 0.36·15 = 5.4`, closed line `1.8`, spacing `0.62·15 = 9.3`. `eyeH = 1.8 + (5.4-1.8)*eyeOpen`. Breath scale `1+(eyeScale-1)*eyeOpen` where `eyeScale = 0.90+0.20·breath`. Eyes wear theme eye color (`orb.eye`: forest `#EAF0E2`, mist `#1B330F`) except in pill mode where they take the live state glow color. **eyeOpen** eases 0→1 (`ease60 0.18`): idle/rest → shut flat line; any active mark → open breathing dots.
 6. **Pill-take face** (when `pillFace>0.001`): 7 vertical mic **bars** (width 2.6, spacing 3.4, height `max(3.4,(H-7)·energy)`, energy driven by `sin` seeds `[0.55,0.9,0.4,1.0,0.65,0.85,0.5]`, phases `[0,1.7,3.1,4.4,0.9,2.4,5.2]` + live mic level) while listening/speaking; morphs to two glowing **eyes** (Ø6.4, pulse `1+0.10·sin`, shadow radius 5.5) while processing. Colored by `f.glowColor`.
-7. **Living kiwi mark** (`KiwiMarkEngine.Draw` → Win2D `CanvasControl`/`CanvasVirtualControl`): dotted walking-kiwi per tick, scaled `min(1, bodyWidth/61)`, opacity `markOpacity`. A full dot-render engine (see `orb-engine-behavior.md §10`) — the orb's "face" when awake.
+7. **Living kiwi mark** (`KiwiMarkEngine.Draw` → the WPF-hosted 2D surface, Win2D or `WriteableBitmap`/`DrawingContext`): dotted walking-kiwi per tick, scaled `min(1, bodyWidth/61)`, opacity `markOpacity`. A full dot-render engine (see `orb-engine-behavior.md §10`) — the orb's "face" when awake.
 8. **Sphere overlay**: specular highlight radial gradient at (`0.5+lightX·0.5`, `0.5+lightY·0.5`), rim shadow at antipode, edge vignette. Glossy (mist): white 0.65→0.18→0, warm rim. Non-glossy (forest): white 0.18→0.05→0 + black rim 0.55, vignette black 0.34. Light target follows cursor via `OrbLightTarget(nx,ny)` (`sphereLightLerp 0.16`) — driven by `GetCursorPos` relative to the orb. Use the farthest-corner radial extent.
 
 ### 3a. 4-layer glow (behind the orb)
@@ -105,8 +106,9 @@ Page constants: **dark** glowA 0.40, glowBlur 60, glowSpread 9, dropBase 0.42, d
 **light** glowA 0.24, glowBlur 40, glowSpread 4, dropBase 0.28, dropAdd 0.12. Breath swell:
 `breathA = 0.91+0.09·bq`, `breathS = 0.95+0.10·bq`, `bq` = breath quantized to **12 steps** (perf:
 avoids re-blur every tick). `glowColor` **eases** (`ease60 0.09`) toward the per-state color and is
-rounded to integer RGB (quantized so blur layers are reused between frames). Win2D: render the
-silhouette + a `GaussianBlurEffect` per layer; the 12-step breath quantization keeps blur reuse.
+rounded to integer RGB (quantized so blur layers are reused between frames). On the WPF-hosted 2D
+surface: render the silhouette + a per-layer Gaussian blur (Win2D `GaussianBlurEffect`, or a WPF
+`BlurEffect` on a cached visual); the 12-step breath quantization keeps blur reuse.
 
 ### 3b. Breath
 `b = 0.5 + 0.5·sin(now/1000 · 2π/2.6)` — global 2.6 s brand breath. `f.breath = b`.
@@ -144,7 +146,7 @@ are **geometric-hover driven** (`f.hoveredTarget`), computed in `FlowFrame.Inter
 
 **Drag handle** (movable mode only): 2×3 grid of Ø4 dots (spacing 3), grey `#8A8F86` rest →
 mist-white `#ECF1E6` active; hit box 28×20 at `dragHandleY -19` above orb; grab/grabbing cursor
-(`ProtectedCursor`/`InputCursor`); tooltip "drag to move · double-click to dock".
+(WPF `Cursor` — `Cursors.Hand` / a custom grabbing cursor); tooltip "drag to move · double-click to dock".
 
 **Sub-views:** edit pane (width 212, radius 20, pad 7, item font 14.5, opens on the side opposite
 the box), hint pills (mono narration, radius 9, gated on the `tooltips` setting), toast (orange
@@ -196,7 +198,7 @@ h = min( min(screenH*0.75, refH + 0.18*max(0, screenH-982)), 800 )
 ```
 Up to the 14″ reference the maxi box is **half the screen width / three-quarters the height**; past
 it, growth is **sub-proportional (slope 0.18)** and **plateaus at 840×800** ("a mini-app, not a
-takeover"). Read screen size from the .NET `DisplayArea`/work-area in **logical (DIP) px** (not
+takeover"). Read screen size from WPF `SystemParameters.WorkArea` / `Screen.WorkingArea` in **logical (DIP) px** (not
 device px, or the curve mis-scales on HiDPI — R26).
 
 **Size resolution** (`applyBoxTargets`): one resolver used by content-change, maxi-toggle, and
@@ -263,7 +265,7 @@ Right **`new session`** ("+"), with a live orange flow-band sweeping the pill wh
 elastic end-bounce from flipping fades every frame). Dual progressive fades: 40 px gradient
 top+bottom, opacity-animated (ease-out 0.18) on the damped edge flips, always mounted while
 `txClipped`. Streaming auto-follow yields to manual scroll (`userScrolledInTake`). `txClipped =
-fitRequestedH > granted+0.5`. Port to a WinUI `ScrollViewer` with the same hysteresis + gradient
+fitRequestedH > granted+0.5`. Port to a WPF `ScrollViewer` with the same hysteresis + gradient
 fade overlays.
 
 ### 8f. Content-driven sizing (`BoxContentFit`)
@@ -272,7 +274,7 @@ at fixed candidate widths → asks `FitBoxToContent(w,h)`. Widths step **322 →
 620+160 pads** once wider tiers would clip (`widenThresholdH 150`, maxi step at `wideH>300`). Chrome
 height `txHeaderBlockH 44 + txFooterBlockH 56 + boxWedgeH 9 + txBoxPadsV 22 + inset 16 + 4`. Empty
 pane fits exactly to chrome + 54. Context card adds 62, banner/notice add 44. In .NET, measure with
-`CanvasTextLayout` (Win2D) or a `TextBlock` measure pass using the exact font metrics.
+WPF `FormattedText`/a `TextBlock` measure pass (or Win2D `CanvasTextLayout`) using the exact font metrics.
 
 ---
 
@@ -332,14 +334,14 @@ edit `#385418`, tooltipBg `#18300F`, tooltipFg `#EAF0E2`.
 
 ## Windows/.NET notes (macOS/Electron → Windows/.NET)
 
-1. **Transparent non-activating window** (`NSPanel .nonactivatingPanel` / transparent `BrowserWindow` `focusable:false`): the whole point is dictated text lands in the *host* app, not Kivi. Windows: a **native layered/Composition window** with `WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW`, drawn via `UpdateLayeredWindow`/DirectComposition, click-through via `WS_EX_TRANSPARENT` toggled per-frame from the JS-equivalent port of `FlowFrame.InteractiveTarget`. `WS_EX_NOACTIVATE` gives true non-activation (R20). (See the `orb-is-a-chip` memo: WinUI cannot host a truly transparent non-activating window — hence the native layered window with an invisible WinUI anchor for lifetime.)
-2. **Backdrop blur / cross-space** → `AcrylicBrush` / Composition `GaussianBlur` for the *local* frost. There is no cross-Space concept on Windows — the window floats on the current desktop, always-on-top. The desktop-behind blur is excluded (R1).
+1. **Transparent non-activating window** (`NSPanel .nonactivatingPanel` / transparent `BrowserWindow` `focusable:false`): the whole point is dictated text lands in the *host* app, not Kivi. Windows: a **native Win32 layered window** with `WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW`, drawn via `UpdateLayeredWindow` (premultiplied ARGB), click-through via `WS_EX_TRANSPARENT` toggled per-frame from the JS-equivalent port of `FlowFrame.InteractiveTarget`. `WS_EX_NOACTIVATE` gives true non-activation (R20). (See the `orb-is-a-chip` memo: a WPF transparent window cannot be truly non-activating — hence the native layered window with an invisible WPF host for lifetime; WPF↔Win32 interop is seamless.)
+2. **Backdrop blur / cross-space** → a WPF `BlurEffect` (or a Win2D `GaussianBlur` on the 2D surface) over a tinted fill for the *local* frost. There is no cross-Space concept on Windows — the window floats on the current desktop, always-on-top. The desktop-behind blur is excluded (R1).
 3. **First-mouse + per-tick click-through** → reproduce the hit-test in C# and toggle click-through each tick. Load-bearing — clickable/hoverable/tooltip regions are ONE function (`InteractiveTarget`); keep unified.
 4. **App icon + display name for the header chip** (`NSWorkspace.icon(forFile:)`) → Windows `SHGetFileInfo` / PE-resource extraction keyed by exe path; cache; fall back to the kivi logo. (See `personalization-subsystem.md`.)
-5. **Screen geometry** for the maxi plateau curve → feed the .NET `DisplayArea`/work-area size in **logical (DIP) px** (not device px). The 14″ reference (1512×982 logical) is a logical figure.
+5. **Screen geometry** for the maxi plateau curve → feed the WPF `SystemParameters.WorkArea` / `Screen.WorkingArea` size in **logical (DIP) px** (not device px). The 14″ reference (1512×982 logical) is a logical figure.
 6. **Fonts** — embed Matter / Matter Mono / Space Grotesk; Space Grotesk needs static cuts or the variation-settings analog.
-7. **Cursor management** (open/closed hand on the drag handle) → WinUI `ProtectedCursor` / `InputCursor` (grab/grabbing).
-8. **Reduce Motion / Reduce Transparency** → read `UISettings.AnimationsEnabled` / the transparency-effects setting; `reduceMotion` snaps all eases; `reduceTransparency` zeroes paper grain.
+7. **Cursor management** (open/closed hand on the drag handle) → WPF `FrameworkElement.Cursor` (`Cursors.Hand` / a custom grabbing cursor).
+8. **Reduce Motion / Reduce Transparency** → read `SystemParameters.ClientAreaAnimation` / the transparency-effects setting; `reduceMotion` snaps all eases; `reduceTransparency` zeroes paper grain.
 9. **PaperGrain** — port the LCG verbatim to a Win2D-generated data tile or a static PNG, tiled nearest-neighbor, tinted, at 0.035/0.02 opacity.
 10. **The kiwi mark** — a large standalone Win2D engine (dotted walking-bird), the single biggest port item for visual fidelity; draws per-tick into a 65px canvas, scaled with the live orb. Its own module (`Kivi.Core.KiwiMark` + `Kivi.App/Drawing`).
 

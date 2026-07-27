@@ -233,8 +233,8 @@ by app-key substring.
    path). Windows: `GetForegroundWindow` + `GetWindowThreadProcessId` + `QueryFullProcessImageName`.
 3. **UI primitives** map to XAML: `RoundedRectangle(.continuous)` = a superellipse — plain
    `CornerRadius` is a close approximation (SVG/`PathGeometry` squircle only if a large-radius diff
-   fails). `.blur(5)` = Composition `GaussianBlur` / `AcrylicBrush`. Custom flow-wrap layout =
-   a `WrapPanel`/`ItemsWrapGrid`. `SlidingInkSegmented` = a custom animated segmented control.
+   fails). `.blur(5)` = a WPF `BlurEffect` (or a Win2D `GaussianBlur` on the 2D surface). Custom flow-wrap layout =
+   a `WrapPanel`. `SlidingInkSegmented` = a custom animated segmented control.
 4. **Fonts** — Matter, Space Grotesk, Season Mix, Matter SemiMono — embedded font files (see
    `design-tokens.md §1`, R12).
 5. **Theme** — resolve from the Windows app theme + a manual override; port Canon light/dark as theme
@@ -242,8 +242,8 @@ by app-key substring.
 6. **`StyleCatalog` cache** — a **JSON store under `%APPDATA%\Kivi`** preserving the exact cache
    keys/shape for hot-path parity + cache-first paint. Single-writer (one owning service / lock).
 7. **Stock controls** (`ProgressView`, `Slider`, `Toggle`, `.confirmationDialog`, `.popover`,
-   tooltip, text-selection) → WinUI equivalents (`ProgressRing`, `Slider`, `ToggleSwitch`,
-   `ContentDialog`, `Flyout`/`Popup`, `ToolTip`, `IsTextSelectionEnabled`).
+   tooltip, text-selection) → WPF equivalents (`ProgressBar`, `Slider`, a templated `ToggleButton`
+   switch, a modal `Window` dialog, `Popup`, `ToolTip`, `TextBox`/`TextBlock` selection).
 8. **Everything else is portable** — the domain model, resolution logic (`StyleResolver`,
    `CosmeticStyleState`, `PersonasStore` state machine), the REST contract, the compile/preview
    debounce, and all copy/example strings (`PersonasStyleCatalog`, voice statements) are pure

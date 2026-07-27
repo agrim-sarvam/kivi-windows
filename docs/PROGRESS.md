@@ -9,7 +9,33 @@
 
 ---
 
-## Phase 0 — docs port (in progress)
+## Phase 1 — solution skeleton ✅ (build green, app launches)
+
+### `Kivi.sln` scaffolded per MASTER-PLAN §4
+- Four projects on **.NET 8 / WPF** (`net8.0-windows`): `Kivi.Core` (pure, UI/OS-free),
+  `Kivi.Platform` (Windows-native seams), `Kivi.App` (WPF host + DI root), `Kivi.Core.Tests` (xUnit).
+- **Kivi.Core** folders per §4: `Orb/ KiwiMark/ DesignTokens/ Planner/ Wire/ Rest/ Contracts/`.
+  `Contracts/PlatformContracts.cs` defines the in-process seam interfaces (`IHotkeyService`,
+  `IPasteService`, `IOverlayHost`, `IFrontmostApp`, `IAudioCapture`, `ISecretStore`, `ITrayHost`)
+  + DTOs (`GestureEdge`, `AppTarget`, `PasteMeta`, `PasteOutcome`). All other folders hold a
+  placeholder noting which Electron source ports into them and in which phase.
+- **Kivi.Platform** folders per §4: `Hotkey/ Paste/ Frontmost/ Overlay/ Audio/ Secrets/ Tray/ Auth/`,
+  each with a **stub** implementing its contract (no-op), documented with the real P3+ approach.
+  `PlatformServiceCollectionExtensions.AddKiviPlatform()` wires them for DI.
+- **Kivi.App**: WPF, DI composition root in `App.xaml.cs` (no StartupUri — DI creates windows),
+  `DictationOrchestrator` skeleton (holds injected seams), stub `MainWindow` (Canon canvas bg,
+  "kivi" wordmark), per-monitor-V2 DPI manifest.
+- **Verified:** `dotnet build` green (0 errors, 2 expected stub-event warnings); `dotnet test`
+  2/2 pass; `Kivi.App.exe` launches, DI resolves, MainWindow shows and stays alive.
+- Decision recorded: **WPF over WinUI 3** (latency/fidelity/native-layered-window/interop — see
+  MASTER-PLAN §2.5 note). Orb remains a native Win32 layered window (P4).
+
+**NEXT:** P2 — core port (`core-porter`): FlowEngine + FlowFrame + transcript + tokens + KiwiData
+mask → C# in `Kivi.Core`, verified against the golden-frame JSON oracles.
+
+---
+
+## Phase 0 — docs port ✅ (committed)
 
 ### Porting the Electron reference docs → Windows-only .NET docs
 - Mirroring `_reference/sarvam-kivi-electron/docs/` structure exactly into `docs/`: the 5
@@ -19,7 +45,7 @@
 - Every macOS primitive → its Windows/.NET equivalent (Keychain→DPAPI, CGEventTap→`WH_KEYBOARD_LL`,
   NSPanel→native layered window, AUHAL/VPIO→WASAPI, ⌘V→Ctrl+V via `SendInput`, `NSWorkspace`
   bundle-id→`GetForegroundWindow`+exe path, Swift Charts→XAML). Every Electron/Node primitive →
-  .NET (BrowserWindow→native/Composition window, IPC/preload→in-process `async`/`await`+events,
+  .NET (BrowserWindow→WPF window / native Win32 layered orb, IPC/preload→in-process `async`/`await`+events,
   `ws`→`ClientWebSocket`, `safeStorage`→DPAPI, `getUserMedia`/AudioWorklet→WASAPI,
   electron-vite/builder/updater→the .NET build/publish + installer). Every Linux/Wayland/X11
   concern **removed** (Windows-only repo).

@@ -1,0 +1,8 @@
+<Application x:Class="Kivi.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- No StartupUri: startup is owned by App.OnStartup so the DI container creates windows.
+         P2 will add merged theme ResourceDictionaries generated from Kivi.Core.DesignTokens. -->
+    <Application.Resources>
+    </Application.Resources>
+</Application>

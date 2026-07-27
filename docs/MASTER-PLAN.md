@@ -21,15 +21,15 @@ recognizes the .NET layout. **This mapping is authoritative for all later phases
 | Electron reference | .NET project / namespace | Contents |
 |---|---|---|
 | `packages/orb-core` | **`Kivi.Core/Orb/*`** (`Kivi.Core.Orb`) | `FlowEngine`, `FlowFrame`, `Transcript`, `CueBus`, `CueCatalog`, `SpeechPace`, `GestureClassifier`, phase/mark maps, engine constants |
-| `packages/kiwi-mark` | **`Kivi.Core/KiwiMark/*`** (`Kivi.Core.KiwiMark`) | `KiwiData` 120×162 mask, state color tables, 48×8 gait cache (pure); Win2D draw lives in `Kivi.App` |
-| `packages/design-tokens` | **`Kivi.Core/DesignTokens/*`** (`Kivi.Core.DesignTokens`) | generated token values; surfaced as XAML theme dictionaries in `Kivi.App/Themes/*` |
+| `packages/kiwi-mark` | **`Kivi.Core/KiwiMark/*`** (`Kivi.Core.KiwiMark`) | `KiwiData` 120×162 mask, state color tables, 48×8 gait cache (pure); the WPF-hosted 2D draw (Win2D or `WriteableBitmap`/`DrawingContext`) lives in `Kivi.App` |
+| `packages/design-tokens` | **`Kivi.Core/DesignTokens/*`** (`Kivi.Core.DesignTokens`) | generated token values; surfaced as WPF XAML `ResourceDictionary` theme dictionaries in `Kivi.App/Themes/*` |
 | `packages/planner` | **`Kivi.Core/Planner/*`** (`Kivi.Core.Planner`) | `PasteBoundaryPlanner`, `DictationInsertionPlanner`, `DictationJoinRewritePlanner` |
 | `src/main/wire` | **`Kivi.Core/Wire/*`** (`Kivi.Core.Wire`) | `KiviServiceClient` (`ClientWebSocket`), `WireModels`, `Endpoints`, `DictationBudgets` |
 | REST client | **`Kivi.Core/Rest/*`** (`Kivi.Core.Rest`) | `KiviRestClient` (`HttpClient`) |
 | `src/preload` + IPC contracts (`src/shared`) | **`Kivi.Core/Contracts/*`** (`Kivi.Core.Contracts`) | in-process interfaces/DTOs — **no IPC bus** (one process, `async`/`await` + events) |
 | `src/main` OS-coupled (`platform/*`) | **`Kivi.Platform/*`** (`Kivi.Platform.Hotkey`, `.Paste`, `.Frontmost`, `.Overlay`, `.Tray`, `.Audio`, `.Secrets`, `.Auth`) | Windows-native seams, rebuilt from scratch |
 | `src/main` lifecycle/window orchestration | **`Kivi.App`** (host) | DI composition root, app lifetime, window orchestration, `DictationOrchestrator` |
-| `src/renderer` (React/Canvas) | **`Kivi.App/Views/*` + `Kivi.App/ViewModels/*`** | XAML + MVVM; orb/box drawn with Win2D (`Microsoft.Graphics.Canvas`) / Composition |
+| `src/renderer` (React/Canvas) | **`Kivi.App/Views/*` + `Kivi.App/ViewModels/*`** | WPF XAML + MVVM; orb/box drawn on a WPF-hosted 2D surface (Win2D or `WriteableBitmap`/`DrawingContext`), per-frame tick via `CompositionTarget.Rendering` |
 | `test/golden-frames` | **`Kivi.Core.Tests`** | golden-frame oracle consumers |
 
 Sub-namespace names may be refined during implementation, but the module boundaries above are fixed.
@@ -75,8 +75,8 @@ window surfaces, one tray.
 
 | Surface | Window model | Owns | Electron analog |
 |---|---|---|---|
-| **Orb overlay** | **Native layered / Composition window**: always-on-top, `WS_EX_NOACTIVATE` + `WS_EX_TOPMOST` + `WS_EX_TOOLWINDOW`, click-through toggled by hit-testing the cursor against the published interactive-region rect. Drawn via `UpdateLayeredWindow` (or DirectComposition) — WinUI cannot host a truly transparent, non-activating window. | Renders `FlowFrame`; hosts the `FlowEngine` (see 2.2) | transparent `BrowserWindow` (`focusable:false`, `setIgnoreMouseEvents`), `syncCursorState` |
-| **Main window** | Normal WinUI 3 window, custom title bar (drag region + own window controls), 1180×760 default, min 980×640, hidden until ready | Settings + pages | normal `BrowserWindow` (`titleBarStyle` custom) |
+| **Orb overlay** | **Native Win32 layered window** (`UpdateLayeredWindow`) with an invisible WPF host window for lifetime: always-on-top, `WS_EX_NOACTIVATE` + `WS_EX_TOPMOST` + `WS_EX_TOOLWINDOW`, click-through toggled by hit-testing the cursor against the published interactive-region rect. Drawn via `UpdateLayeredWindow` (premultiplied ARGB) — a WPF transparent window cannot give a truly non-activating, per-pixel-alpha overlay, and WPF↔Win32 interop is seamless. | Renders `FlowFrame`; hosts the `FlowEngine` (see 2.2) | transparent `BrowserWindow` (`focusable:false`, `setIgnoreMouseEvents`), `syncCursorState` |
+| **Main window** | Normal WPF `Window`, custom title bar (drag region + own window controls), 1180×760 default, min 980×640, hidden until ready | Settings + pages | normal `BrowserWindow` (`titleBarStyle` custom) |
 | **Tray popover** | Windows notification-area (`NotifyIcon`) + a frameless always-on-top popover window positioned near the tray, hide-on-deactivate | quick dictate / history / settings | `Tray` + frameless `BrowserWindow` |
 
 Resident-agent model: the process has **no taskbar button for the orb** (tool-window
@@ -129,18 +129,20 @@ final ──▶ PasteService (clipboard + synth Ctrl+V into frontmost captured a
 | Choice | Version | Reason |
 |---|---|---|
 | **.NET** | .NET 8 (LTS) | Current LTS; `ClientWebSocket`, WASAPI interop, DPAPI, `System.Text.Json` all first-class. |
-| **UI framework** | **WinUI 3 / Windows App SDK** | Modern XAML, Composition, DPI-correct, matches "our default" for a native Windows app. (The orb overlay itself is a **native layered window**, not a WinUI surface — see §2.1 and the `orb-is-a-chip` memo.) |
+| **UI framework** | **WPF on .NET 8 (`net8.0-windows`, `<UseWPF>true</UseWPF>`)** | XAML + MVVM, DPI-correct, per-frame render loop via `CompositionTarget.Rendering`, seamless Win32 interop, no Windows App SDK / extra runtime, already installed. Chosen over WinUI 3 for lower latency on a heavily custom-drawn, per-frame-animated app and better transparent/layered-window handling — a deliberate T3/T1 divergence from a naive "newest MS stack" default (see the WinUI→WPF decision note below). (The orb overlay itself is a **native Win32 layered window**, not a WPF surface — see §2.1 and the `orb-is-a-chip` memo.) |
 | **MVVM** | `CommunityToolkit.Mvvm` | Source-generated observable properties/commands; the pure structs port cleanly. |
-| **Orb / canvas drawing** | **Win2D (`Microsoft.Graphics.Canvas`)** + Composition | Port the Canvas *algorithm* (kiwi mark, orb surface layers, record flight) — the math is self-contained; not the Canvas API calls. |
+| **Orb / canvas drawing** | **WPF-hosted 2D surface**: Win2D (`Microsoft.Graphics.Canvas`, works in WPF) or `WriteableBitmap`/`DrawingContext`/GDI+ | Port the Canvas *algorithm* (kiwi mark, orb surface layers, record flight) — the math is self-contained; not the Canvas API calls. Exact 2D API is an implementation choice for the ui-fidelity phase. |
 | **STT socket** | `System.Net.WebSockets.ClientWebSocket` | Sets `Authorization` + `X-Client-*` upgrade headers, exposes upgrade status. |
 | **REST** | `System.Net.Http.HttpClient` | The REST surface (edit, personas, telemetry). |
 | **Audio** | **WASAPI** via `NAudio` (or thin CsWin32 interop) | Capture → resample to 16 k Int16 mono (continuous resampler state). |
 | **Secrets** | **DPAPI** (`System.Security.Cryptography.ProtectedData`) or Windows Credential Manager | Token/JWT + per-install AES key. |
 | **DI** | `Microsoft.Extensions.DependencyInjection` + `.Hosting` | Interface-based services; composition root in `Kivi.App` (T4). |
 | **Persistence** | `Microsoft.Data.Sqlite` + `System.Text.Json` | History store + settings/style cache. |
-| **Tokens** | generated C# `DesignTokens` + XAML `ResourceDictionary` | Values from the reference `packages/design-tokens`. |
-| **Tests** | **xUnit** + **WinAppDriver**/Appium (UI) + an image-diff lib | unit / golden-frame / e2e / screenshot-diff. |
-| **Installer / update** | see `RELEASE.md` (MSIX or WiX/MSI + a Windows updater) | Packaging + auto-update. |
+| **Tokens** | generated C# `DesignTokens` + WPF XAML `ResourceDictionary` theme dictionaries | Values from the reference `packages/design-tokens`. |
+| **Tests** | **xUnit** + a WPF UI-automation driver (WinAppDriver/Appium/FlaUI) + an image-diff lib | unit / golden-frame / e2e / screenshot-diff. |
+| **Installer / update** | see `RELEASE.md` (`dotnet publish` → MSIX or MSI/installer + a Windows updater) | Packaging + auto-update. |
+
+> **UI-framework decision (WinUI 3 → WPF).** The UI is **WPF on .NET 8**, not WinUI 3 / Windows App SDK. Rationale: WPF is snappier/lower-latency for this heavily custom-drawn, per-frame-animated app, handles transparent/layered windows better with seamless Win32 interop (the native layered orb is unchanged and now even more consistent), needs no extra runtime, and is already installed. This is a deliberate tripwire-T3/T1 divergence from a naive "adopt the newest Microsoft stack" default — chosen for latency and pixel-fidelity. Only the UI-framework identity changes; the `Kivi.Core`/`Kivi.Platform`/`Kivi.App`/`Kivi.Core.Tests` mapping is unchanged (`Kivi.App` is a WPF app).
 
 **Not needed / dropped from the Electron template's dependency list:** all `@ai-sdk/*`,
 sherpa/onnx/whisper, tiptap, i18next, diarization (we have `kivi-service`); `ffmpeg-static`
@@ -164,7 +166,7 @@ never platform-specific. (The full macOS→Windows/.NET capability table lives i
 | 3 | **Paste into app** — clipboard + synth ⌘V / SendInput Ctrl+V | Clipboard + synth **Ctrl+V** via `SendInput`; **release held modifiers first** (PTT means Ctrl may be down); detect terminal → Ctrl+Shift+V (best-effort + manual override); **paste without re-foregrounding** (orb non-activating so target never lost focus — avoids restricted `SetForegroundWindow`, R6). Restore clipboard after confirmed paste. Newline = literal line break, **never** synth Return. Port `PasteBoundaryPlanner` + `DictationJoinRewritePlanner`. |
 | 4 | **AX range replace (edit mode)** | UI Automation `ValuePattern`/`TextPattern` — **deferred to M9.** v1 uses Ctrl+A select-all + paste-whole-field only (documented parity gap: corrupts multi-field/partial-selection edits). |
 | 5 | **Secure-field gate** — `IsSecureEventInputEnabled` | Best-effort password-field detect via UIA; no clipboard write / no paste in secure fields → keep text in orb with a copy affordance. |
-| 6 | **Transparent click-through overlay** — `NSPanel` / transparent `BrowserWindow` | **Native layered / Composition window**, always-on-top, `WS_EX_NOACTIVATE` (true non-activation), click-through toggled by publishing the interactive-region rect on geometry change + hit-testing `GetCursorPos` against it. (Orb display-only through M3.) |
+| 6 | **Transparent click-through overlay** — `NSPanel` / transparent `BrowserWindow` | **Native Win32 layered window** (`UpdateLayeredWindow`, invisible WPF host for lifetime), always-on-top, `WS_EX_NOACTIVATE` (true non-activation), click-through toggled by publishing the interactive-region rect on geometry change + hit-testing `GetCursorPos` against it. (Orb display-only through M3.) |
 | 7 | **Mic + AEC** — AUHAL/VPIO / `getUserMedia` WebRTC APM | **WASAPI** capture → resample to 16 k Int16 mono (continuous resampler state). Enable the WASAPI voice-communication capture category (OS AEC/NS where the device supports it). Full system-audio AEC has no built-in analog — ship without it for MVP (documented gap, R2). |
 | 8 | **Secrets** — Keychain / `safeStorage` | **DPAPI** (`ProtectedData`) or Windows Credential Manager. The mint flow (`POST auth.sarvam.ai/api/v2/auth/jwt`, `X-Session-Token`, `{token,expires_at}`) is pure HTTP and ports unchanged. |
 | 9 | **Screen/AX context enrichment** | Windows **UI Automation** — **deferred to M9** (all such wire fields are optional; server degrades). Preserve secure-field redaction when built. |
@@ -172,10 +174,10 @@ never platform-specific. (The full macOS→Windows/.NET capability table lives i
 | 11 | **STT socket** — Node `ws` with upgrade headers | `System.Net.WebSockets.ClientWebSocket` (sets `Authorization` + `X-Client-*` upgrade headers; a WebView socket can't — this is why it must not live in a WebView). |
 | 12 | **OAuth callback** — `kivi://` scheme / Electron `second-instance` argv | Loopback `http://127.0.0.1:<port>/callback` (`HttpListener`) — handles Kratos `?code=` and Supabase `#fragment` uniformly; robust vs custom-scheme delivery. |
 | 13 | **Launch-at-login** — `SMAppService` / `setLoginItemSettings` | Registry `Run` key (`HKCU\...\Run`) or a Startup shortcut. |
-| 14 | **Auto-update** — Sparkle / electron-updater | A Windows updater (MSIX auto-update or Squirrel/Velopack-style) — decided in M8 / `RELEASE.md`. |
+| 14 | **Auto-update** — Sparkle / electron-updater | A Windows updater (MSIX auto-update or a Squirrel/Velopack-style feed) — decided in M8 / `RELEASE.md`. |
 | 15 | **Electron IPC / preload / contextBridge** | In-process C# calls, `async`/`await`, events (T2). **No IPC bus.** |
-| 16 | **React component / JSX** | XAML + MVVM view (T3). |
-| 17 | **Canvas 2D drawing** | Win2D / `Microsoft.Graphics.Canvas` or Composition — port the drawing **algorithm**, not the API calls. |
+| 16 | **React component / JSX** | WPF XAML + MVVM view (T3). |
+| 17 | **Canvas 2D drawing** | WPF-hosted 2D surface — Win2D (`Microsoft.Graphics.Canvas`) or `WriteableBitmap`/`DrawingContext` — port the drawing **algorithm**, not the API calls. |
 | 18 | **Fonts: Matter, Matter Mono, Season Mix** | **License-blocked (proprietary, uncleared)** — dev-only for parity; ship the documented fallback stacks. **Space Grotesk** (OFL) is shippable. |
 
 **Anything marked DEFERRED or a v1 non-goal in `FEATURE-PARITY.md` / this doc §1 stays
@@ -210,18 +212,18 @@ Kivi.sln
 │  ├─ Hotkey/       LowLevelKeyboardHookService (WH_KEYBOARD_LL, dedicated thread + pump)
 │  ├─ Paste/        SendInputPasteService (Ctrl+V, modifier-release, terminal detect)
 │  ├─ Frontmost/    ForegroundAppResolver (GetForegroundWindow + exe path)
-│  ├─ Overlay/      LayeredOrb (UpdateLayeredWindow / Composition), click-through toggle
+│  ├─ Overlay/      LayeredOrb (native Win32 UpdateLayeredWindow + invisible WPF host), click-through toggle
 │  ├─ Audio/        WasapiCapture → 16k Int16 mono resampler
 │  ├─ Secrets/      DpapiSecretStore
 │  ├─ Tray/         NotifyIcon tray + popover host
 │  └─ Auth/         loopback OAuth listener, JWT mint
-├─ Kivi.App/                          # WinUI host + composition root + views
+├─ Kivi.App/                          # WPF host + composition root + views
 │  ├─ App.xaml(.cs)  DI container, app lifetime, window orchestration
 │  ├─ DictationOrchestrator.cs        hotkey→connect→capture→final→paste (was OrbHost)
 │  ├─ Views/        XAML pages (Record/History/Personas/Settings/…), orb host
 │  ├─ ViewModels/   MVVM (CommunityToolkit)
-│  ├─ Drawing/      Win2D ports (KiwiMark draw, orb surface, record flight, wedge box)
-│  └─ Themes/       XAML ResourceDictionaries generated from DesignTokens
+│  ├─ Drawing/      WPF 2D ports — Win2D or WriteableBitmap/DrawingContext (KiwiMark draw, orb surface, record flight, wedge box)
+│  └─ Themes/       WPF XAML ResourceDictionaries generated from DesignTokens
 └─ Kivi.Core.Tests/                   # xUnit: golden-frame oracle, wire parity, classifier, planner
    └─ (consumes _reference/.../test/golden-frames/*.json)
 ```
@@ -331,7 +333,7 @@ renders nothing, segment-by-index, formatting-progress budget) so locked states 
 
 ### M5 — Main window shell + pages (~2–3 weeks)
 
-WinUI main window (custom title-bar drag strip + own window controls), rail (264⇄76, Ctrl+\),
+WPF main window (custom title-bar drag strip + own window controls), rail (264⇄76, Ctrl+\),
 Canon canvas + PaperGrain + ConstellationField. Port hand-drawn SVG icon paths verbatim to
 XAML `PathGeometry` (`RailIcon`, `HistoryGlyph`, `KiviInkArrow`, `PixelKiwi`). Pages in
 priority order: Record → History (SQLite) → Settings → then
@@ -362,9 +364,10 @@ no Accessibility trust gate). Tray popover with discrete state frames.
 
 ### M8 — Packaging, signing, auto-update (~1.5 weeks)
 
-.NET publish → **MSIX (or WiX/MSI)** installer; **EV code-signing** (hook/inject binaries
-signed early for SmartScreen reputation); the Windows updater (MSIX auto-update or a
-Squirrel/Velopack-style feed) — see `RELEASE.md`. Launch-at-login (registry `Run` key /
+`dotnet publish` (framework-dependent or self-contained) → **MSIX (or MSI/WiX installer)**;
+**EV code-signing** (hook/inject binaries signed early for SmartScreen reputation); the
+Windows updater (MSIX auto-update or a Squirrel/Velopack-style feed) — see `RELEASE.md`.
+Launch-at-login (registry `Run` key /
 Startup shortcut). Windows `.ico` generated from the one image asset.
 
 ### M9 — Deferred hard tier
@@ -444,7 +447,7 @@ Electron plan are **removed** (no such target).
 | R17 | high | Wire-on-loopback assumptions; upgrade-status handling. | `ClientWebSocket` reads the HTTP upgrade status (401/403 vs drop); local loopback is anonymous (`DICTATE_AUTH_MODE=none`); LAN-anonymous only holds for 127.0.0.1/localhost/::1. |
 | R18 | med | Branch-per-platform anti-pattern. | **Removed — not applicable.** One solution, one Windows target, seams behind interfaces. |
 | R19 | med | "Fantasy bucket" that collapses weeks into one milestone. | Exploded into M5–M8 (pages / personas / auth+onboarding+tray / packaging) with per-milestone estimates. |
-| R20 | med | Non-activating window not truly non-activating on Windows. | `WS_EX_NOACTIVATE` on a native layered window (not WinUI); integration harness asserts host focus retention. |
+| R20 | med | Non-activating window not truly non-activating on Windows. | `WS_EX_NOACTIVATE` on a native Win32 layered window (not a WPF transparent window); integration harness asserts host focus retention. |
 | R21 | med | Postgres treated as optional. | Hard M0 prerequisite; `LOAD_TEST_MODE=synthetic` bypasses Sarvam/Gemini only, not the DB (service exits 78). |
 | R22 | med | Clipboard has no `changeCount`/transient UTI → history poller ingests our own writes; multi-type restore. | In-process "we-just-wrote-this" guard keyed on the exact string; multi-type restore best-effort; rich custom types degrade to plain text (M9). |
 | R23 | med | App-identity convention unsequenced cross-team dependency. | Raised with backend in M1; lands in M6 with personas; let it be null where unresolvable (server tolerates). |

@@ -37,7 +37,7 @@ the single most important porting fact.
 | 6 | **Clipboard read/write** (multi-type, snapshot/restore, transient tagging) | `NSPasteboard.general` + `changeCount`, custom UTIs, `org.nspasteboard.TransientType` | **`System.Windows.Forms.Clipboard` / WinRT `Clipboard`**; snapshot → write → paste → restore. | Windows clipboard has **no `changeCount`** and **no transient UTI** → replace with an **in-process "we-just-wrote-this" guard** keyed on the exact string; rich custom types (Slack Quill delta) degrade to plain text unless a native clipboard helper is added (M9). |
 | 7 | **Screen/selection context** (AX tree, focused field) | `AXUIElementCreateSystemWide`, `kAXFocusedUIElementAttribute`, `AXTreeDumper` | **UI Automation** tree walk + `EnumWindows`/`GetWindowRect` | Very heavy. **Defer entirely for MVP/v1** (M9); server tolerates absence exactly as macOS did when AX was ungranted. Preserve secure-field redaction when built. |
 | 8 | **Secure credential storage** (JWT, refresh, per-install AES key) | Keychain `SecItem*`, data-protection, access group | **DPAPI** (`System.Security.Cryptography.ProtectedData`, `CurrentUser`) to a file, or **Windows Credential Manager** | Clean swap. No cross-app "access group" concept — not needed for a standalone app. Keep AES-GCM per-install key (DPAPI-protected) for retained audio. |
-| 9 | **Transparent, click-through, always-on-top overlay** (the orb) | `NSPanel` `[.borderless,.nonactivatingPanel]`, `level=.statusBar`, `ignoresMouseEvents`, `canJoinAllSpaces` | **Native layered / Composition window**: `WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_TOOLWINDOW`, drawn via `UpdateLayeredWindow`/DirectComposition; click-through via `WS_EX_TRANSPARENT` toggled per-tick | `WS_EX_NOACTIVATE` gives true non-activation (the overlay never steals host keyboard focus — the crux). WinUI can't host a transparent non-activating window → native layered window (see the `orb-is-a-chip` memo). DWM composition (transparency) is always on for modern Windows. |
+| 9 | **Transparent, click-through, always-on-top overlay** (the orb) | `NSPanel` `[.borderless,.nonactivatingPanel]`, `level=.statusBar`, `ignoresMouseEvents`, `canJoinAllSpaces` | **Native Win32 layered window** (invisible WPF host for lifetime): `WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_TOOLWINDOW`, drawn via `UpdateLayeredWindow` (premultiplied ARGB); click-through via `WS_EX_TRANSPARENT` toggled per-tick | `WS_EX_NOACTIVATE` gives true non-activation (the overlay never steals host keyboard focus — the crux). A WPF transparent window can't be truly non-activating → native Win32 layered window with an invisible WPF host (see the `orb-is-a-chip` memo); WPF↔Win32 interop is seamless. DWM composition (transparency) is always on for modern Windows. |
 | 10 | **Audio capture + echo cancellation** | CoreAudio AUHAL / VPIO (`setVoiceProcessingEnabled`) | **WASAPI** (`IAudioClient`, via NAudio/CsWin32) + resample to 16 kHz Int16 mono LE. Enable the WASAPI voice-communication capture category for mic-path AEC/NS where the device supports it. | Mic-path only — **NOT** system-audio AEC parity (R2); full system-audio AEC (WASAPI-loopback → APM) deferred M9. Must resample native→16 k and pack Int16 mono LE (continuous resampler state, R10). |
 | 11 | **Mic permission** | `AVCaptureDevice.requestAccess(.audio)` + usage string + entitlement | Windows mic-privacy model (Settings ▸ Privacy ▸ Microphone). Detect denial via a capture-open failure; deep-link `ms-settings:privacy-microphone`. | No in-app grant prompt API like macOS; the capture attempt surfaces it. If packaged (MSIX), declare the microphone capability. |
 | 12 | **Accessibility permission** (post events / read AX) | TCC via `AXIsProcessTrusted()` | **❌ NO EQUIVALENT GATE.** `SendInput`/`WH_KEYBOARD_LL`/UI Automation work without any trust gate (UAC only matters for injecting into elevated targets). | The whole permission-probe/self-heal UX largely **disappears** on Windows. Drop it. |
@@ -138,13 +138,13 @@ panelSize = 1480×720; orbEdgeInset = 24
 ```
 This **non-activating, focus-preserving** behavior is what lets dictated text land in the host app.
 
-**Port (`Kivi.Platform.Overlay`):** a **native layered / Composition window**:
+**Port (`Kivi.Platform.Overlay`):** a **native Win32 layered window** (invisible WPF host for lifetime):
 ```
 WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_TOOLWINDOW  (+ WS_POPUP)
-drawn via UpdateLayeredWindow (premultiplied ARGB) or DirectComposition
+drawn via UpdateLayeredWindow (premultiplied ARGB)
 click-through: WS_EX_TRANSPARENT toggled per-tick from the geometric hit-test
 ```
-- **`WS_EX_NOACTIVATE`** gives true non-activation — clicking the orb never steals focus (the `.nonactivatingPanel` contract). WinUI/XAML **cannot** host a truly transparent non-activating window — hence the native layered window (an invisible WinUI anchor window holds lifetime; see the `orb-is-a-chip` memo). (R20.)
+- **`WS_EX_NOACTIVATE`** gives true non-activation — clicking the orb never steals focus (the `.nonactivatingPanel` contract). A WPF transparent window **cannot** be truly non-activating — hence the native Win32 layered window (an invisible WPF host window holds lifetime, and WPF↔Win32 interop is seamless; see the `orb-is-a-chip` memo). (R20.)
 - Always-on-top via `WS_EX_TOPMOST` + `SetWindowPos(HWND_TOPMOST)`.
 - No cross-Space concept; the window floats on the current desktop.
 - Per-frame `WS_EX_TRANSPARENT` toggling from the hover-classifier hit-test (`FlowFrame.InteractiveTarget`) — the port of `syncCursorState` (poll `GetCursorPos`).
@@ -192,7 +192,7 @@ Primary source: the reference `packages/design-tokens` (orb + KDS/Canon). Concre
 - **Type** — Matter (300–700), Matter SemiMono, Space Grotesk (static 400/500/600/700). Embed the woff2/otf. Role sizes: body `13`, hint `11`, hint2 10.5, keycap `11`, tx-key `9.5`.
 - **Motion** — **wake lerp `0.30`** *(RESOLUTION: this quick-reference historically said `0.20`; the current engine uses `0.30` — trust `0.30`)*, expand `0.18`, breath period `2.6 s`, dots `600 ms`, processing `2000 ms`, diff `520/1050/620 ms`, hover in/out `44/54 px`. Gesture timing: `holdMs 420`, `doubleTapMs 450`, `longHoldMs 600`.
 
-Win2D `filter`/blur, `PathGeometry`, and embedded fonts reproduce all of this exactly; the paper
+A WPF-hosted 2D surface (Win2D or `WriteableBitmap`/`DrawingContext`) with blur effects, `PathGeometry`, and embedded fonts reproduces all of this exactly; the paper
 grain is a tiled deterministic noise texture (`orb-visual-and-box.md §3`). (Full: `design-tokens.md`,
 `orb-visual-and-box.md`.)
 
@@ -205,7 +205,7 @@ grain is a tiled deterministic noise texture (`orb-visual-and-box.md §3`). (Ful
 3. **TCC Accessibility** — **no equivalent gate on Windows** (`SendInput`/hooks/UIA just work). The self-healing permissions UX collapses; the only permission is Microphone.
 4. **AX tree + focused-field capture** — deeply macOS-specific, powers only *optional* screen context → **defer** (M9, UI Automation). Server tolerates absence.
 5. **AX range-level text replacement** (edit mode) → UI Automation `TextPattern`/`ValuePattern`, deferred M9. MVP + v1 = select-all + paste.
-6. **Non-activating overlay window** (`.nonactivatingPanel`, `.statusBar`, click-through, focus-preserving) → a native layered/Composition window with `WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW` + per-frame `WS_EX_TRANSPARENT` toggle. WinUI can't host it directly → native layered window (`orb-is-a-chip` memo).
+6. **Non-activating overlay window** (`.nonactivatingPanel`, `.statusBar`, click-through, focus-preserving) → a native Win32 layered window with `WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW` + per-frame `WS_EX_TRANSPARENT` toggle. A WPF transparent window can't be truly non-activating → native Win32 layered window with an invisible WPF host (`orb-is-a-chip` memo).
 7. **Transparency** — DWM composition is always on for modern Windows; the transparent layered orb renders correctly (no compositor detection needed, unlike Linux X11).
 8. **Keychain access-group + legacy carryover** → unnecessary; **DPAPI** (`ProtectedData`) or Credential Manager.
 9. **Audio/AEC** — WASAPI capture + resample to 16 kHz Int16 mono LE (continuous state); voice-communication capture category for mic-path AEC. System-audio AEC deferred M9.

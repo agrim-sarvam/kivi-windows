@@ -20,7 +20,7 @@ The behaviors the .NET windows must reproduce (from the reference orb + macOS so
 
 **Orb overlay** — a transparent, borderless, **non-activating, always-on-top** window:
 - `WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_TOOLWINDOW` (+ `WS_POPUP`) — frameless, never-activating, always-on-top, no taskbar button.
-- Drawn via `UpdateLayeredWindow` (premultiplied ARGB) or **DirectComposition** → true transparency, no window shadow.
+- Drawn via `UpdateLayeredWindow` (premultiplied ARGB) → true per-pixel transparency, no window shadow (a native Win32 layered window with an invisible WPF host for lifetime).
 - Click-through by default (`WS_EX_TRANSPARENT`); the window **only accepts keyboard focus** while editing the box (M4), otherwise the frontmost app keeps focus so dictated text lands *there* (the `.nonactivatingPanel` contract).
 - Canvas is a fixed logical `1480×720` (`.base` envelope; `.maxi` = 1880×1760); orb centre inset `24` from the screen edge; the window is bigger than the visible orb.
 
@@ -41,9 +41,11 @@ keyboard hook — the hardest thing to port (see §6).
 
 ## 1. Recommended project structure
 
-**Build harness: the .NET SDK** (`dotnet build`/`publish`) with a **WinUI 3 / Windows App SDK**
-app. There is no bundler like electron-vite — MSBuild + XAML compilation is the pipeline. Renderer
-stack: **WinUI 3 XAML + MVVM (CommunityToolkit.Mvvm) + Win2D** for the code-drawn orb.
+**Build harness: the .NET SDK** (`dotnet build`/`publish`) with a **WPF app on .NET 8
+(`net8.0-windows`, `<UseWPF>true</UseWPF>`)** — no Windows App SDK dependency. There is no bundler
+like electron-vite — MSBuild + XAML compilation is the pipeline. Renderer stack: **WPF XAML + MVVM
+(CommunityToolkit.Mvvm)** with the code-drawn orb on a WPF-hosted 2D surface (Win2D or
+`WriteableBitmap`/`DrawingContext`) and a `CompositionTarget.Rendering` per-frame tick.
 
 ```
 Kivi.sln
@@ -54,17 +56,17 @@ Kivi.sln
 │  └─ Contracts/ (IHotkeyService, IPasteService, IOverlayHost, IAudioCapture, ISecretStore, ITrayHost, DTOs)
 ├─ Kivi.Platform/                # Windows-native seams (implement Kivi.Core.Contracts)
 │  ├─ Hotkey/  Paste/  Frontmost/  Overlay/  Audio/  Secrets/  Tray/  Auth/
-├─ Kivi.App/                     # WinUI host + composition root + views
+├─ Kivi.App/                     # WPF host + composition root + views
 │  ├─ App.xaml(.cs)              # DI container, app lifetime, window orchestration
 │  ├─ DictationOrchestrator.cs   # hotkey→connect→capture→final→paste (the OrbHost analog)
-│  ├─ Views/  ViewModels/  Drawing/ (Win2D)  Themes/ (XAML from DesignTokens)
+│  ├─ Views/  ViewModels/  Drawing/ (Win2D or WriteableBitmap/DrawingContext)  Themes/ (WPF XAML from DesignTokens)
 ├─ Kivi.Core.Tests/             # xUnit: golden-frame, wire parity, classifier, planner
 ├─ build/                        # icon assets, installer inputs (entitlements have no analog)
 └─ resources/                    # the one image asset → .ico + MSIX logo assets
 ```
 
 Key structural rules:
-- **One window per surface** (orb layered window / main WinUI window / tray popover) — each has different constructor-time flags (the orb needs the layered/no-activate `WS_EX_*`; the main window is normal chrome). Don't reuse one window.
+- **One window per surface** (orb layered window / main WPF window / tray popover) — each has different constructor-time flags (the orb needs the layered/no-activate `WS_EX_*`; the main window is normal chrome). Don't reuse one window.
 - **The app is the single source of truth** for window lifecycle, tray, the global hook, and the STT socket. Views are pure layers over injected state.
 - **No IPC, no preload, no `contextBridge`** — the Electron main↔renderer boundary collapses to in-process `async`/`await` + events + DI-injected interfaces (T2). This is a strict simplification.
 
@@ -73,9 +75,10 @@ Key structural rules:
 ## 2. The three windows — concrete configs
 
 ### Orb overlay (transparent, always-on-top, click-through) — `Kivi.Platform.Overlay`
-A **native layered / Composition window** (NOT a WinUI surface — WinUI cannot host a truly
-transparent, non-activating window; see the `orb-is-a-chip` memo). An invisible WinUI anchor window
-can hold app/lifetime; the orb itself is drawn with `UpdateLayeredWindow` / DirectComposition.
+A **native Win32 layered window** (NOT a WPF surface — a WPF transparent window cannot host a truly
+per-pixel-alpha, non-activating overlay; see the `orb-is-a-chip` memo). An invisible WPF anchor window
+holds app/lifetime; the orb itself is drawn with `UpdateLayeredWindow` (premultiplied ARGB), and
+WPF↔Win32 interop is seamless.
 ```
 extended styles: WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT
 style:           WS_POPUP (frameless)
@@ -86,10 +89,10 @@ always-on-top:   SetWindowPos(HWND_TOPMOST, SWP_NOACTIVATE)
 - **Dynamic click-through:** a `~16–33 ms` timer in the app reads `GetCursorPos`, compares to the orb bounds + the current hit-region (`FlowFrame.InteractiveTarget`), and toggles `WS_EX_TRANSPARENT` via `SetWindowLong`. This mirrors the macOS `NSEvent.mouseLocation` poll. (No `forward`-mouse-events dependency — the poll is authoritative and load-bearing.)
 - For the editable-box case (M4), temporarily clear `WS_EX_NOACTIVATE` + focus the window, then revert on blur.
 
-### Main window (normal) — WinUI 3
-A standard WinUI 3 `Window`, 1180×760 default, min 980×640, hidden until ready. Custom title bar via
-`ExtendsContentIntoTitleBar` + `SetTitleBar(dragRegion)` and your own window controls; the drag strip
-replaces `-webkit-app-region: drag`.
+### Main window (normal) — WPF
+A standard WPF `Window`, 1180×760 default, min 980×640, hidden until ready. Custom title bar via
+`WindowChrome` (`WindowStyle=None` + a custom caption/drag region) and your own window controls; the
+drag strip replaces `-webkit-app-region: drag`.
 
 ### Tray — `Kivi.Platform.Tray`
 A Windows notification-area icon (Shell_NotifyIcon interop / a tray helper) + a frameless popover
@@ -127,12 +130,12 @@ main/renderer is simply in-process here.
 
 ```powershell
 dotnet build Kivi.sln -c Debug          # compile
-dotnet run --project Kivi.App           # launch (WinUI 3 packaged/unpackaged)
+dotnet run --project Kivi.App           # launch (WPF app)
 dotnet test Kivi.Core.Tests             # unit + golden-frame + wire-parity gate
 dotnet build -t:Publish Kivi.App -c Release   # publish payload for packaging
 ```
 - **Run/iterate:** `dotnet run` / F5 in Visual Studio; XAML Hot Reload for the view layer.
-- **Testing:** unit/logic with **xUnit** (the engine + wire + planner are pure — fast, headless). UI e2e via **WinAppDriver**/Appium — it can drive the WinUI window, assert on the visual tree, and screenshot for the side-by-side visual-parity gate against the running Electron app. The **geometry classifier** is tested in isolation (a pure function) plus a view-level interactive-region test (OS-level click-through is validated by the integration harness, not the UI driver).
+- **Testing:** unit/logic with **xUnit** (the engine + wire + planner are pure — fast, headless). UI e2e via a WPF UI-automation driver (**WinAppDriver**/Appium/FlaUI over UI Automation) — it can drive the WPF window, assert on the visual tree, and screenshot for the side-by-side visual-parity gate against the running Electron app. The **geometry classifier** is tested in isolation (a pure function) plus a view-level interactive-region test (OS-level click-through is validated by the integration harness, not the UI driver).
 - **Local backend:** point the app's STT client at the same local `kivi-service` (`ws://127.0.0.1:8788`). No change to the service.
 - **Signing:** see §5. (There is no macOS notarization — no mac target.)
 
@@ -169,15 +172,18 @@ Ctrl+V (see `platform-coupling-audit.md §3`, `dictation-audio-pipeline.md §8`)
 
 ## 7. Transparent / frameless / always-on-top gotchas (Windows)
 
-**View stack decision:** WinUI 3 + MVVM + Win2D — the UI is a XAML tree (orb states, flow, settings
-pages mirroring the reference views), design tokens port to XAML theme dictionaries + generated C#
-constants, XAML Hot Reload makes the visual-parity loop fast, and WinAppDriver gives the screenshot
-gate. **The orb itself is a native layered window, not WinUI** — WinUI can't do a transparent
-non-activating window.
+**View stack decision:** WPF (.NET 8) + MVVM, with the orb drawn on a WPF-hosted 2D surface (Win2D or
+`WriteableBitmap`/`DrawingContext`) — the UI is a XAML tree (orb states, flow, settings pages
+mirroring the reference views), design tokens port to WPF `ResourceDictionary` theme dictionaries +
+generated C# constants, XAML Hot Reload makes the visual-parity loop fast, and a UI-automation driver
+gives the screenshot gate. **The orb itself is a native Win32 layered window, not a WPF surface** — a
+WPF transparent window can't give a truly non-activating, per-pixel-alpha overlay (and WPF↔Win32
+interop is seamless). WPF was chosen over WinUI 3 for lower latency on this custom-drawn,
+per-frame-animated app and better transparent/layered-window handling.
 
 Platform behavior:
-- **Transparency** — a **layered window** (`WS_EX_LAYERED` + `UpdateLayeredWindow`) or DirectComposition gives true per-pixel alpha; DWM composition is always on for modern Windows (no compositor detection needed). WinUI's own `Window` transparency is limited — hence the native layered window for the orb.
-- **No window shadow / no rounded corners** — a layered window draws exactly what you composite; control corners in your own drawing (Win2D).
+- **Transparency** — a **layered window** (`WS_EX_LAYERED` + `UpdateLayeredWindow`) gives true per-pixel alpha; DWM composition is always on for modern Windows (no compositor detection needed). WPF's own `AllowsTransparency` window is a per-pixel-alpha surface but cannot be truly non-activating — hence the native Win32 layered window for the orb.
+- **No window shadow / no rounded corners** — a layered window draws exactly what you composite; control corners in your own drawing (the 2D surface).
 - **Always-on-top** — `WS_EX_TOPMOST` + `SetWindowPos(HWND_TOPMOST, …, SWP_NOACTIVATE)`. It can still sit under a truly exclusive-fullscreen app; acceptable for the orb.
 - **Non-activating** — `WS_EX_NOACTIVATE` keeps host keyboard focus (the crux; R20). Verify with the integration harness (type into a target while the orb is visible → keystrokes land in the target).
 - **Click-through** — toggle `WS_EX_TRANSPARENT` per-tick from the geometric hit-test (`GetCursorPos` poll). No `forward`-mouse dependency.
@@ -192,7 +198,7 @@ Platform behavior:
 | `NSPanel .borderless/.nonactivatingPanel` | native layered window `WS_POPUP` + `WS_EX_NOACTIVATE` |
 | `isFloatingPanel`, `level=.statusBar` | `WS_EX_TOPMOST` + `SetWindowPos(HWND_TOPMOST, SWP_NOACTIVATE)` |
 | `collectionBehavior canJoinAllSpaces/fullScreenAuxiliary` | *(no analog — single desktop; always-on-top only)* |
-| `isOpaque=false`+`backgroundColor=.clear` | `WS_EX_LAYERED` + `UpdateLayeredWindow` (premultiplied ARGB) / DirectComposition |
+| `isOpaque=false`+`backgroundColor=.clear` | `WS_EX_LAYERED` + `UpdateLayeredWindow` (premultiplied ARGB) |
 | `hasShadow=false` | inherent to a layered window |
 | `ignoresMouseEvents=true` default | `WS_EX_TRANSPARENT` |
 | `syncCursorState` poll flipping `ignoresMouseEvents` | `GetCursorPos` poll → toggle `WS_EX_TRANSPARENT` via `SetWindowLong` |
@@ -202,9 +208,9 @@ Platform behavior:
 | Carbon `RegisterEventHotKey` / solo-`fn` | `WH_KEYBOARD_LL` hook (bare-modifier hold-to-talk); `RegisterHotKey` only for full chords |
 | `HostTextInserter` paste into active app | `clipboard` + `SendInput` Ctrl+V (no Accessibility gate) |
 | Electron IPC / preload / contextBridge | in-process `async`/`await` + events + DI interfaces (no IPC bus) |
-| React component / JSX | XAML + MVVM |
-| Canvas 2D | Win2D / Composition (port the algorithm) |
-| electron-vite / electron-builder / electron-updater | `dotnet build`/`publish` + MSIX/MSI + MSIX/Squirrel auto-update |
+| React component / JSX | WPF XAML + MVVM |
+| Canvas 2D | WPF-hosted 2D surface — Win2D or WriteableBitmap/DrawingContext (port the algorithm) |
+| electron-vite / electron-builder / electron-updater | `dotnet publish` + MSIX/MSI installer + MSIX/Squirrel auto-update |
 | Sparkle / notarization / entitlements | EV code-signing; no notarization/entitlement analog |
 
 ---
@@ -212,7 +218,7 @@ Platform behavior:
 ## 9. Top risks for the architects
 
 1. **Global hotkey / hold-to-talk** — the built-in shortcut API can't do it; `WH_KEYBOARD_LL` on a dedicated thread required; `fn` doesn't exist. Default = Right-Ctrl hold (§6, R5/R8).
-2. **The orb window** — WinUI can't host a transparent non-activating window; use a native layered/Composition window with `WS_EX_NOACTIVATE` (§2, §7, R20; `orb-is-a-chip` memo).
+2. **The orb window** — a WPF transparent window can't be truly non-activating; use a native Win32 layered window (`UpdateLayeredWindow`) with `WS_EX_NOACTIVATE` and an invisible WPF host (§2, §7, R20; `orb-is-a-chip` memo).
 3. **Dynamic click-through** — a `GetCursorPos` poll toggling `WS_EX_TRANSPARENT` (the `syncCursorState` port); no mouse-forward dependency (§2, §7).
 4. **Hook/inject binaries + AV/SmartScreen** — EV-sign early (§5, R11).
 5. **Alpha capture for the pixel gate** — composite the layered orb and the candidate over an identical background before diff; the desktop-behind blur is excluded (R1, R14).

@@ -10,7 +10,7 @@ preflight, and the tray. Target: `Kivi.Platform.Tray`, `Kivi.Platform.Auth`, `Ki
 
 ## 0. Architecture at a glance
 
-- **Entry point** `Kivi.App/App.xaml.cs` — the WinUI host + DI composition root. Deep-link handling: register the `kivi` protocol + single-instance argv (loopback callback preferred, see §3.4).
+- **Entry point** `Kivi.App/App.xaml.cs` — the WPF host + DI composition root. Deep-link handling: register the `kivi` protocol + single-instance argv (loopback callback preferred, see §3.4).
 - The app owns three **independent** surfaces, each with its own `FlowRuntime` sharing only the mic: floating orb, **tray**, main window.
 - **Resident-agent mode:** the process stays alive with all windows hidden; closing the main window does not terminate it (orb + tray stay resident). On Windows there is no Dock/`.accessory` concept — just keep the process alive and give the orb window `skipTaskbar`/tool-window style. (Reference `setMainWindowActive` policy trick is a macOS-only Dock detail — dropped.)
 
@@ -21,9 +21,9 @@ preflight, and the tray. Target: `Kivi.Platform.Tray`, `Kivi.Platform.Auth`, `Ki
 ### 1.1 Why a custom popover (not a stock menu)
 The reference dropped down to AppKit because SwiftUI's `MenuBarExtra` swallowed clicks and couldn't
 animate its label. **On Windows this dilemma doesn't exist** — you build the tray + a custom
-popover window explicitly anyway: a **notification-area icon** (`NotifyIcon` / the Windows App SDK
-`AppNotificationManager`-adjacent tray API, or a thin Shell_NotifyIcon interop) + a frameless
-always-on-top popover window.
+popover window explicitly anyway: a **notification-area icon** (`System.Windows.Forms.NotifyIcon`
+referenced from the WPF app, or a thin `Shell_NotifyIcon` interop) + a frameless always-on-top WPF
+popover window.
 
 ### 1.2 The tray icon — live, state-tinted, "breathing" pill
 Rasterized per state. **Exact values (carried over):**
@@ -35,8 +35,8 @@ Rasterized per state. **Exact values (carried over):**
 - **Breathing**: `breathingAlpha = 0.55 + 0.45*(sin(2π·elapsed/period)+1)/2`. Period 1.1 s for processing/editing/acting, else 1.6 s. Steady 1.0 when reduced-motion OR a non-motion state.
 - Icon reflects **whichever surface is live** (prefers orb when non-idle).
 
-**Windows:** **pre-render a small set of discrete per-state icon frames** (Win2D → `nativeImage`
-equivalent → `tray.SetImage` on an interval). **Avoid high-frequency tray updates** — the notification
+**Windows:** **pre-render a small set of discrete per-state icon frames** (drawn on a WPF-hosted 2D
+surface / rendered to an `Icon` → `NotifyIcon.Icon` on an interval). **Avoid high-frequency tray updates** — the notification
 area throttles; a handful of discrete frames is fine. Windows tray popovers render regardless of a
 fullscreen foreground app; set the popover window always-on-top with a high level.
 
@@ -67,7 +67,7 @@ Row/button radii: mode/sparkle/collapse/cancel `11`; chips/rows/search `sm`(8). 
 - **Phases** (ordered): `.permissions → .playground → .personalization → .handoff`. Linear next/prev.
 - **View**: paper canvas, content clamped `maxWidth 820`, padding s24.
 - **Resident-Kivi suppression** (critical): during onboarding, isolate the orb input, hide the real orb, and **suppress resident Kivi** — tear down the tray item AND uninstall the global hotkey hook so only the on-screen demo orb responds. `Finish()` sets `kiviOnboarded`, restores Kivi, reveals the real orb.
-- **Reveal cadence** `OnboardingReveal`: `pop` = a spring-like overshoot (response 0.55, damping 0.8 — reproduce with a Composition spring or a `KeySpline` overshoot), `fade = easeOut(0.45)`, `leadIn 350 ms`, `step 450 ms`.
+- **Reveal cadence** `OnboardingReveal`: `pop` = a spring-like overshoot (response 0.55, damping 0.8 — reproduce with a WPF `Storyboard` using a `KeySpline` overshoot), `fade = easeOut(0.45)`, `leadIn 350 ms`, `step 450 ms`.
 
 ### 2.2 Phase A1 — Permissions & setup
 - Responsive header (3 layouts by width) with a shiny gold kiwi badge.
@@ -161,7 +161,7 @@ factor is mic-only.)
 
 **Tray / menu-bar**
 - `NSStatusItem` + `NSPopover` / Electron `Tray` → a Windows **notification-area icon** + a frameless, always-on-top, `skipTaskbar` popover window (hide-on-deactivate). Windows tray works directly.
-- Live **state-tinted breathing pill** → **pre-render a small set of discrete per-state icon frames** (Win2D → tray icon on an interval). **Avoid high-frequency tray updates** (throttling/flicker).
+- Live **state-tinted breathing pill** → **pre-render a small set of discrete per-state icon frames** (drawn on a WPF-hosted 2D surface → tray icon on an interval). **Avoid high-frequency tray updates** (throttling/flicker).
 - **Resident with no window** → keep the process alive with all windows hidden + the orb as a tool-window (no taskbar button). No Dock concept.
 
 **Onboarding permissions (the one place Windows SIMPLIFIES)**

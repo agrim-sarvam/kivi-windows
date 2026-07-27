@@ -134,8 +134,8 @@ the **maxi mini-app** documented in `map:orb-visual`.
 | Render runtime: dt-correction + fps bands + rest-park + nudge | `ease60(k)=1−pow(1−k,dt/16)`; 24/30/60 tiers; 0-fps park + 1 Hz heartbeat; `nudge()` same-pass render (map:orb-engine §8.5) | TODO | Med | M2 | P0 | Replicate dt-correction or morphs run at wrong speed on non-60 Hz displays; `nudge` is the "did it start?" latency contract. |
 | Generation-guarded service intake (frame-top drain) | `enqueueServiceEvent` → `drainServiceEvents()` FIFO, drops stale generation (map:orb-engine §5.3) | TODO | Low | M2 | P0 | Single-threaded render loop → no lock; keep the generation tag. |
 | Orb geometry morph (pill⇄orb⇄mini⇄pill-take, hinge-top expand) | `restSize 39×15` → `wakeSize 61×61` → `mini 42.7` → `pill-take 57×18`; hinge-top keeps orb top edge fixed (map:orb-visual §2) | TODO | Med | M3 | P1 | Fed logical px at display scale; the hinge-top expand is the signature move. |
-| Orb surface layers (fill+alpha, paper grain, 4-layer glow, sphere gloss, backdrop) | Back-to-front z-stack; paper-grain LCG seed `0x4B49564950415045`; glow eased+quantized (map:orb-visual §3–3a) | TODO | Med | M3 | P1 | **Backdrop desktop-blur is physically unreproducible (R1)** — excluded from pixel gate, faked with a static frosted approximation. Win2D/Composition. |
-| Kiwi mark engine (dotted walking bird) | `KiwiData` 120×162 mask, dark/light state color tables, 48×8 gait cache, `SpeechPace` walk (map:orb-engine §10) | TODO | High | M3 | P1 | **Biggest single visual port** — its own `Kivi.Core.KiwiMark` module + Win2D draw, with a coverage-readback dot-count numeric gate (R25). |
+| Orb surface layers (fill+alpha, paper grain, 4-layer glow, sphere gloss, backdrop) | Back-to-front z-stack; paper-grain LCG seed `0x4B49564950415045`; glow eased+quantized (map:orb-visual §3–3a) | TODO | Med | M3 | P1 | **Backdrop desktop-blur is physically unreproducible (R1)** — excluded from pixel gate, faked with a static frosted approximation. WPF-hosted 2D surface (Win2D or WriteableBitmap/DrawingContext). |
+| Kiwi mark engine (dotted walking bird) | `KiwiData` 120×162 mask, dark/light state color tables, 48×8 gait cache, `SpeechPace` walk (map:orb-engine §10) | TODO | High | M3 | P1 | **Biggest single visual port** — its own `Kivi.Core.KiwiMark` module + a WPF-hosted 2D draw (Win2D or WriteableBitmap/DrawingContext), with a coverage-readback dot-count numeric gate (R25). |
 | State-color table (glow / pill-face / eyes-in-pill) | Per-state RGB (listening orange, processing blue, speaking green, done green, error red…) (map:orb-visual §3c) | TODO | Low | M3 | P1 | Drives glow, pill face, tray tint. Port the exact table. |
 | Breath animation (2.6 s brand breath) | `b = 0.5+0.5·sin(now·2π/2.6s)`; drives glow swell, eye scale (map:orb-visual §3b) | TODO | Low | M2 | P1 | Quantized to 12 steps for glow-blur reuse. |
 | Pill-face (mic bars ⇄ eyes) | 7 mic bars while listening, morph to glowing eyes while processing (map:orb-visual §3.6) | TODO | Low | M3 | P2 | Colored by live state. |
@@ -157,7 +157,7 @@ the **maxi mini-app** documented in `map:orb-visual`.
 | Per-frame click-through hit-test toggle | `syncCursorState` polls cursor, flips ignore-mouse each frame (map:electron-packaging §2) | TODO | High | M3 | P1 | Publish interactive-rect on geometry change; poll `GetCursorPos` against it. |
 | Drag handle (movable orb) | 2×3 dot grid, open/closed-hand cursor (map:orb-visual §4) | TODO | Med | M4 | P3 | |
 | Toast / hint / tip pills (narration) | `HintPill`/`Hint2Pill`/`ToastView`, gated on tooltips setting (map:orb-visual §4) | TODO | Low | M4 | P3 | ONE-narrator pill gate. |
-| Reduce-motion / reduce-transparency | `reduceMotion` snaps eases; `reduceTransparency` zeroes paper grain (map:orb-visual §CROSS 8) | TODO | Low | M3 | P2 | Map to Windows animation + transparency settings (`SystemParametersInfo` / `UISettings.AnimationsEnabled`). |
+| Reduce-motion / reduce-transparency | `reduceMotion` snaps eases; `reduceTransparency` zeroes paper grain (map:orb-visual §CROSS 8) | TODO | Low | M3 | P2 | Map to Windows animation + transparency settings (`SystemParametersInfo` / WPF `SystemParameters.ClientAreaAnimation`). |
 
 ---
 
@@ -186,7 +186,7 @@ Custom-drawn UI → XAML. Build against the **Canon** palette. `StylesPage`/`Pre
 
 | Feature | Reference behavior (cite) | .NET status | Win difficulty | Milestone | Priority | Notes |
 |---|---|---|---|---|---|---|
-| Frameless main window (custom title bar, 1180×760, min 980×640) | Single window, transparent titlebar (map:main-window §0) | TODO | Low | M5 | P2 | Custom title-bar drag region + own window controls (WinUI `AppWindowTitleBar`). |
+| Frameless main window (custom title bar, 1180×760, min 980×640) | Single window, transparent titlebar (map:main-window §0) | TODO | Low | M5 | P2 | Custom title-bar drag region + own window controls (WPF `WindowChrome` / `WindowStyle=None`). |
 | Rail navigation (264⇄76 collapse, Ctrl+\, taxonomy) | Custom rail, fold curve 0.24 s, `RailTaxonomy` groups (map:main-window §1,§3) | TODO | Low | M5 | P2 | Persist collapse state. |
 | Hand-drawn SVG rail icons + glyphs | 24×24 2px monoline paths (`RailIcon.path()`, `HistoryGlyph`, `KiviInkArrow`, `PixelKiwi`; map:main-window §CROSS 4) | TODO | Low | M5 | P2 | Port each path → XAML `PathGeometry` verbatim; substitute the few native symbols. |
 | Canon canvas + PaperGrain + ConstellationField background | Behind every page (map:main-window §2.7) | TODO | Low | M5 | P2 | Noise tile + radial-gradient dot grid. |
@@ -292,7 +292,7 @@ The native-interop and packaging tier. This is where "one solution, seams behind
 | Auto-update | Sparkle / electron-updater (map:platform-coupling §16) | TODO | Med | M8 | P3 | MSIX auto-update or a Squirrel/Velopack-style feed (see `RELEASE.md`). |
 | CI matrix (Windows runners) | — | TODO | Med | M1/M8 | P2 | build + xunit + golden-frame + UI e2e + visual-diff + OS-integration harness per PR; nightly real-STT. |
 | Screen / AX context enrichment (`screen_nodes`, `focused_field`, `cursor_context`) | System-wide AX tree (mac) (map:platform-coupling §6) | DEFERRED | High | M9 | P3 | All optional on the wire — server degrades. Later: Windows UI Automation; preserve secure-field redaction. |
-| Overlay transparency | (mac always composits) | TODO | Med | M3 | P2 | Native layered window via `UpdateLayeredWindow` / DirectComposition; DWM composition is always on for modern Windows. |
+| Overlay transparency | (mac always composits) | TODO | Med | M3 | P2 | Native Win32 layered window via `UpdateLayeredWindow` (invisible WPF host for lifetime); DWM composition is always on for modern Windows. |
 
 > **Removed rows (not applicable — Windows-only):** the Electron matrix's "Linux X11 platform
 > shell", "Wayland decision (portal toggle / uinput setup)", "Suppress OS fn behavior", and the

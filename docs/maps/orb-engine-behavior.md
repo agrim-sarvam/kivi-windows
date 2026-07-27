@@ -22,8 +22,8 @@ Three cooperating objects, all driven by ONE tick loop:
 | Object (.NET) | Namespace | Role | Purity |
 |---|---|---|---|
 | `FlowEngine` | `Kivi.Core.Orb` | The state machine. Owns `Phase`, all animated scalars, timers, transcript model, service intake. `Step(long nowMs) → FlowFrame`. | **Pure logic, injected time.** No `DateTime.Now`/timers/dispatch. Deterministic frame-by-frame. |
-| `KiwiMarkEngine` | `Kivi.Core.KiwiMark` (+ Win2D draw in `Kivi.App`) | Computes the "living dot-mark" kiwi (color/walk/breath per state). `Step(dt,target,inverted)` + a `Draw` step. | Pure state; the raster/draw is a thin Win2D wrapper. |
-| `FlowRuntime` | `Kivi.App/Drawing` | The render-loop glue. Owns the rendering clock, calls `engine.Step()` each tick, drives the mark, publishes `FlowFrame`, wires the `CueBus`. | Windows-bound (Composition/DispatcherTimer/`CompositionTarget.Rendering`). |
+| `KiwiMarkEngine` | `Kivi.Core.KiwiMark` (+ 2D draw in `Kivi.App`) | Computes the "living dot-mark" kiwi (color/walk/breath per state). `Step(dt,target,inverted)` + a `Draw` step. | Pure state; the raster/draw is a thin wrapper over a WPF-hosted 2D surface (Win2D or `WriteableBitmap`/`DrawingContext`). |
+| `FlowRuntime` | `Kivi.App/Drawing` | The render-loop glue. Owns the rendering clock, calls `engine.Step()` each tick, drives the mark, publishes `FlowFrame`, wires the `CueBus`. | Windows-bound (WPF `CompositionTarget.Rendering` / `DispatcherTimer`). |
 
 **The core contract:** the engine is a **pure function of (accumulated input events) →
 (per-frame `FlowFrame`)**. Every visual is derived in `Step()`, never animated by the view.
@@ -432,9 +432,10 @@ Stepped only when `markOpacity > 0.001`.
 - **`SpeechPace`**: the GAIT model — a Schmitt-triggered two-pace state (calm amble ↔ brisk trot). `onLevel=0.30, offLevel=0.12, onConfirm=0.10s, silenceHold=0.90s, riseTau=0.28s, fallTau=0.85s`. Fed `(level, dt)`, outputs `pace 0…1` (smoothstep-eased). While listening/speaking: `walkDrive=0.45+1.30·pace`, `speechGlow=pace`, `listenLevel=0.16+1.55·rawMicLevel`. **The kiwi walks from the first listening frame — the stride IS the "recording is live" signal; VAD never gates it.**
 - **`reduceMotion`**: snaps mark to target (k=1), freezes walk clock; `freezeWalk` (showcase) freezes gait but keeps color lerp.
 
-The **draw** is a thin Win2D wrapper in `Kivi.App/Drawing` (dot compositing into a 65px canvas,
-coverage-readback for the numeric gate). JS/Win2D canvas is top-left origin (like the reference's
-Electron canvas), so no bottom-left-origin flip is needed.
+The **draw** is a thin wrapper over a WPF-hosted 2D surface (Win2D or `WriteableBitmap`/`DrawingContext`)
+in `Kivi.App/Drawing` (dot compositing into a 65px canvas, coverage-readback for the numeric gate).
+The 2D surface is top-left origin (like the reference's Electron canvas), so no bottom-left-origin
+flip is needed.
 
 ---
 
@@ -484,14 +485,14 @@ pieces are in `FlowRuntime` and the render/OS edges:
 4. **Mic level meter** → WASAPI capture + an RMS meter for `MicLevel`; the engine only consumes a 0…1 scalar and the `DictationEvent` stream. Remember `MicLevel` drives **animation only** — never take fate.
 5. **Earcons/haptics** → **haptics dropped** (no desktop analog). Earcons: a lightweight audio player. Keep the **mid-recording earcon gate**, the **0.25s refractory**, and the **deferred `.start`**.
 6. **Click-through window** — `FlowFrame.InteractiveTarget(x,y)` decides per-tick whether the layered overlay swallows or passes clicks. Windows: toggle `WS_EX_TRANSPARENT` (or region hit-testing) polled each tick from `InteractiveTarget()`. Fully portable and load-bearing (no `.OnHover` fallback).
-7. **The dot-mark render** → Win2D / `Microsoft.Graphics.Canvas`. Port `KiwiData` mask + state color tables + `SpeechPace` verbatim; keep the 48×8 gait-raster bucket cache. Canvas is top-left origin — no coordinate flip needed.
+7. **The dot-mark render** → a WPF-hosted 2D surface (Win2D `Microsoft.Graphics.Canvas`, which works in WPF, or `WriteableBitmap`/`DrawingContext`). Port `KiwiData` mask + state color tables + `SpeechPace` verbatim; keep the 48×8 gait-raster bucket cache. The 2D surface is top-left origin — no coordinate flip needed.
 8. **Persistence** (`IFlowStore`) → JSON under `%APPDATA%\Kivi`; reuse the reference key names (`flowPage`, `flowOrbStyle`, `kiviFlowPlayback`, …).
 9. **Theming** — `FlowSettings.Page` (light/dark), `Orb` (forest/mist); cue colors resolve through `CueColorRole` → KDS theme keypaths. Port the KDS token tables so light/dark + cue colors match exactly (see `design-tokens.md`).
 10. **Threading** — the reference's lock guards `pendingServiceEvents` because services call back off-main. In .NET the WS receive loop is a thread-pool thread, so keep a `lock`/`ConcurrentQueue`; the queue-drained-at-frame-top pattern applies. Keep the **generation-tagging** (`takeGeneration`) — it is the correctness backbone.
 
 **Bottom line for the port:** lift `FlowEngine`/`FlowFrame`/`Transcript`/`CueBus`/`SpeechPace`/
 cue-catalog as pure C# in `Kivi.Core.Orb` driven by a `CompositionTarget.Rendering` clock;
-implement a thin `Kivi.Platform` shell for hotkey, paste, mic, click-through, and Win2D rendering
+implement a thin `Kivi.Platform` shell for hotkey, paste, mic, click-through, and WPF-hosted 2D rendering
 that calls the same public API and consumes `FlowFrame`. The trimmed transcription MVP needs only:
 `FnDown/FnUp` → `listening`/`processing`, the `IDictationService` seam wired to the kivi-service
 WS, `.Final` → `CommitDictationToHost` → paste, and the `listening/processing/done` mark states.

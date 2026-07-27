@@ -32,16 +32,16 @@ Bundled faces (originals as woff2 in the reference `fonts/`):
 | **Season Mix** | 300/400/500/600/700 | `SeasonMix-Light/-Regular/-Medium/-SemiBold/-Bold` | Editorial serif — wordmark + big marque numerals |
 
 - Heading face is **Space Grotesk 500, lowercase, letter-spacing −0.01em, line-height 1.12**.
-- **Do not let the framework synthesize weights** — the reference sets `font-synthesis:none`; in WinUI/XAML ship every real weight and reference the exact `FontFamily`/`FontWeight`, never a faux-bold.
+- **Do not let the framework synthesize weights** — the reference sets `font-synthesis:none`; in WPF/XAML ship every real weight and reference the exact `FontFamily`/`FontWeight`, never a faux-bold.
 - The "Matter SemiMono" family-name quirk is a macOS CoreText detail; on Windows just install/embed the woff2/otf and reference the family directly.
 
 **Windows sourcing / licensing:**
 - **Space Grotesk** is OFL (free) — shippable.
 - **Matter and Season Mix are proprietary/licensed** — must confirm redistribution rights for a shipped .NET installer (`FEATURE-PARITY.md` cross-team dep #3, R12). Until cleared, use them **dev-only** for parity and ship the documented **metrics-compatible fallback stack** with a documented font-region tolerance. Season Mix is load-bearing for the wordmark + every page title.
 
-Font loading in WinUI: embed the font files as content and reference by URI
-(`ms-appx:///Assets/Fonts/Matter-Regular.otf#Matter`), or install to the package. Set the exact
-`FontWeight` per role; never faux-synthesize.
+Font loading in WPF: embed the font files as resources and reference by pack URI
+(`pack://application:,,,/Assets/Fonts/#Matter`, or `/Assets/Fonts/Matter-Regular.otf#Matter`). Set
+the exact `FontWeight` per role; never faux-synthesize.
 
 ---
 
@@ -161,14 +161,14 @@ content-column: 980px;   page-header-top-inset: 44px;
 ```
 Radius grammar: **buttons/chips/inline inputs = pill (`radius-full`)**; **cards/panels =
 `radius-lg` 20**; the orb/main talk box = `radius-sm` 8 (the documented "box radius 20→8" change).
-The reference uses iOS "continuous"/squircle corners; on WinUI use `CornerRadius` (a slightly
+The reference uses iOS "continuous"/squircle corners; on WPF use `CornerRadius` (a slightly
 larger radius, or a `PathGeometry` superellipse only if the large-radius pixel diff fails —
 plain rounded corners are close enough for most surfaces).
 
 Surface elevation grammar: **canvas** = fill + paper grain, no border/shadow; **raised** =
 surface1 + 1px hairline, no shadow; **overlay** = surface2 + hairline + l2 shadow at half-blur
-(radius `32`, y `0`). Map the "0-offset 64px blur" shadow to a Composition `DropShadow`
-(BlurRadius 64, Offset 0) or a `ThemeShadow`, tuned to match the alpha.
+(radius `32`, y `0`). Map the "0-offset 64px blur" shadow to a WPF `DropShadowEffect`
+(BlurRadius 64, ShadowDepth 0), tuned to match the alpha.
 
 ---
 
@@ -188,20 +188,21 @@ curves = fast(120)/standard(200)/settle(300), all ease-out. One ambient loop per
 ease-in-out auto-reverse. Press micro-transforms: buttons `scale(0.96)`, mic `scale(0.94)`.
 Everything gated on reduced-motion.
 
-**XAML mapping:** the CSS `cubic-bezier`es have no built-in XAML equivalent — reproduce with a
-`KeySpline` on `KeyFrame`s or a Composition `CubicBezierEasingFunction` using the **exact control
-points** above; do not eyeball. Reduced-motion = read `UISettings.AnimationsEnabled` /
-`SystemParametersInfo(SPI_GETCLIENTAREAANIMATION)` and settle to one still frame.
+**XAML mapping:** reproduce the CSS `cubic-bezier`es with a WPF `Storyboard` animation using a
+`KeySpline` on its `KeyFrame`s (the exact control points above); do not eyeball. Per-frame engine
+motion ticks on `CompositionTarget.Rendering` (dt-corrected `ease60`). Reduced-motion = read
+`SystemParameters.ClientAreaAnimation` / `SystemParametersInfo(SPI_GETCLIENTAREAANIMATION)` and
+settle to one still frame.
 
 ---
 
 ## 6. Effects: paper grain, blur, gradients, glow
 
-- **Paper grain**: a **128×128 deterministic monochrome noise tile** (see the LCG seed in `orb-visual-and-box.md §3`), tiled, tinted `ink-primary`, at **opacity 0.035 light / 0.02 dark**; dark tile scaled ×1.5; only on the `canvas` level; removed under reduced-transparency. Port: pre-bake one PNG (or generate via Win2D) and tile it as a low-opacity overlay `Brush` (`ImageBrush` tiled, or a Composition surface brush), `pointer-events` none.
-- **Backdrop blur** (orb chrome): hover-bridge `blur(6px)`; edit-pane `rgba(255,255,255,0.82) blur(8px)`; hint pill `rgba(255,255,255,0.72) blur(4px)`; transcript box `blur(10px) saturate(1.3)`; tray popover `linear-gradient(180deg,rgba(225,232,214,.92),rgba(213,222,200,.86)) blur(18px) saturate(1.5)`; dark tray `linear-gradient(180deg,rgba(30,36,26,.78),rgba(24,30,21,.7))`. Port: WinUI **`AcrylicBrush`** / Composition `GaussianBlur` effect (`Microsoft.Graphics.Canvas.Effects`) with matching radii + tints. (The *desktop-behind-window* blur is physically unreproducible for the orb — R1 — faked with a static frosted approximation.)
+- **Paper grain**: a **128×128 deterministic monochrome noise tile** (see the LCG seed in `orb-visual-and-box.md §3`), tiled, tinted `ink-primary`, at **opacity 0.035 light / 0.02 dark**; dark tile scaled ×1.5; only on the `canvas` level; removed under reduced-transparency. Port: pre-bake one PNG (or generate via Win2D / a `WriteableBitmap`) and tile it as a low-opacity overlay `Brush` (a tiled `ImageBrush`), hit-test-invisible.
+- **Backdrop blur** (orb chrome): hover-bridge `blur(6px)`; edit-pane `rgba(255,255,255,0.82) blur(8px)`; hint pill `rgba(255,255,255,0.72) blur(4px)`; transcript box `blur(10px) saturate(1.3)`; tray popover `linear-gradient(180deg,rgba(225,232,214,.92),rgba(213,222,200,.86)) blur(18px) saturate(1.5)`; dark tray `linear-gradient(180deg,rgba(30,36,26,.78),rgba(24,30,21,.7))`. Port: a WPF `BlurEffect` (or a Win2D `GaussianBlur` on the 2D surface) over a tinted fill, with matching radii + tints. (The *desktop-behind-window* blur is physically unreproducible for the orb — R1 — faked with a static frosted approximation.)
 - **Orb sphere gloss** (radial gradient stack) — dark ("night") orb:
   `radial(circle at hx hy, rgba(255,255,255,.18)0%, .05 16%, 0 40%), radial(circle at sx sy, rgba(0,0,0,.55)0%,0 46%), radial(circle at 50% 50%, transparent 58%, rgba(0,0,0,.34)100%)`.
-  Glossy light orb: `radial(…, rgba(255,255,255,.65)0%, .18 22%, 0 46%), radial(circle at sx sy, rgba(20,28,12,.30)0%,0 50%), radial(circle at 50% 50%, transparent 56%, rgba(20,28,12,.20)100%)`. `hx/hy` = highlight, `sx/sy` = shadow, both cursor/light-driven. Port to Win2D radial gradients / Composition.
+  Glossy light orb: `radial(…, rgba(255,255,255,.65)0%, .18 22%, 0 46%), radial(circle at sx sy, rgba(20,28,12,.30)0%,0 50%), radial(circle at 50% 50%, transparent 56%, rgba(20,28,12,.20)100%)`. `hx/hy` = highlight, `sx/sy` = shadow, both cursor/light-driven. Port to `RadialGradientBrush`es (or Win2D radial gradients on the 2D surface).
 - **Wave "thinking" sweep** — `linear-gradient(90deg, transparent, rgba(74,94,232,0.95) 50%, transparent)`, screen blend + `blur(3px)`, band-size 46%×100%, animates 2.6 s (processing) / 2.4 s (edit). The reference deliberately uses the **same indigo for both** ("one thinking color").
 
 ---
@@ -280,16 +281,16 @@ doubleTap 450, longHold 600, press scale 0.95.
 ## 9. Windows/.NET notes (macOS/Electron → Windows/.NET)
 
 - **Fonts.** Space Grotesk = OFL (free). **Matter + Season Mix are licensed** — self-host the woff2/otf and confirm redistribution in a .NET installer; set no faux-bold synthesis (ship every weight, reference the exact `FontWeight`). CoreText PostScript-name quirks (Matter Mono ⇒ "Matter SemiMono", variable-wght statics) are irrelevant on Windows — reference families directly.
-- **Continuous (squircle) corners** — plain WinUI `CornerRadius` is a close approximation; only add a `PathGeometry` superellipse if a large-radius pixel diff fails.
-- **Backdrop blur** — WinUI `AcrylicBrush` / Composition `GaussianBlur` (`Win2D` effects) reproduce the orb-chrome blur; the *desktop-behind* blur is excluded from the pixel gate (R1). Legacy KDS pages rely on borders + `shadow-l*`, not blur, so blur is mostly an orb-chrome concern.
-- **Theme resolution.** macOS `.system` / Electron `matchMedia` → on Windows read `UISettings`/`AppUISettings` (`ElementTheme` + the system app-theme), plus an explicit app preference (`kiviAppearance`: system/light/dark) that overrides. Stamp `RequestedTheme` on the root. **Remember the dark override:** dark surfaces come from Canon (`#0C0E0C`/`#161616`, accent `#8FCE6E`, warm-tint kept `#404948`), text/borders/state from KDS.dark — do NOT just dim the light palette.
+- **Continuous (squircle) corners** — plain WPF `CornerRadius` is a close approximation; only add a `PathGeometry` superellipse if a large-radius pixel diff fails.
+- **Backdrop blur** — a WPF `BlurEffect` (or a Win2D `GaussianBlur` on the 2D surface) over a tinted fill reproduces the orb-chrome blur; the *desktop-behind* blur is excluded from the pixel gate (R1). Legacy KDS pages rely on borders + `shadow-l*`, not blur, so blur is mostly an orb-chrome concern.
+- **Theme resolution.** macOS `.system` / Electron `matchMedia` → on Windows read the system app-theme (registry `AppsUseLightTheme` / `SystemParameters`), plus an explicit app preference (`kiviAppearance`: system/light/dark) that overrides. Swap the merged WPF `ResourceDictionary` theme dictionary at the app root. **Remember the dark override:** dark surfaces come from Canon (`#0C0E0C`/`#161616`, accent `#8FCE6E`, warm-tint kept `#404948`), text/borders/state from KDS.dark — do NOT just dim the light palette.
 - **Two creams.** `#F1F4EC` (KDS/legacy pages + the orb light page) vs `#F6F3EA` (Canon canvas, new pages/components). Pick per screen; when in doubt for a fresh clone, standardize on Canon.
-- **Orb = a separate native layered/Composition window** with its own manual light/dark flag, cursor-reactive radial-gradient gloss, and a per-frame lerp loop. The gloss `hx/hy/sx/sy` track the cursor (`GetCursorPos` relative to the orb); replace CSS per-frame lerps with the render runtime using the documented lerp/duration constants (dt-corrected).
-- **Reduced-motion / reduced-transparency** — read `UISettings.AnimationsEnabled` / `SystemParametersInfo(SPI_GETCLIENTAREAANIMATION)` and the transparency-effects setting; gate paper grain + heavy blurs and settle animations to one frame.
+- **Orb = a separate native Win32 layered window** (`UpdateLayeredWindow`, invisible WPF host for lifetime) with its own manual light/dark flag, cursor-reactive radial-gradient gloss, and a per-frame lerp loop. The gloss `hx/hy/sx/sy` track the cursor (`GetCursorPos` relative to the orb); replace CSS per-frame lerps with the render runtime (`CompositionTarget.Rendering`) using the documented lerp/duration constants (dt-corrected).
+- **Reduced-motion / reduced-transparency** — read `SystemParameters.ClientAreaAnimation` / `SystemParametersInfo(SPI_GETCLIENTAREAANIMATION)` and the transparency-effects setting; gate paper grain + heavy blurs and settle animations to one frame.
 - **Retina/DPI:** all px values are logical (DIPs); the 128px grain tile is authored at 1× — serve DPI-aware so it doesn't read as a screen door on HiDPI displays.
 
 **Deferred / v1 non-goals:** none for tokens — the full token layer is M0 Track B (gates M3).
 Font clearance is the one external gate (R12).
 
 > **Not applicable — Windows-only.** The reference's CSS `@import`/CSP self-hosting notes and any
-> Linux font-config concerns are dropped; embed fonts as WinUI content.
+> Linux font-config concerns are dropped; embed fonts as WPF resource fonts (`pack://` URIs).

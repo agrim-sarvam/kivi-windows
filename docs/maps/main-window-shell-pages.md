@@ -1,7 +1,7 @@
 # MAP: main-window-shell-pages
 
 Windows-only .NET port of `_reference/sarvam-kivi-electron/docs/maps/main-window-shell-pages.md`.
-The main window is a **custom-drawn design system** (almost no stock controls), so a WinUI/XAML
+The main window is a **custom-drawn design system** (almost no stock controls), so a WPF/XAML
 clone reproduces it exactly with `PathGeometry` + theme brushes. Target: `Kivi.App/Views` (XAML) +
 `Kivi.App/ViewModels` (MVVM). All token values are byte-exact (see `design-tokens.md`).
 
@@ -9,19 +9,20 @@ clone reproduces it exactly with `PathGeometry` + theme brushes. Target: `Kivi.A
 
 # Kivi — Main Window Shell + Pages Map (for the .NET port)
 
-WinUI 3 + Composition. Everything is custom-drawn (no native controls except a few
-`Toggle`/`Slider`/`TextBox`), so the HTML→XAML translation is 1:1 with brushes + inline
+WPF (.NET 8) + XAML/MVVM, with eased transitions via `Storyboard`/`KeySpline` and the per-frame
+tick via `CompositionTarget.Rendering`. Everything is custom-drawn (no native controls except a few
+`ToggleButton`/`Slider`/`TextBox`), so the HTML→XAML translation is 1:1 with brushes + inline
 `PathGeometry`.
 
 ---
 
 ## 0. App shell & window
 
-- **One main window (single-instance)**, custom title bar (`AppWindowTitleBar` with a drag region + own window controls top-right). No macOS traffic lights.
+- **One main window (single-instance)**, custom title bar (WPF `WindowChrome` / `WindowStyle=None` with a custom caption drag region + own window controls top-right). No macOS traffic lights.
 - **Default size 1180×760**; **min content size 980×640** (per-destination min from the auth gate — shell 980×640, onboarding 360×480, splash/signIn 480×560).
 - Closing the window drops the process to a **resident agent** (orb + tray stay alive); does not terminate. (The window is disposable — see `menubar-onboarding-auth.md §0`.)
 - **Fonts loaded before first render**: Matter, Matter SemiMono, Space Grotesk, Season Mix (see §2.5, `design-tokens.md §1`).
-- **Theme**: resolved to a concrete light/dark from an `AppAppearance` (`system`/`light`/`dark`, persisted under `kiviAppearance`). System reads the live Windows app theme (`UISettings`). The whole app (orb/tray) matches in lockstep. Apply a **240 ms crossfade** on theme change.
+- **Theme**: resolved to a concrete light/dark from an `AppAppearance` (`system`/`light`/`dark`, persisted under `kiviAppearance`). System reads the live Windows app theme (registry `AppsUseLightTheme` / a system-theme watcher). The whole app (orb/tray) matches in lockstep by swapping the merged WPF `ResourceDictionary` theme dictionary. Apply a **240 ms crossfade** on theme change.
 - **RootView**: wraps the main window in an auth gate (see `menubar-onboarding-auth.md §3.1`); for the transcription MVP this renders the shell directly (anonymous local dev). A permissions gate sits between auth and shell when mic isn't granted.
 
 ---
@@ -104,7 +105,7 @@ canvas→`#0C0E0C`, surface→`#161616`. Full conversational-state set + rank me
 Radius `xs=4, sm=8, md=12, lg=20, xl=28, full=9999`. Cards use `lg` (20) legacy; most canon
 surfaces 8–14. Shadow (only two): `l1 = 0 0 64px rgb(20,20,20)/0.08`; `l2 = same @0.16`. Zero-offset
 "lifted, never floating". Layout: `contentColumn=980`, `pageHeaderTopInset=44`. Map the shadows to a
-Composition `DropShadow` (Offset 0, BlurRadius 64) or `ThemeShadow`, tuned for alpha.
+WPF `DropShadowEffect` (ShadowDepth 0, BlurRadius 64), tuned for alpha.
 
 ### 2.5 Typography (see `design-tokens.md §2`)
 Faces: Matter, Matter SemiMono, `SpaceGrotesk-Medium` (display/headings), **`SeasonMix-Medium`**
@@ -117,16 +118,16 @@ via a custom `NumberFormatInfo` (`en-IN` digit grouping).
 fast 120 / base 200 / slow 300 / reveal 700 / pulse 1.6 s. Enter `cubic-bezier(0.2,0.8,0.2,1)`,
 exit `(0.4,0,1,1)`, dialog overshoot `(0.16,1,0.3,1)`. Press micro: buttons `scale(0.96)`, mic
 `0.94`. **No spring/bounce/parallax.** All honors reduced-motion. Reproduce the CSS béziers with
-XAML `KeySpline`/Composition `CubicBezierEasingFunction` (exact control points).
+WPF `Storyboard` animations with `KeySpline` (exact control points).
 
 ### 2.7 Textures/background
-- **PaperGrain**: 128×128 noise tile, tinted inkPrimary, opacity light 0.035 / dark 0.02, dark ×1.5. Removed under reduced-transparency. → a tiled `ImageBrush` / Win2D surface at those opacities.
+- **PaperGrain**: 128×128 noise tile, tinted inkPrimary, opacity light 0.035 / dark 0.02, dark ×1.5. Removed under reduced-transparency. → a tiled `ImageBrush` / WPF-hosted 2D surface (Win2D or WriteableBitmap) at those opacities.
 - **ConstellationField**: 24px-pitch 2px dots in inkTertiary, opacity light 0.06 / dark 0.08, optional top fade mask. → a tiled dot brush / `PathGeometry` grid.
 
 ### 2.8 SurfaceLevel
 `.surface(.canvas|.raised|.overlay, cornerRadius)`: canvas = fill + grain no border; raised =
 surface1 + hairline no shadow; overlay = surface2 + hairline + l2 shadow. Group before shadow so
-only the silhouette casts it (Composition `DropShadow` on the visual).
+only the silhouette casts it (WPF `DropShadowEffect` on the grouped element).
 
 ---
 
@@ -162,7 +163,7 @@ Settings is a two-pane shell (its own left rail + searchable panes) — §5.10.
 
 ## 4. Shell chrome component inventory
 
-Port each to a WinUI `UserControl` / `Style`. All use `PathGeometry` for the hand-drawn bits.
+Port each to a WPF `UserControl` / `Style`. All use `PathGeometry` for the hand-drawn bits.
 
 | component | what it is |
 |---|---|
@@ -181,7 +182,7 @@ Port each to a WinUI `UserControl` / `Style`. All use `PathGeometry` for the han
 | `PersistenceBanner` | strip for degraded/failed persistence. |
 | `CueToasts` | pure map cue→toast spec. |
 | `KiviEmptyState` | pixel-kiwi dot-field (96×130) that breathes 5× then rests + centered message + optional action. |
-| Shared canon controls | `InkButtonStyle` (primary/secondary/ghost/destructive; 34px height, radius 8, press settles 1px + darkens fill 5%, loading spinner), `SlidingInkSegmented` (the selection idiom: 2px capsule underline that slides ≤200ms — reproduce with a Composition/`ConnectedAnimation`-style slide). |
+| Shared canon controls | `InkButtonStyle` (primary/secondary/ghost/destructive; 34px height, radius 8, press settles 1px + darkens fill 5%, loading spinner), `SlidingInkSegmented` (the selection idiom: 2px capsule underline that slides ≤200ms — reproduce with a WPF `Storyboard`-driven translate). |
 
 ---
 
@@ -229,7 +230,7 @@ Header "history" / "search — or ask — across everything you've dictated." Co
 The **only page with the 64px `Topbar`**. Max width **720**, hpad 24, vpad 20. Filter chips
 (all/kivi/general) + "clear all". Rows: source dot, 2-line text, hover reveals copy + trash; click
 copies (1.1s "copied"). Disabled state CTA. Confirmation dialog for clear-all (one of the few
-native dialogs — WinUI `ContentDialog`).
+native dialogs — a styled WPF modal `Window` / custom dialog).
 
 ### 5.4 MemoryPage → MemoryForestPage
 Titled **"dictionary"**. Content 980, hpad 44. Header top-right **import** button →
@@ -256,7 +257,7 @@ captures). **Scorecard strip**: 4 cells (mono 24 value + a hand-drawn sparkline)
 time"**: bar chart + range picker (7d/30d/90d/all). **"speaking pace"**: area+line chart.
 **"across apps"**: horizontal bars. **"memory"**: 4 mini-stats. → **Charts are Apple-only in the
 reference (Swift Charts).** Reimplement with **hand-drawn XAML `PathGeometry`** (the sparkline is
-already hand-drawn — port that) or a WinUI charting lib. The range picker is a `SlidingInkSegmented`
+already hand-drawn — port that) or a WPF charting lib. The range picker is a `SlidingInkSegmented`
 elsewhere; here it was one native segmented — use `SlidingInkSegmented`.
 
 ### 5.8 SharedTermsPage
@@ -303,14 +304,14 @@ pane rail.
 
 ## Windows/.NET notes (macOS/Electron → Windows/.NET)
 
-1. **Titlebar / window chrome** (macOS hidden titlebar + traffic lights) → a WinUI **frameless / custom title bar** (`ExtendsContentIntoTitleBar` + a drag region); put your own window controls top-right. The 44px page-header top-inset re-derives from your chrome height.
-2. **Fonts bundled + resolved by PostScript name**: Matter, Matter SemiMono, Space Grotesk, **Season Mix**. Embed as WinUI content, load before first paint. Season Mix is load-bearing (R12).
+1. **Titlebar / window chrome** (macOS hidden titlebar + traffic lights) → a WPF **frameless / custom title bar** (`WindowChrome` / `WindowStyle=None` + a caption drag region); put your own window controls top-right. The 44px page-header top-inset re-derives from your chrome height.
+2. **Fonts bundled + resolved by PostScript name**: Matter, Matter SemiMono, Space Grotesk, **Season Mix**. Embed as WPF resource fonts (`pack://` font URIs), load before first paint. Season Mix is load-bearing (R12).
 3. **Two color systems** — port **Canon** (§2.1) as the primary theme dictionaries with light/dark via the Windows app theme + a manual override toggle; port legacy Theme only for Clipboard/Analytics.
-4. **All icons are hand-drawn `PathGeometry`** (24×24 2px monoline: RailIcon paths, HistoryGlyph, MemoryPencil/Trash, KiviInkArrow, KiviHighlightSweep, PixelKiwi bead grids). **Translate each path verbatim** to `<Path Data="…">`. A handful of native SF Symbols in the reference → substitute a matching XAML `PathGeometry` / a WinUI icon.
-5. **Charts** (AnalyticsPage) — Apple-only in the reference → hand-drawn XAML `PathGeometry` (port the hand-drawn sparkline) or a WinUI charting lib. Native `Picker`/`Toggle`/`Slider`/dialog → styled WinUI (`SlidingInkSegmented`, `ToggleSwitch`, `Slider`, `ContentDialog`, custom popovers) to match the DS everywhere.
+4. **All icons are hand-drawn `PathGeometry`** (24×24 2px monoline: RailIcon paths, HistoryGlyph, MemoryPencil/Trash, KiviInkArrow, KiviHighlightSweep, PixelKiwi bead grids). **Translate each path verbatim** to `<Path Data="…">`. A handful of native SF Symbols in the reference → substitute a matching XAML `PathGeometry` / a WPF icon.
+5. **Charts** (AnalyticsPage) — Apple-only in the reference → hand-drawn XAML `PathGeometry` (port the hand-drawn sparkline) or a WPF charting lib. Native `Picker`/`Toggle`/`Slider`/dialog → styled WPF controls (`SlidingInkSegmented`, a templated `ToggleButton` switch, `Slider`, a modal `Window` dialog, custom `Popup`s) to match the DS everywhere.
 6. **App icons** (`PersonasAppMark`, `AppIconView`, `AppDisplayNameCache`): read installed-app icons/names by bundle-id (macOS). On Windows, resolve process/app icons via **`SHGetFileInfo` / PE-resource extraction** keyed by exe path (or ship a curated icon+name map keyed by exe/AppUserModelID; extend the `PersonaSeedRegistry` fallback). See `personalization-subsystem.md`.
 7. **Running-app enumeration** (`AppPicker`/`RunningAppsProvider`) → the OS process list (`Process.GetProcesses` / `EnumWindows`).
-8. **Reduced-motion & reduced-transparency** → `UISettings.AnimationsEnabled` + the transparency-effects setting; disable PaperGrain + breathing/pulse accordingly.
+8. **Reduced-motion & reduced-transparency** → `SystemParameters.ClientAreaAnimation` + the transparency-effects setting; disable PaperGrain + breathing/pulse accordingly.
 9. **Per-tick perf discipline** (Record isolates the streaming leaf so the page doesn't re-render at 60fps): isolate the live-transcript node (its own view-model / compiled binding) so streaming STT text doesn't re-layout the whole page — the same architectural constraint applies.
 10. **Local history** (SwiftData/`better-sqlite3`) → **SQLite** (`Microsoft.Data.Sqlite`) with the same tenant/user scoping. REST stores (Memory/Shortcuts/Personas/Leaderboard/Usage) hit the same kivi-service and port directly via `HttpClient`.
 11. **Indian-locale number grouping** → a custom `NumberFormatInfo` for `en-IN` (digit grouping `3;2`).

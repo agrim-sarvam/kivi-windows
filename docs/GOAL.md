@@ -42,7 +42,7 @@ and macOS apps use. Grow toward as much functional parity as possible.
 0. Port the Electron reference docs into Windows-only .NET docs (this doc set). **(Phase 0 — in progress.)**
 1. **M0 — tangible MVP**: trimmed-down transcription (OpenWhispr-style, see `docs/maps/openwhispr-reference.md`) wired to the local `kivi-service`. One .NET solution (`Kivi.Core` / `Kivi.Platform` / `Kivi.App`), Windows-native throughout.
 2. If tangible: deep-dive the feature-parity list, close as many as possible.
-3. **Visual clone**: build the WinUI/XAML + Composition UI, test piece-by-piece against the Electron app, keep fixing until it's a visually exact clone.
+3. **Visual clone**: build the WPF/XAML UI (per-frame render via `CompositionTarget.Rendering`), test piece-by-piece against the Electron app, keep fixing until it's a visually exact clone.
 4. **Wire the service**: piece-by-piece against the current local `kivi-service`; keep testing that output is the same/similar.
 5. **Integration**: full integration testing + parity with the Electron app.
 6. **UX polish**: emulate WisprFlow / Willow Voice / Sarvam quality → release internally.
