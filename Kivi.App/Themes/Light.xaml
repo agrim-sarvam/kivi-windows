@@ -1,0 +1,44 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Canon LIGHT palette — byte-exact from Kivi.Core/DesignTokens/Tokens.cs (§2.1).
+         rgba() tokens converted to #AARRGGBB. -->
+    <Color x:Key="CanvasColor">#F6F3EA</Color>
+    <Color x:Key="Surface1Color">#FCFAF3</Color>
+    <Color x:Key="Surface2Color">#FFFFFF</Color>
+    <Color x:Key="InkPrimaryColor">#20241F</Color>
+    <Color x:Key="InkSecondaryColor">#5C6454</Color>
+    <Color x:Key="InkTertiaryColor">#666D5F</Color>
+    <Color x:Key="AccentColor">#41691E</Color>
+    <Color x:Key="AccentWashColor">#1441691E</Color>
+    <Color x:Key="HairlineColor">#2420241F</Color>
+    <Color x:Key="AnnotationColor">#B98A2E</Color>
+    <Color x:Key="StateListeningColor">#D05C1E</Color>
+    <Color x:Key="StateProcessingColor">#303CC8</Color>
+    <Color x:Key="StateSettledColor">#5E7A4E</Color>
+    <Color x:Key="StateErrorColor">#B81514</Color>
+    <Color x:Key="WarmTintColor">#E7EEDD</Color>
+
+    <SolidColorBrush x:Key="Canvas" Color="{StaticResource CanvasColor}" />
+    <SolidColorBrush x:Key="Surface1" Color="{StaticResource Surface1Color}" />
+    <SolidColorBrush x:Key="Surface2" Color="{StaticResource Surface2Color}" />
+    <SolidColorBrush x:Key="InkPrimary" Color="{StaticResource InkPrimaryColor}" />
+    <SolidColorBrush x:Key="InkSecondary" Color="{StaticResource InkSecondaryColor}" />
+    <SolidColorBrush x:Key="InkTertiary" Color="{StaticResource InkTertiaryColor}" />
+    <SolidColorBrush x:Key="Accent" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="AccentWash" Color="{StaticResource AccentWashColor}" />
+    <SolidColorBrush x:Key="Hairline" Color="{StaticResource HairlineColor}" />
+    <SolidColorBrush x:Key="Annotation" Color="{StaticResource AnnotationColor}" />
+    <SolidColorBrush x:Key="StateListening" Color="{StaticResource StateListeningColor}" />
+    <SolidColorBrush x:Key="StateProcessing" Color="{StaticResource StateProcessingColor}" />
+    <SolidColorBrush x:Key="StateSettled" Color="{StaticResource StateSettledColor}" />
+    <SolidColorBrush x:Key="StateError" Color="{StaticResource StateErrorColor}" />
+    <SolidColorBrush x:Key="WarmTint" Color="{StaticResource WarmTintColor}" />
+
+    <!-- Rank metals (leaderboard) -->
+    <SolidColorBrush x:Key="RankGold" Color="#B98A2E" />
+    <SolidColorBrush x:Key="RankSilver" Color="#8A8F86" />
+    <SolidColorBrush x:Key="RankBronze" Color="#A9713E" />
+
+    <!-- Paper-grain / dots mood flag -->
+    <sys:Boolean xmlns:sys="clr-namespace:System;assembly=mscorlib" x:Key="IsDarkMood">False</sys:Boolean>
+</ResourceDictionary>

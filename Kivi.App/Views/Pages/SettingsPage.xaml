@@ -1,0 +1,37 @@
+<UserControl x:Class="Kivi.App.Views.Pages.SettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="224" />
+            <ColumnDefinition Width="1" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- sub-rail -->
+        <DockPanel Grid.Column="0" Margin="0,44,0,0">
+            <Border DockPanel.Dock="Top" Height="34" Margin="12,0" Background="{DynamicResource Surface1}"
+                    CornerRadius="8" BorderBrush="{DynamicResource Hairline}" BorderThickness="1" Padding="12,0">
+                <Grid>
+                    <TextBox x:Name="Search" Style="{StaticResource FinderInput}" FontSize="14"
+                             TextChanged="Search_TextChanged" />
+                    <TextBlock x:Name="SearchPlaceholder" Text="search settings" IsHitTestVisible="False"
+                               VerticalAlignment="Center" Foreground="{DynamicResource InkTertiary}"
+                               FontFamily="{DynamicResource FontBody}" FontSize="14" />
+                </Grid>
+            </Border>
+            <TextBlock DockPanel.Dock="Bottom" Text="kivi · 0.0.0-dev" Margin="12,0,12,16"
+                       FontFamily="{DynamicResource FontMono}" FontSize="11" Foreground="{DynamicResource InkTertiary}" />
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                <StackPanel x:Name="PaneRail" Margin="12,0,12,16" />
+            </ScrollViewer>
+        </DockPanel>
+
+        <Border Grid.Column="1" Background="{DynamicResource Hairline}" />
+
+        <!-- detail -->
+        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" Margin="0,44,0,0">
+            <StackPanel x:Name="Detail" MaxWidth="640" Margin="24,0,24,48" HorizontalAlignment="Left" />
+        </ScrollViewer>
+    </Grid>
+</UserControl>

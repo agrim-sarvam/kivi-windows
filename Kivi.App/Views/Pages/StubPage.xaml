@@ -1,0 +1,22 @@
+<UserControl x:Class="Kivi.App.Views.Pages.StubPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shell="clr-namespace:Kivi.App.Controls.Shell">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid MaxWidth="1068" Margin="44,0,44,96">
+            <StackPanel>
+                <shell:PageHeader x:Name="Header" Margin="0,44,0,0" />
+                <Border Style="{StaticResource RaisedCard}" Padding="24,64" Margin="0,24,0,0">
+                    <StackPanel HorizontalAlignment="Center">
+                        <shell:RailIcon x:Name="Glyph" Size="30" HorizontalAlignment="Center"
+                                        Foreground="{DynamicResource InkTertiary}" />
+                        <TextBlock Text="coming soon" Style="{StaticResource SectionTitleDisplay}"
+                                   HorizontalAlignment="Center" Margin="0,10,0,0" />
+                        <TextBlock x:Name="Note" Style="{StaticResource Subtitle}" MaxWidth="380"
+                                   TextAlignment="Center" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

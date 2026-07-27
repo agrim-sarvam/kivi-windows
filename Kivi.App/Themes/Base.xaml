@@ -1,0 +1,57 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- Theme-invariant tokens: font stacks, type scale, radii, spacing.
+         Fonts: Matter/Season Mix are license-blocked, so we ship documented fallbacks.
+         Space Grotesk (OFL) would be shippable if embedded; we use Segoe as the display
+         fallback for now. Season Mix (serif marque) -> Georgia serif fallback. -->
+
+    <FontFamily x:Key="FontBody">Segoe UI, system-ui, sans-serif</FontFamily>
+    <FontFamily x:Key="FontMono">Cascadia Mono, Consolas, ui-monospace, monospace</FontFamily>
+    <FontFamily x:Key="FontDisplay">Segoe UI Semibold, Segoe UI, sans-serif</FontFamily>
+    <!-- Season Mix marque serif -> Georgia (documented fallback stack) -->
+    <FontFamily x:Key="FontSerif">Georgia, Times New Roman, serif</FontFamily>
+
+    <sys:Double x:Key="ContentColumn">980</sys:Double>
+    <sys:Double x:Key="PageHeaderTopInset">44</sys:Double>
+
+    <!-- KeySpline control points for the Canon eases (from Tokens.Motion) -->
+    <!-- EaseOut cubic-bezier(0.2,0.8,0.2,1) -->
+    <KeySpline x:Key="EaseOutSpline" ControlPoint1="0.2,0.8" ControlPoint2="0.2,1" />
+    <!-- EaseIn cubic-bezier(0.4,0,1,1) -->
+    <KeySpline x:Key="EaseInSpline" ControlPoint1="0.4,0" ControlPoint2="1,1" />
+    <!-- EaseSoft cubic-bezier(0.16,1,0.3,1) -->
+    <KeySpline x:Key="EaseSoftSpline" ControlPoint1="0.16,1" ControlPoint2="0.3,1" />
+
+    <!-- Scrollbar: quiet hairline thumb (mirrors .mw-page-host::-webkit-scrollbar) -->
+    <Style x:Key="KiviScrollBar" TargetType="ScrollBar">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Width" Value="10" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Grid Background="Transparent">
+                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                            <Track.Thumb>
+                                <Thumb>
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border Background="{DynamicResource Hairline}"
+                                                    CornerRadius="8" Margin="3,0" />
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" />
+                            </Track.IncreaseRepeatButton>
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" />
+                            </Track.DecreaseRepeatButton>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

@@ -1,0 +1,52 @@
+<UserControl x:Class="Kivi.App.Views.Pages.HistoryPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shell="clr-namespace:Kivi.App.Controls.Shell">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid MaxWidth="1068" Margin="44,0,44,96">
+            <StackPanel>
+                <shell:PageHeader Margin="0,44,0,0"
+                    Title="history"
+                    Subtitle="search — or ask — across everything you've dictated." />
+
+                <!-- finder + filter -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Height="50" Background="{DynamicResource Surface2}" CornerRadius="8"
+                            BorderBrush="{DynamicResource Hairline}" BorderThickness="1" Padding="15,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <shell:SearchIcon Size="16" Foreground="{DynamicResource InkTertiary}" VerticalAlignment="Center" />
+                            <TextBox x:Name="Finder" Grid.Column="1" Margin="13,0,0,0" Style="{StaticResource FinderInput}"
+                                     TextChanged="Finder_TextChanged" />
+                            <TextBlock Grid.Column="1" x:Name="Placeholder" Margin="13,0,0,0" IsHitTestVisible="False"
+                                       VerticalAlignment="Center" Text="search your words — try: the offsite flights"
+                                       Foreground="{DynamicResource InkTertiary}"
+                                       FontFamily="{DynamicResource FontBody}" FontSize="15" />
+                            <TextBlock Grid.Column="2" Text="return to ask" VerticalAlignment="Center"
+                                       FontFamily="{DynamicResource FontMono}" FontSize="10"
+                                       Foreground="{DynamicResource InkTertiary}" />
+                        </Grid>
+                    </Border>
+                    <Border Grid.Column="1" Height="50" Margin="12,0,0,0" Background="{DynamicResource Surface1}"
+                            CornerRadius="8" BorderBrush="{DynamicResource Hairline}" BorderThickness="1" Padding="18,0">
+                        <TextBlock Text="filter" VerticalAlignment="Center"
+                                   FontFamily="{DynamicResource FontBody}" FontSize="14" Foreground="{DynamicResource InkSecondary}" />
+                    </Border>
+                </Grid>
+
+                <StackPanel x:Name="ListHost" Margin="0,24,0,0" />
+                <TextBlock x:Name="EmptyText" Text="no matching takes" Margin="0,60,0,0"
+                           HorizontalAlignment="Center" Visibility="Collapsed"
+                           FontFamily="{DynamicResource FontBody}" FontSize="16" Foreground="{DynamicResource InkSecondary}" />
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

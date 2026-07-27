@@ -9,6 +9,37 @@
 
 ---
 
+## Phase 5 — main window shell + pages ✅ (shell + pages render; data-wiring is P6)
+
+### The Canon shell + all pages ported to WPF (XAML + MVVM)
+- **Themes/** — `Base.xaml` (fonts/type/eases), `Light.xaml` + `Dark.xaml` (byte-exact Canon palettes
+  from `Tokens.cs`), `Controls.xaml` (KiviCard, InkButton, window controls, finder input…),
+  `ThemeManager` (system/light/dark, follows Windows AppsUseLightTheme, HKCU-persisted, 240ms crossfade).
+- **Shell** — frameless `WindowChrome` window (caption drag + own min/max/close), `Rail` (264⇄76 fold,
+  `cubic-bezier(0.2,0.8,0.2,1)` 0.24s, brand + 3 taxonomy groups + footer gear), Ctrl+\ collapse
+  (persisted), `ShellBackground` (paper-grain + 24px constellation), `PageHeader` + highlight sweep,
+  hand-drawn rail icons as verbatim `PathGeometry`.
+- **ViewModels** — `AppNavigation` (single routing authority; `.presets`→`.styles`; hard-cut page swap),
+  `PageData` (seed/stub data ported from model/*.ts, en-IN number format), `SettingsModel` (8 panes).
+- **Pages (Views/Pages/)** — Record, History, Settings (8 panes + hotkey-capture field), Memory,
+  Shortcuts, Analytics (hand-drawn sparklines/bars/pace-area), Leaderboard (podium), SharedTerms,
+  Stub (clipboard). Personas = shell + overview only (detail pane + sheets + REST → P6).
+- **Verified:** `dotnet build` green (0/0); 92/2 tests pass; app launches normal path — both the Canon
+  shell (1180×760) AND the P4 orb come up together, no XAML-load crash. Navigation, theme swap, and
+  rail collapse work. (Interactive screenshots pending — this env's GDI capture returns black; windows
+  confirmed present + sized.)
+
+### Deferred to P6 (data wiring) / later
+- SQLite history + REST for memory/shortcuts/personas/leaderboard/usage — pages render `PageData` seeds.
+- Personas detail pane + create-voice/marketplace/preset-library sheets.
+- RecordPage live `recordFlightScene` bird-flight canvas + the streaming-transcript leaf bind.
+- Fonts: Segoe UI / Georgia fallbacks (Matter/Season Mix license-blocked/dev-only).
+
+**NEXT:** P6 — tray icon + personalization/data wiring (+ auth), then P7 — packaging (setup.exe).
+Live M0 round-trip still pending the NetBird VPN approval.
+
+---
+
 ## Phase 4 — orb visuals ✅ (renders + animates in demo mode)
 
 ### The living orb is drawn in WPF from the FlowFrame, in a native layered window

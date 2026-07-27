@@ -1,0 +1,67 @@
+<UserControl x:Class="Kivi.App.Views.Pages.ShortcutsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shell="clr-namespace:Kivi.App.Controls.Shell">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid MaxWidth="1068" Margin="44,0,44,96">
+            <StackPanel>
+                <shell:PageHeader Margin="0,44,0,0" Title="shortcuts" />
+
+                <!-- explainer with mini-doc surface -->
+                <Border Background="{DynamicResource Surface1}" CornerRadius="14"
+                        BorderBrush="{DynamicResource Hairline}" BorderThickness="1" Padding="24,22">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="you say" Style="{StaticResource Eyebrow}" />
+                            <TextBlock Text="&#x201C;my sign-off&#x201D;" Margin="0,4,0,0"
+                                       FontFamily="{DynamicResource FontSerif}" FontStyle="Italic" FontSize="17"
+                                       Foreground="{DynamicResource InkPrimary}" />
+                        </StackPanel>
+                        <shell:InkArrow Grid.Column="1" Width="72" Foreground="{DynamicResource Accent}"
+                                        VerticalAlignment="Center" Margin="20,0" />
+                        <Border Grid.Column="2" MaxWidth="400" Background="{DynamicResource Surface2}"
+                                CornerRadius="8" BorderBrush="{DynamicResource Hairline}" BorderThickness="1">
+                            <StackPanel>
+                                <Border Height="26" Background="{DynamicResource Surface1}"
+                                        BorderBrush="{DynamicResource Hairline}" BorderThickness="0,0,0,1" Padding="10,0">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Ellipse Width="6" Height="6" Fill="{DynamicResource Hairline}" Margin="0,0,4,0" />
+                                        <Ellipse Width="6" Height="6" Fill="{DynamicResource Hairline}" Margin="0,0,4,0" />
+                                        <Ellipse Width="6" Height="6" Fill="{DynamicResource Hairline}" Margin="0,0,8,0" />
+                                        <TextBlock Text="📄" FontSize="11" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Padding="14,12" FontFamily="{DynamicResource FontBody}" FontSize="14"
+                                           LineHeight="22" Foreground="{DynamicResource InkPrimary}">
+                                    Warm regards,<LineBreak />Pranav Sridhar<LineBreak />Sarvam AI
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- composer disclosure -->
+                <Border Margin="0,16,0,0" CornerRadius="8" BorderBrush="{DynamicResource Hairline}" BorderThickness="1">
+                    <StackPanel Orientation="Horizontal" Margin="16,14">
+                        <Border Width="24" Height="24" CornerRadius="12" Margin="0,0,10,0">
+                            <Border.Background>
+                                <SolidColorBrush Color="{DynamicResource AnnotationColor}" Opacity="0.12" />
+                            </Border.Background>
+                            <TextBlock Text="+" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource Annotation}" FontSize="16" />
+                        </Border>
+                        <TextBlock Text="teach kivi a shortcut" VerticalAlignment="Center"
+                                   FontFamily="{DynamicResource FontBody}" FontSize="15" Foreground="{DynamicResource InkPrimary}" />
+                    </StackPanel>
+                </Border>
+
+                <StackPanel x:Name="ListHost" Margin="0,30,0,0" />
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

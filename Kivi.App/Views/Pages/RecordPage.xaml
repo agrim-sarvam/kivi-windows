@@ -1,0 +1,102 @@
+<UserControl x:Class="Kivi.App.Views.Pages.RecordPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shell="clr-namespace:Kivi.App.Controls.Shell">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <!-- Record pins its own 64px top inset; grid: left(min480) + 48 gap + 300 right rail -->
+        <Grid MaxWidth="1040" Margin="30,64,30,30">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="480" />
+                <ColumnDefinition Width="48" />
+                <ColumnDefinition Width="300" />
+            </Grid.ColumnDefinitions>
+
+            <!-- LEFT -->
+            <StackPanel Grid.Column="0">
+                <!-- greeting -->
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,40">
+                    <TextBlock x:Name="Greeting" FontFamily="{DynamicResource FontSerif}"
+                               FontSize="52" LineHeight="55" Foreground="{DynamicResource InkPrimary}"
+                               TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <Button x:Name="RefreshBtn" Content="↻" Width="26" Height="26" Margin="12,0,0,0"
+                            VerticalAlignment="Center" Background="Transparent" BorderThickness="0"
+                            Cursor="Hand" Foreground="{DynamicResource InkTertiary}" Opacity="0.4"
+                            FontFamily="{DynamicResource FontMono}" Click="Refresh_Click"
+                            ToolTip="another greeting" />
+                </StackPanel>
+
+                <!-- sticker -->
+                <Border Background="{DynamicResource Surface1}" CornerRadius="8"
+                        BorderBrush="{DynamicResource Hairline}" BorderThickness="1">
+                    <Border.Effect>
+                        <DropShadowEffect ShadowDepth="3" BlurRadius="16" Opacity="0.14" Color="#282414" Direction="270" />
+                    </Border.Effect>
+                    <StackPanel>
+                        <StackPanel Margin="26,22" MinHeight="132">
+                            <TextBlock Text="latest take" FontFamily="{DynamicResource FontMono}"
+                                       FontSize="11" Foreground="{DynamicResource InkTertiary}" Margin="0,0,0,10" />
+                            <TextBlock x:Name="LatestText" FontFamily="{DynamicResource FontBody}"
+                                       FontSize="16" LineHeight="26" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource InkPrimary}" />
+                        </StackPanel>
+                        <Border BorderBrush="{DynamicResource Hairline}" BorderThickness="0,1,0,0" Padding="26,13,26,18">
+                            <Grid>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="LatestApp" FontFamily="{DynamicResource FontBody}"
+                                               FontWeight="Medium" FontSize="12" Foreground="{DynamicResource InkTertiary}" />
+                                    <TextBlock x:Name="LatestTime" Margin="10,0,0,0" FontFamily="{DynamicResource FontMono}"
+                                               FontSize="11" Foreground="{DynamicResource InkTertiary}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <TextBlock Text="press " VerticalAlignment="Center"
+                                               FontFamily="{DynamicResource FontBody}" FontSize="12"
+                                               Foreground="{DynamicResource InkTertiary}" />
+                                    <Border Background="{DynamicResource Surface2}" CornerRadius="4"
+                                            BorderBrush="{DynamicResource Hairline}" BorderThickness="1" Padding="6,1">
+                                        <TextBlock Text="fn" FontFamily="{DynamicResource FontBody}"
+                                                   FontWeight="Medium" FontSize="11" Foreground="{DynamicResource InkSecondary}" />
+                                    </Border>
+                                    <TextBlock Text=" anywhere to talk" VerticalAlignment="Center"
+                                               FontFamily="{DynamicResource FontBody}" FontSize="12"
+                                               Foreground="{DynamicResource InkTertiary}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- recent takes -->
+                <StackPanel Margin="0,34,0,0">
+                    <Grid>
+                        <TextBlock Text="recent takes" FontFamily="{DynamicResource FontBody}"
+                                   FontWeight="Medium" FontSize="12" Foreground="{DynamicResource InkTertiary}" />
+                        <Button Content="all takes →" HorizontalAlignment="Right" Style="{StaticResource TextButton}"
+                                Click="AllTakes_Click" />
+                    </Grid>
+                    <TextBlock x:Name="TakesSummary" Margin="0,5,0,0" FontFamily="{DynamicResource FontBody}"
+                               FontSize="11.5" Foreground="{DynamicResource InkTertiary}" Opacity="0.85" />
+                    <StackPanel x:Name="TakesList" Margin="0,8,0,0" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- RIGHT bird panel -->
+            <Border Grid.Column="2" Background="{DynamicResource Surface1}" CornerRadius="8"
+                    BorderBrush="{DynamicResource Hairline}" BorderThickness="1" MinHeight="300"
+                    ClipToBounds="True">
+                <Grid>
+                    <shell:KiwiMark HeightPx="120" Cols="18" Dark="{Binding IsDarkBird}"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.9" />
+                    <StackPanel Margin="20,18" VerticalAlignment="Top">
+                        <TextBlock x:Name="BirdCount" FontFamily="{DynamicResource FontMono}" FontSize="22"
+                                   Foreground="{DynamicResource InkPrimary}" />
+                        <TextBlock Text="words took flight today" Margin="0,4,0,0"
+                                   FontFamily="{DynamicResource FontBody}" FontSize="13" Foreground="{DynamicResource InkSecondary}" />
+                        <TextBlock Text="from slack, notes, mail" Margin="0,4,0,0"
+                                   FontFamily="{DynamicResource FontMono}" FontSize="11"
+                                   Foreground="{DynamicResource InkTertiary}" Opacity="0.6" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

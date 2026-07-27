@@ -1,0 +1,14 @@
+<UserControl x:Class="Kivi.App.Views.Pages.AnalyticsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shell="clr-namespace:Kivi.App.Controls.Shell">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid MaxWidth="1068" Margin="44,0,44,96">
+            <StackPanel>
+                <shell:PageHeader Margin="0,44,0,0" Title="analytics"
+                                  Subtitle="usage, speed, and where your dictation happens." />
+                <StackPanel x:Name="Body" />
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

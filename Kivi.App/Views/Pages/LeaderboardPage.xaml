@@ -1,0 +1,25 @@
+<UserControl x:Class="Kivi.App.Views.Pages.LeaderboardPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shell="clr-namespace:Kivi.App.Controls.Shell">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid MaxWidth="1044" Margin="32,0,32,96">
+            <StackPanel>
+                <shell:PageHeader Margin="0,44,0,0" Title="leaderboard"
+                                  Subtitle="weekly voice race for sarvam." />
+                <TextBlock x:Name="Meta" FontFamily="{DynamicResource FontMono}" FontSize="12"
+                           Foreground="{DynamicResource InkTertiary}" Margin="0,0,0,4" />
+                <Grid x:Name="Podium" Margin="0,20,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                </Grid>
+                <StackPanel x:Name="ListHost" Margin="0,22,0,0" />
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>
