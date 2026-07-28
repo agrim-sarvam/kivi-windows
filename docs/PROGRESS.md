@@ -55,6 +55,62 @@ Also fixed same session: the orb was rendering near screen-CENTER instead of bot
 
 ---
 
+## Auth: Google OAuth → Kratos → JWT ✅ (unblocks the live loop against hosted QA)
+
+### Why: the VPN's real purpose
+Connecting the NetBird VPN made **`https://kivi.aws-qa.sarvam.ai`** (Sarvam's hosted QA backend)
+reachable and confirmed live (`GET /health` → `{"status":"ok",...}`) — this is the real target, not
+just a way to reach a self-run local service. But QA/staging/prod are NOT anonymous like `local`
+(127.0.0.1) — they require a real Kratos-minted JWT. This phase builds that, for real (not a
+throwaway token-paste workaround), since auth was needed eventually regardless.
+
+### What was built
+- **`Kivi.Platform/Auth/LoopbackOAuthListener.cs`** — `HttpListener` on `127.0.0.1:51234` (falls
+  back to an OS-assigned port), handles Kratos `?code=` + a fragment-forwarding page for Supabase
+  `#fragment` callbacks. `IOAuthLoopbackListener` seam for testability.
+- **`KratosAuthClient.cs`** — the exact 6-step flow (map §3.4/§3.5): create login flow → submit
+  `{method:"oidc",provider:"google"}` → **HTTP 422 `redirect_browser_to`** (+`prompt=select_account`)
+  → open default browser → await loopback `?code=` (missing ⇒ account-linking-required) → exchange
+  via `init_code`/`return_to_code` → Kratos session token. `whoami` **tri-state**: 401=dead session,
+  5xx/403/network=degraded-but-signed-in (never destroyed over those).
+- **`OrgJwtClient.cs`** — `POST auth.sarvam.ai/api/v2/auth/jwt` (`X-Session-Token` header), 15-min
+  JWT cached in memory, `RefreshIfNeeded()` re-mints only within a 2-min margin (clock-driven, no
+  background timer), 403 retried twice (0.3s/0.7s backoff).
+- **`AuthController.cs`** — composition facade: restore session → validate via whoami → persist
+  `kratosSessionToken`/`orgServiceJWT`/`kratosUserID`/`kratosEmail`/`kratosDisplayName` via the
+  existing (untouched) `DpapiSecretStore`. `GetCurrentBearerAsync()` feeds the wire client.
+- **`Kivi.App/Views/Auth/SignInScreen`** — Google sign-in card + loading/error states + a
+  **"skip / use local"** link (deliberate product decision: mirrors the reference's "auth is never
+  a wall" spirit — skipping keeps today's anonymous `local` behavior untouched; only the *hosted*
+  endpoint needs auth).
+- **`DictationOrchestrator`** — resolves endpoint+bearer per take: signed-in+not-skipped →
+  `Endpoints.Qa` + minted JWT; skipped/anonymous → `Endpoints.Local` + null, exactly as before.
+- **15 new xUnit tests** (17 test cases via `[Theory]`) — Kratos flow/redirect/exchange parsing,
+  whoami tri-state, JWT mint/expiry/refresh-margin/403-retry, account-linking detection — all via a
+  fake `HttpMessageHandler`/`IOAuthLoopbackListener`, no live network. A real Google round-trip
+  can't be automated — documented as a manual test below.
+
+**Independently re-verified**: build clean (0 errors); **125/2 tests pass** (108 existing + 17 new,
+zero regressions); spot-checked the 422/whoami logic directly against the doc spec — matches
+exactly; launched + killed the built exe myself, no crash/hang. The still-uncommitted tray/orb/
+leaderboard UI fixes from the prior turn were correctly left untouched (verified via `git status`).
+
+### Manual test — the first real live loop against hosted infra
+1. Confirm VPN connected + `curl https://kivi.aws-qa.sarvam.ai/health` → `{"status":"ok",...}`.
+2. Clear `%APPDATA%\Kivi` (fresh session state).
+3. `dotnet run --project Kivi.App` → a sign-in dialog appears.
+4. Click "Sign in with Google" → default browser opens a Google account picker → sign in →
+   browser shows a small "signed in, close this tab" page → dialog auto-closes → main window shows.
+5. Hold the hotkey, speak, release — this take now streams to `wss://kivi.aws-qa.sarvam.ai` with
+   the minted JWT, not the local anonymous endpoint.
+6. "Skip / use local" still works unchanged (needs a locally-run `kivi-service` on 127.0.0.1:8788).
+
+**NEXT:** actually run the manual test above (needs the user's real Google sign-in — cannot be
+automated) — this is the first genuine end-to-end proof of the dictation loop. Then: commit the
+still-pending UI-polish fixes from the prior turn; personas/history/analytics data wiring remains.
+
+---
+
 ## Phase 7 — packaging: setup.exe ✅ (deliverable #5 done; verified independently)
 
 ### An installer exists: `dist/releases/Kivi-win-Setup.exe`

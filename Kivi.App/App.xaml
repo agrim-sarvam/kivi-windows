@@ -1,7 +1,12 @@
 <Application x:Class="Kivi.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
     <!-- No StartupUri: startup is owned by App.OnStartup so the DI container creates windows.
+         ShutdownMode=OnExplicitShutdown: OnStartup shows the modal SignInScreen gate BEFORE
+         MainWindow exists — without this, WPF would tear the app down the moment that dialog
+         closes (it would transiently be the "last window"). MainWindow.Close_Click already just
+         Hide()s (resident-agent mode), so explicit shutdown only ever happens via tray "quit".
          Theme dictionaries: Base (fonts/type/eases) + the active Canon theme (Dark by default),
          swapped at runtime by ThemeManager. -->
     <Application.Resources>

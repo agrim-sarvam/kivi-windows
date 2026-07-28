@@ -2,6 +2,7 @@ using System;
 using Kivi.Core.Contracts;
 using Kivi.Core.Orb;
 using Kivi.Core.Wire;
+using Kivi.Platform.Auth;
 
 namespace Kivi.App;
 
@@ -33,19 +34,30 @@ public sealed class DictationOrchestrator : IDisposable
     private AppTarget? _target;
     private bool _capturing;
 
+    // Endpoint + bearer selection (set by AuthController wiring in App.xaml.cs): signed-in -> Qa
+    // endpoint + minted org JWT bearer; skipped/anonymous -> Local endpoint + null bearer (today's
+    // default). Read once per take at FnDown, mirroring how _target is captured at key-down.
+    private readonly AuthController? _auth;
+
+    /// <summary>True once the user has completed Google sign-in this session (vs. skipped/anonymous).</summary>
+    public bool UseHostedEndpoint { get; set; }
+
     public DictationOrchestrator(
         IHotkeyService hotkey,
         IAudioCapture audio,
         IPasteService paste,
         IFrontmostApp frontmost,
-        IFlowStore? flowStore = null)
+        IFlowStore? flowStore = null,
+        AuthController? auth = null)
     {
         _hotkey = hotkey;
         _audio = audio;
         _paste = paste;
         _frontmost = frontmost;
+        _auth = auth;
 
-        // The wire bridge creates one KiviServiceClient per take against the local (anonymous) endpoint.
+        // The wire bridge creates one KiviServiceClient per take. Endpoint/bearer are resolved at
+        // connect time (per the AuthController's current sign-in state), not baked in at startup.
         _wire = new WireDictationService(
             clientFactory: CreateClient,
             registerAudioSink: sink => _audioSink = sink);
@@ -65,17 +77,23 @@ public sealed class DictationOrchestrator : IDisposable
 
     public void Start() => _hotkey.Start();
 
-    private static KiviServiceClient CreateClient()
+    // Endpoint + bearer resolved once per take (at key-down, alongside _target) so CreateClient
+    // (called synchronously from WireDictationService.Begin) never has to await. Signed-in ->
+    // Qa endpoint + freshly-minted org JWT; skipped/anonymous -> Local endpoint + null bearer
+    // (today's default) — see AuthController/App.xaml.cs wiring.
+    private KiviEndpoint _takeEndpoint = Endpoints.Local;
+    private string? _takeBearer;
+
+    private KiviServiceClient CreateClient()
     {
-        var endpoint = Endpoints.Local; // ws://127.0.0.1:8788 — anonymous on loopback
         var identity = new ClientIdentity(
             ClientIdentity.PlatformWindows,
             ClientIdentity.DefaultVersion,
             TimeZoneInfo.Local.Id);
-        return new KiviServiceClient(endpoint.WebSocketUrl, identity, bearer: null);
+        return new KiviServiceClient(_takeEndpoint.WebSocketUrl, identity, bearer: _takeBearer);
     }
 
-    private void OnHotkeyEdge(GestureEdge edge)
+    private async void OnHotkeyEdge(GestureEdge edge)
     {
         switch (edge.Kind)
         {
@@ -83,6 +101,21 @@ public sealed class DictationOrchestrator : IDisposable
                 // Capture the paste target BEFORE the orb can take focus.
                 _target = _frontmost.Current;
                 _capturing = true;
+
+                // Resolve endpoint + bearer for this take. Signed-in -> hosted Qa endpoint with a
+                // freshly-minted (auto-refreshed) org JWT; otherwise -> Local, anonymous — exactly
+                // as before this auth work landed.
+                if (UseHostedEndpoint && _auth is { IsSignedIn: true })
+                {
+                    _takeEndpoint = Endpoints.Qa;
+                    _takeBearer = await _auth.GetCurrentBearerAsync().ConfigureAwait(true);
+                }
+                else
+                {
+                    _takeEndpoint = Endpoints.Local;
+                    _takeBearer = null;
+                }
+
                 _audio.Start();                 // mic frames begin flowing (buffered until handshake)
                 _engine.FnDown();               // engine → wire.Begin → connect + context
                 break;
