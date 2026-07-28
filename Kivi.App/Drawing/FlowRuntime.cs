@@ -171,19 +171,20 @@ public sealed class FlowRuntime : IDisposable
         }
     }
 
-    // Bottom-center of the primary work area, orb center anchored per the reference.
+    // Bottom-center of the primary work area, orb center anchored per the reference
+    // (docs/maps/orb-visual-and-box.md: "Orb sits at window horizontal centre"; orbEdgeInset near
+    // the bottom edge). We want the ORB'S VISUAL CENTER (OrbCenterY below the canvas top) to land at
+    // (centerX, bottomDip) on screen — so the canvas top-left is offset by -OrbCenterY, not by
+    // -(CanvasH - OrbCenterY) (that inverted offset was pulling the whole canvas ~380px too high,
+    // landing near screen-center instead of near the bottom edge).
     private (int x, int y) ScreenTopLeft(int bmpW, int bmpH)
     {
         var wa = SystemParameters.WorkArea; // logical (DIP)
-        double screenLeft = SystemParameters.VirtualScreenLeft;
         // center horizontally on the work area; sit near the bottom.
         double centerXDip = wa.Left + wa.Width / 2.0;
-        double bottomDip = wa.Top + wa.Height - 120; // sit clearly above the taskbar edge
-        // orb center within the canvas
-        double canvasCenterXDip = centerXDip;
-        double orbCenterYDip = bottomDip - (OrbRenderer.CanvasH - OrbRenderer.OrbCenterY);
-        double topLeftXDip = canvasCenterXDip - OrbRenderer.CanvasW / 2.0;
-        double topLeftYDip = orbCenterYDip;
+        double bottomDip = wa.Top + wa.Height - 120; // orb visual-center Y; sit clearly above the taskbar edge
+        double topLeftXDip = centerXDip - OrbRenderer.CanvasW / 2.0;
+        double topLeftYDip = bottomDip - OrbRenderer.OrbCenterY;
         return ((int)Math.Round(topLeftXDip * _dpiScale), (int)Math.Round(topLeftYDip * _dpiScale));
     }
 
