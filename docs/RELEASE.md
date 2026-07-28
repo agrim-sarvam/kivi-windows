@@ -103,3 +103,78 @@ callback is the loopback `HttpListener`) and, if enabled, the launch-at-login en
 Registry `Run` key (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`) or a Startup-folder
 shortcut (MSI path), or the MSIX `StartupTask` extension (MSIX path) — the `SMAppService` /
 `setLoginItemSettings` analog. Toggled from Settings ▸ Advanced.
+
+---
+
+## P7: building an internal-test installer (Velopack)
+
+This is the current, working packaging path for handing testers a `Setup.exe` on other Windows
+machines. It supersedes the MSIX/WiX discussion above **for this pass only** — see the
+"Installer-tooling decision" callout in `docs/maps/electron-crossplatform-packaging.md` §5 for
+the full rationale (already-installed `vpk` CLI, single self-contained `Setup.exe`, no admin
+rights required to install, and it doesn't run the app inside an MSIX app-container/sandbox —
+which matters here because Kivi installs a low-level `WH_KEYBOARD_LL` hook and does global
+`SendInput` paste).
+
+### One-shot build
+
+```powershell
+./scripts/publish-and-package.ps1
+# or pin a version:
+./scripts/publish-and-package.ps1 -Version 1.0.1
+```
+
+This runs, in order: `dotnet build` (fails fast if the solution is broken) → `dotnet test` →
+`dotnet publish Kivi.App -c Release -r win-x64 --self-contained true` → `vpk pack` (Velopack).
+
+### Manual steps (what the script automates)
+
+```powershell
+dotnet build Kivi.sln -c Release
+dotnet test Kivi.sln
+dotnet publish Kivi.App -c Release -r win-x64 --self-contained true -o dist/publish
+
+vpk pack `
+    -u Kivi `
+    -v 1.0.0 `
+    -p dist/publish `
+    -e Kivi.App.exe `
+    -o dist/releases `
+    --packTitle "Kivi" `
+    --packAuthors "Sarvam AI" `
+    -i Kivi.App/kivi.ico `
+    -y
+```
+
+Run `vpk --help` / `vpk pack --help` before changing flags — Velopack's CLI surface has
+changed across versions; don't assume flags from an older doc or memory.
+
+### Where the installer lands
+
+`dist/releases/Kivi-win-Setup.exe` — this is the file to hand to testers. (`dist/` also
+contains `Kivi-win-Portable.zip` and the Velopack `.nupkg`/release-feed JSON used for
+self-updating; testers only need `Setup.exe`.) `dist/` is gitignored — these are build
+artifacts, not checked in.
+
+### Velopack + WPF wiring
+
+Velopack requires `VelopackApp.Build().Run()` to execute at the very start of the process
+(before any other startup code) so it can intercept its own install/update/uninstall hook
+invocations against the installed exe. `Kivi.App` therefore has an explicit
+`Kivi.App/Program.cs` with a hand-written `Main` (`<StartupObject>Kivi.App.Program</StartupObject>`
+in `Kivi.App.csproj`, replacing the WPF-SDK's normally auto-generated one from `App.xaml`) that
+calls `VelopackApp.Build().Run()` before constructing and running the WPF `App`.
+
+### CAVEAT: this installer is UNSIGNED
+
+**There is no EV code-signing certificate yet** — that is a known, accepted gap for this
+internal-test pass, not an oversight. `vpk pack` reports this explicitly
+(`No signing parameters provided, N file(s) will not be signed.`).
+
+Practical effect: when a tester runs `Kivi-win-Setup.exe` on another machine, **Windows
+SmartScreen will show a "Windows protected your PC" / unknown-publisher warning.** This is
+expected — testers need to click "More info" → "Run anyway." Do not mistake this for a bug
+report. This must be fixed (EV cert + `signtool`, or `vpk pack --signParams`/
+`--azureTrustedSignFile`) before any real/public release — see the EV code-signing section
+above, which still applies unchanged; only its timing (deferred vs. day-one) has changed for
+this internal pass.

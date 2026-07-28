@@ -145,9 +145,32 @@ dotnet build -t:Publish Kivi.App -c Release   # publish payload for packaging
 
 Full detail in `RELEASE.md`. Summary:
 - `dotnet publish Kivi.App -c Release -r win-x64` (+ `win-arm64`) → the app payload.
-- Package as **MSIX** (modern, clean install/uninstall, `.appinstaller` auto-update) — verify the low-level hook + global `SendInput` work under the MSIX runtime (declare `runFullTrust`) — **or** **WiX/MSI** (classic, maximum control) if MSIX's sandbox interferes with the hook/paste seams.
-- **EV code-sign** the executable + any native helper (and the package): a low-level keyboard hook trips keylogger AV/SmartScreen heuristics, so sign **from the first public build** to accrue reputation (R11). `signtool sign /fd sha256 /tr <RFC3161> /td sha256`.
-- **App icon**: generate the Windows `.ico` + MSIX logo assets from the one real image asset (swap the placeholder for final art before release).
+- **Installer (P7 decision): Velopack, not MSIX or WiX/MSI.**
+
+> **Installer-tooling decision (MSIX/WiX → Velopack).** For the P7 internal-test packaging
+> pass, the installer is built with **Velopack** (`vpk` CLI) rather than MSIX or WiX/MSI as
+> originally recommended above. Rationale, decided with the user: `vpk` was **already
+> installed** on the build machine (no new toolchain to stand up); it produces a **single
+> self-contained `Setup.exe`** that testers can just double-click; it needs **no admin rights**
+> to install (per-user install — good for handing an exe to testers on machines you don't
+> control); and unlike MSIX it **does not run the app in an app-container/sandbox**, so it
+> sidesteps the exact risk this doc flags in the MSIX bullet above — verifying the low-level
+> `WH_KEYBOARD_LL` hook and global `SendInput` paste path actually work under a packaged
+> process. This is a deliberate **T1 (platform-native seam) divergence** from the ported docs'
+> default, following the same "mirror Electron's *intent* (a working installer), diverge on
+> the *tool* for a Windows/.NET-native reason" pattern as the WinUI→WPF decision recorded in
+> `MASTER-PLAN.md`. **This is scoped to the current internal-test pass** — if a future
+> milestone needs MSIX's Store distribution or auto-update-via-`.appinstaller`, or WiX's
+> machine-wide/MSI-specific installs, revisit then; Velopack is not declared the permanent
+> final answer, just the pragmatic choice for getting a `Setup.exe` into testers' hands now.
+>
+> Velopack also ships its own updater (a hosted release feed + delta packages), which is a
+> straight swap for the "MSI path: a Squirrel.Windows- or Velopack-style updater" line in
+> `RELEASE.md`'s auto-update section — that becomes the concrete choice, not just an example,
+> whenever the update feed is actually wired up (still `TODO(release)`, unchanged by this
+> decision).
+- **EV code-sign** the executable + any native helper (and the package): a low-level keyboard hook trips keylogger AV/SmartScreen heuristics, so sign **from the first public build** to accrue reputation (R11). `signtool sign /fd sha256 /tr <RFC3161> /td sha256`. **Status: deferred for this pass** — no EV cert exists yet, so the P7 `Setup.exe` is **unsigned**; testers will see a SmartScreen "unknown publisher" warning (expected, not a bug — see `RELEASE.md`). `vpk pack` accepts `--signParams`/`--azureTrustedSignFile`/`--signTemplate` for whenever a cert is available — the pipeline stays sign-ready, it's just not signing today.
+- **App icon**: generate the Windows `.ico` from the one real image asset (`_reference/sarvam-kivi-electron/build/icon.png`) — done for P7: `Kivi.App/kivi.ico` (16/32/48/256 multi-size), referenced via `<ApplicationIcon>` in `Kivi.App.csproj` and passed to `vpk pack -i`. MSIX logo assets (Square44x44 etc.) are N/A under the Velopack path and not generated.
 - **CI matrix**: **Windows runners only** — `build` + `xunit` + golden-frame gate + WinAppDriver e2e + visual-diff + the OS-integration harness on every PR; nightly real-STT parity. (No macos/ubuntu runners; no Wine, no cross-compilation.)
 
 > **Removed (not applicable):** dmg/notarization, AppImage/deb/rpm, the Docker/Wine cross-compile

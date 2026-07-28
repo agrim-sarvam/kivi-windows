@@ -10,6 +10,7 @@ x86/
 *.userprefs
 publish/
 artifacts/
+dist/
 
 ## Rider / VS
 .idea/

@@ -55,6 +55,42 @@ Also fixed same session: the orb was rendering near screen-CENTER instead of bot
 
 ---
 
+## Phase 7 — packaging: setup.exe ✅ (deliverable #5 done; verified independently)
+
+### An installer exists: `dist/releases/Kivi-win-Setup.exe`
+**Decision (deviates from the ported docs' WiX/MSI recommendation, recorded in
+`docs/maps/electron-crossplatform-packaging.md` §5 same as the WinUI→WPF callout):** packaged with
+**Velopack (`vpk`)** instead — already installed, produces one self-contained installer, no admin
+rights needed to install, avoids the MSIX app-container risk to the low-level keyboard hook the docs
+flagged. Scoped explicitly to this internal-test pass; EV signing guidance stays documented for a
+real release later.
+
+- **`Kivi.App/kivi.ico`** — 4-size icon (16/32/48/256) generated from the one real asset
+  (`_reference/.../build/icon.png`); wired via `<ApplicationIcon>`.
+- **`Kivi.App/Program.cs`** (new explicit entry point) — `VelopackApp.Build().Run()` runs before
+  the WPF app starts (required so Velopack can intercept its install/update hooks); `[STAThread]`
+  preserved; `<StartupObject>` set in the csproj to suppress WPF's auto-generated `Main`.
+- **`scripts/publish-and-package.ps1`** — repeatable one-shot pipeline: build → test → `dotnet
+  publish -r win-x64 --self-contained` → `vpk pack`.
+- **`docs/RELEASE.md`** — documents the pipeline + the **explicit unsigned-installer caveat**:
+  no EV cert exists yet, so testers will see a SmartScreen "unknown publisher" warning — expected
+  for an internal test build, not a bug.
+
+**Independently re-verified** (not just the agent's report): `git status`/`git diff --stat` match
+exactly (4 modified, 3 new); `dotnet build` clean in both Debug AND Release (0/0 each — the agent's
+pasted "4 warnings" didn't reproduce, likely a cold-restore artifact); **108/2 tests pass**;
+`dist/releases/Kivi-win-Setup.exe` confirmed to exist and is a genuine 77.8MB PE32 Windows GUI
+executable (`file` command confirms `MZ` header); the `.ico` confirmed valid (4 real icon frames).
+
+### Deliverable status — all 5 of this week's items now have real progress
+1. Docs port ✅ · 2. Skeleton+core ✅ · 3. Orb+window+pages+tray ✅ · 4. Backend wiring built ✅
+(live test ⏳ NetBird VPN) · **5. Packaging ✅ (unsigned test installer produced)**.
+
+**NEXT:** hand `Setup.exe` to a second machine to test install + first-run; once the VPN is up,
+run the live M0 round-trip; EV code-signing is the remaining gap for a real (non-test) release.
+
+---
+
 ## Phase 6, Part A — tray icon + local persistence ✅ (took 3 attempts; verified independently)
 
 **Note on process:** the first two dispatch attempts at this task failed — one wrote a plan and
