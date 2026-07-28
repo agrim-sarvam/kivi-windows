@@ -950,6 +950,71 @@ public sealed class FlowEngine
         _holdUntil = Now + 1800;
     }
 
+    // --- hover / pointer (orb-engine-behavior.md §7, §8.2) ---
+    //
+    // Hover is computed PURELY FROM GEOMETRY every tick — there is no framework .OnHover. The shell
+    // polls the live cursor (GetCursorPos), converts to flow-space, and calls SetPointer(x, y) once
+    // per render tick against the FlowFrame the LAST Step() produced (this frame's geometry isn't
+    // built yet — exactly mirroring how the reference polls against the previously published frame).
+    // This single call drives both the hover-tint state consumed by Step() (via the read-only
+    // _satXHover/_orbNear/_groupHover fields above) AND is the source `f.HoveredTarget` echoes.
+    //
+    // Orb wake hysteresis: 2px ENTER margin, 10px LEAVE margin on the orb's CURRENT bounds (not a
+    // fixed ring) — hovering near the visible edge wakes it, but only leaving well past the edge
+    // (10px) closes it, so small pointer jitter at the boundary doesn't flicker collapsed/open.
+    // groupHover (any companion — everything but orb/box/dragHandle) extends "stay open" with a
+    // 150ms leave debounce (re-armed on every call while still hovering a companion; fires via the
+    // existing `_groupLeaveAt` check at the top of Step()).
+    public void SetPointer(double flowX, double flowY, FlowFrame? frame)
+    {
+        HoverTarget? target = frame?.InteractiveTarget(flowX, flowY);
+        _lastHoverTarget = target;
+
+        bool overOrb = target == HoverTarget.Orb;
+        bool overCompanion = target is HoverTarget.SatEdit or HoverTarget.SatCancel or HoverTarget.SatSettings
+            or HoverTarget.SatExpand or HoverTarget.Pane or HoverTarget.Hint;
+
+        // orb-near hysteresis: computed off the ORB'S rounded shape at +2px enter / +10px leave, so
+        // wake is sticky. Re-derive both margins from the same frame and only flip state on a clean
+        // crossing (never fully open with no target and never leave while still within the wider ring).
+        if (frame != null)
+        {
+            double shiftedX = flowX - frame.FlowShiftX;
+            bool insideEnter = FlowFrame.OrbShapeContains(shiftedX, flowY, frame.Drop + frame.OrbHeight / 2.0,
+                frame.OrbWidth / 2.0, frame.OrbHeight / 2.0, frame.OrbRadius, margin: 2);
+            bool insideLeave = FlowFrame.OrbShapeContains(shiftedX, flowY, frame.Drop + frame.OrbHeight / 2.0,
+                frame.OrbWidth / 2.0, frame.OrbHeight / 2.0, frame.OrbRadius, margin: 10);
+            if (!_orbNear && insideEnter) _orbNear = true;
+            else if (_orbNear && !insideLeave) _orbNear = false;
+        }
+        else if (!overOrb)
+        {
+            _orbNear = false;
+        }
+
+        _satEditHover = target == HoverTarget.SatEdit;
+        _satCancelHover = target == HoverTarget.SatCancel;
+        _satSettingsHover = target == HoverTarget.SatSettings;
+        _satExpandHover = target == HoverTarget.SatExpand;
+
+        if (overCompanion)
+        {
+            _groupHover = true;
+            _groupLeaveAt = null; // still hovering a companion — cancel any pending close
+        }
+        else if (_groupHover && _groupLeaveAt == null)
+        {
+            _groupLeaveAt = Now + 150; // debounce the close by 150ms (checked at the top of Step())
+        }
+
+        _hovered = _groupHover || _orbNear;
+    }
+
+    /// True when a flow-space point lands on interactive UI this tick — the click-through decision.
+    /// Pure query the platform layer polls each tick (alongside SetPointer) to toggle
+    /// `WS_EX_TRANSPARENT` / IOverlayHost.SetClickThrough. Mirrors the reference's `isInteractive`.
+    public static bool IsInteractiveAt(FlowFrame frame, double flowX, double flowY) => frame.IsInteractive(flowX, flowY);
+
     // --- orb gestures ---
     public void OrbPointerDown()
     {

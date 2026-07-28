@@ -9,6 +9,52 @@
 
 ---
 
+## Orb mouse interaction + free-drag ✅ (bug fix: hover/click/drag were completely dead)
+
+### Root cause
+The engine's geometric hit-test (`FlowFrame.InteractiveTarget(x,y) -> HoverTarget?`) was never
+ported in P2 — only the `HoveredTarget` FIELD existed, not the function that computes it. Per
+`docs/maps/orb-engine-behavior.md` §12.6 this hit-test is **"fully portable and load-bearing (no
+`.OnHover` fallback)"** — it's how the layered window's click-through gets toggled every tick.
+With nothing computing it, the orb window stayed permanently `WS_EX_TRANSPARENT`, so Windows never
+delivered mouse messages to it at all: hover, satellite clicks, and dragging all silently no-op'd.
+
+### Fixed
+- **`Kivi.Core/Orb/FlowFrame.cs`** — ported the hit-test: `InteractiveTarget`, `IsInteractive`,
+  `OrbShapeContains`, satellite geometry + **1.5× visible-radius hit margin**, **opacity≤0.08
+  invisible-satellite skip**, z-order (pane → satellites → drag handle → orb → hint → box → field).
+  Measured against THIS repo's actual renderer math (SatellitesRenderer/OrbRenderer/
+  TranscriptBoxRenderer), not fixed offsets — can't drift from what's drawn.
+- **`Kivi.Core/Orb/FlowEngine.cs`** — `SetPointer(flowX, flowY, frame)` + `IsInteractiveAt(...)`;
+  wired the previously-dead hover fields (`_orbNear`, `_groupHover`, per-satellite hover) for real.
+- **`Kivi.Platform/Overlay/LayeredOrbHost.cs`** — real `WM_LBUTTONDOWN/MOUSEMOVE/LBUTTONUP` handling
+  with `SetCapture`; a 4px move threshold distinguishes click from drag.
+- **`Kivi.App/Drawing/FlowRuntime.cs`** — polls `GetCursorPos` every render tick (24–60Hz, whichever
+  fps tier is active), converts to flow-space, calls `Engine.SetPointer` + `IsInteractiveAt`, toggles
+  `SetClickThrough` only on change. Satellite clicks routed: SatCancel→CancelClick/CopyClick,
+  SatEdit→EditClick, SatExpand→Expand/CollapseClick toggle. **Free-drag** (user's explicit ask — grab
+  anywhere on the orb body, no handle, no double-click): `WM_LBUTTONDOWN` on the orb body captures
+  the cursor; dragging moves the window live via `SetWindowPos`; releasing sets `_userPositioned=true`
+  **permanently for the session**, after which `ScreenTopLeft()` returns the last dragged-to spot
+  instead of auto bottom-center. Drag never touches `FnDown`/`FnUp` — fully separate from the M0
+  hotkey path.
+- **9 new tests** (`Kivi.Core.Tests/HitTestTests.cs`): orb-center hit, far-away miss, shape margin,
+  invisible-satellite skip, visible-satellite hit, z-order (pane>satellite, satellite>orb),
+  `IsInteractive`, rest-pill shape. **101/2 total, build green** (re-verified independently).
+
+### Manual verification (needs a real interactive session)
+1. `KIVI_ORB_DEMO=1 dotnet run --project Kivi.App` — orb appears bottom-center.
+2. Hover near it — it should wake (2px enter / 10px leave hysteresis on the visible bounds).
+3. During a take, hover/click a satellite (cancel ✕, expand) — should respond.
+4. Press+hold directly on the orb body, drag, release — orb follows the cursor and STAYS at the
+   drop point on every subsequent frame (never snaps back).
+5. Confirm the hotkey-driven M0 loop is unaffected by dragging.
+
+Also fixed same session: the orb was rendering near screen-CENTER instead of bottom-center
+(`ScreenTopLeft()` offset bug, see commit `1269c72`) — same root area, separate bug, already fixed.
+
+---
+
 ## Phase 5 — main window shell + pages ✅ (shell + pages render; data-wiring is P6)
 
 ### The Canon shell + all pages ported to WPF (XAML + MVVM)

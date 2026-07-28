@@ -49,6 +49,15 @@ public sealed class FlowRuntime : IDisposable
 
     private double _dpiScale = 1.0;
 
+    // Drag-anywhere-on-the-orb (user requirement: click-and-hold directly on the orb body, drag,
+    // release to place it — no separate handle UI, no double-click-to-dock). Once the user drags the
+    // orb, the bottom-center auto-layout in ScreenTopLeft() is permanently replaced for the rest of
+    // the session by the last dragged-to position — this flag + stored point are that override.
+    private bool _userPositioned;
+    private int _manualScreenX, _manualScreenY;
+    private bool _clickThroughState = true; // mirrors the host's current WS_EX_TRANSPARENT state so
+                                             // we only call SetClickThrough on an actual change
+
     public FlowFrame Frame { get; private set; } = new();
     public long TickCount { get; private set; }
 
@@ -60,6 +69,11 @@ public sealed class FlowRuntime : IDisposable
         _markRenderer = new KiwiMarkRenderer(_markEngine, markCssWidth);
         _orbRenderer = new OrbRenderer(_markRenderer);
         Engine.OnServiceWorkEnqueued = Nudge;
+
+        _host.MouseDown += OnHostMouseDown;
+        _host.Click += OnHostClick;
+        _host.DragStarted += OnHostDragStarted;
+        _host.DragMoved += OnHostDragMoved;
 
         _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(1000.0 / MorphHz) };
         _timer.Tick += (_, _) => Loop();
@@ -155,6 +169,7 @@ public sealed class FlowRuntime : IDisposable
         Retune(f);
         UpdateRestPark(f);
         Present(f);
+        PollPointer(f);
     }
 
     private void Present(FlowFrame f)
@@ -163,12 +178,163 @@ public sealed class FlowRuntime : IDisposable
         {
             using var bmp = _orbRenderer.Render(f, _dpiScale);
             var (sx, sy) = ScreenTopLeft(bmp.Width, bmp.Height);
+            _lastScreenX = sx;
+            _lastScreenY = sy;
             _host.PushFrame(bmp, sx, sy);
         }
         catch (Exception ex)
         {
             Debug.WriteLine("[FlowRuntime] present failed: " + ex);
         }
+    }
+
+    private int _lastScreenX, _lastScreenY;
+
+    /// Per-tick cursor poll — orb-engine-behavior.md §7: "the shell polls the live cursor every tick
+    /// (GetCursorPos) and calls UpdateHover() — race-free, no fragile mouse-move events. This same
+    /// function drives the layered window's click-through toggle." No .OnHover fallback: this IS the
+    /// hover + click-through mechanism, called once per render tick (24-60Hz depending on the
+    /// current fps tier — see Loop()/TierHz above), never event-driven.
+    private void PollPointer(FlowFrame f)
+    {
+        if (!GetCursorPos(out int cx, out int cy)) return;
+        var (flowX, flowY) = ScreenToFlow(cx, cy);
+        Engine.SetPointer(flowX, flowY, f);
+        bool interactive = FlowEngine.IsInteractiveAt(f, flowX, flowY);
+        SetClickThroughIfChanged(!interactive);
+    }
+
+    private void SetClickThroughIfChanged(bool clickThrough)
+    {
+        if (_clickThroughState == clickThrough) return;
+        _clickThroughState = clickThrough;
+        _host.SetClickThrough(clickThrough);
+    }
+
+    /// Converts a physical screen point to flow-space (origin at the orb's (CenterX, OrbCenterY)
+    /// anchor, in logical/CSS px) — the inverse of how OrbRenderer/SatellitesRenderer/
+    /// TranscriptBoxRenderer place things onto the canvas, and of how ScreenTopLeft places the
+    /// canvas onto the screen.
+    private (double flowX, double flowY) ScreenToFlow(int screenCx, int screenCy)
+    {
+        double localX = (screenCx - _lastScreenX) / _dpiScale;
+        double localY = (screenCy - _lastScreenY) / _dpiScale;
+        return (localX - OrbRenderer.CenterX, localY - OrbRenderer.OrbCenterY);
+    }
+
+    // --- mouse input from the layered window (drag-anywhere-on-the-orb + satellite clicks) ---
+
+    private void OnHostMouseDown(int screenX, int screenY)
+    {
+        // Nothing to do here beyond what LayeredOrbHost already tracks (drag-start detection lives
+        // there, gated on the DragThresholdPx it owns) — a plain down is not itself a gesture; we act
+        // on Click (no drag happened) or DragStarted/DragMoved (drag did happen).
+    }
+
+    private void OnHostDragStarted()
+    {
+        // The user grabbed the orb body and started moving it. Per the spec: dragging must not
+        // trigger FnDown/FnUp or the OrbPointerDown/PointerUp talk gesture — it is handled entirely
+        // here, never touching the hotkey path or the engine's press state.
+        _userPositioned = true;
+    }
+
+    private void OnHostDragMoved(int newScreenX, int newScreenY)
+    {
+        // The host already moved the actual window (SetWindowPos) for immediate visual feedback;
+        // record where so ScreenTopLeft() keeps returning this position on every subsequent tick
+        // instead of fighting it back to bottom-center.
+        _manualScreenX = newScreenX;
+        _manualScreenY = newScreenY;
+        _lastScreenX = newScreenX;
+        _lastScreenY = newScreenY;
+    }
+
+    private void OnHostClick(int screenX, int screenY)
+    {
+        var (flowX, flowY) = ScreenToFlow(screenX, screenY);
+        var target = Frame.InteractiveTarget(flowX, flowY);
+        switch (target)
+        {
+            case HoverTarget.SatCancel:
+                // Cancel while a take/edit is live, OR the copy chip when SatManualCopy is showing in
+                // its slot (copy vs. cancel is the SAME bubble, tri-mode per orb-visual-and-box.md
+                // §4) — CopyClick() only returns text for the shell to place on the clipboard; do
+                // that here since LayeredOrbHost/FlowRuntime is the natural place to own clipboard
+                // access (Kivi.Core stays OS-free).
+                if (Frame.SatManualCopy && !Frame.SatCancelInteractive)
+                {
+                    var text = Engine.CopyClick();
+                    TrySetClipboard(text);
+                }
+                else
+                {
+                    Engine.CancelClick();
+                }
+                Nudge();
+                break;
+            case HoverTarget.SatEdit:
+                Engine.EditClick();
+                Nudge();
+                break;
+            case HoverTarget.SatExpand:
+                if (Frame.Expanded) Engine.CollapseClick();
+                else Engine.ExpandClick();
+                Nudge();
+                break;
+            case HoverTarget.SatSettings:
+                // SettingsClick() invokes OnOpenKivi (opens the full Kivi window/settings surface) —
+                // that host callback isn't wired to any Kivi.App window yet (out of scope for this
+                // hover/click pass; MainWindow has no settings UI hook today), so we still call
+                // through the engine (keeps its internal hint/toast feedback correct) but the actual
+                // window-opening is a no-op until OnOpenKivi is wired elsewhere.
+                Engine.SettingsClick();
+                Nudge();
+                break;
+            case HoverTarget.Box:
+                // Box copy-chip: the hit-test currently resolves the whole box body to `.Box` (the
+                // copy chip's own small hit region isn't separately modeled yet — see
+                // FlowFrame.InteractiveTarget's Box branch), so a dedicated copy-chip click can't be
+                // distinguished from "clicked inside the box" here. Left as a no-op for this pass;
+                // CopyClick() is already reachable via the cancel/copy satellite above when
+                // SatManualCopy is active.
+                break;
+            case HoverTarget.Orb:
+                // A plain click on the orb body itself. The source's talk gesture is driven by
+                // OrbPointerDown()/PointerUp() timed around HOLD_MS (420ms) — a *release* here with
+                // no measurable hold is already handled by that pair when wired to real down/up (see
+                // OnHostMouseDown/Up below is intentionally NOT calling these to avoid double-firing
+                // with the hotkey path); left as a no-op FUNCTIONALLY for click-vs-drag disambiguation
+                // in this pass per the task's explicit guidance ("keep click-on-orb-body a no-op
+                // functionally for now"). The orb remains fully draggable and fully hoverable.
+                break;
+        }
+    }
+
+    private static void TrySetClipboard(string text)
+    {
+        try
+        {
+            if (Application.Current?.Dispatcher is { } d && !d.CheckAccess())
+            {
+                d.BeginInvoke(new Action(() => TrySetClipboard(text)));
+                return;
+            }
+            System.Windows.Clipboard.SetText(text ?? "");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine("[FlowRuntime] clipboard copy failed: " + ex);
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out System.Drawing.Point pt);
+
+    private static bool GetCursorPos(out int x, out int y)
+    {
+        if (GetCursorPos(out System.Drawing.Point pt)) { x = pt.X; y = pt.Y; return true; }
+        x = 0; y = 0; return false;
     }
 
     // Bottom-center of the primary work area, orb center anchored per the reference
@@ -179,6 +345,10 @@ public sealed class FlowRuntime : IDisposable
     // landing near screen-center instead of near the bottom edge).
     private (int x, int y) ScreenTopLeft(int bmpW, int bmpH)
     {
+        // Once the user has free-dragged the orb, that placement wins for the rest of the session —
+        // the bottom-center auto-layout below never runs again (per the task's explicit drag spec).
+        if (_userPositioned) return (_manualScreenX, _manualScreenY);
+
         var wa = SystemParameters.WorkArea; // logical (DIP)
         // center horizontally on the work area; sit near the bottom.
         double centerXDip = wa.Left + wa.Width / 2.0;
@@ -285,6 +455,10 @@ public sealed class FlowRuntime : IDisposable
     public void Dispose()
     {
         Stop();
+        _host.MouseDown -= OnHostMouseDown;
+        _host.Click -= OnHostClick;
+        _host.DragStarted -= OnHostDragStarted;
+        _host.DragMoved -= OnHostDragMoved;
         _host.Dispose();
     }
 }
