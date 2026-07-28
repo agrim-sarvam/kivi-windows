@@ -56,11 +56,27 @@ public partial class LeaderboardPage : UserControl
 
     private UIElement ChampionCard(PageData.LbEntry e)
     {
-        var card = new Border { Background = (Brush)FindResource("Surface1"), BorderBrush = (Brush)FindResource("Annotation"), BorderThickness = new Thickness(1.5), CornerRadius = new CornerRadius(8), MinHeight = 204, Padding = new Thickness(20) };
+        // Champion card: Canon-green accent (was the amber "Annotation" brush, which reads as gold/
+        // rank-color rather than the app's own accent — the #1 card should read as "aesthetically
+        // green," matching the rest of the Canon dark-theme accent language, per explicit feedback).
+        var accent = (Brush)FindResource("Accent");
+        var card = new Border
+        {
+            Background = (Brush)FindResource("Surface1"),
+            BorderBrush = accent,
+            BorderThickness = new Thickness(1.5),
+            CornerRadius = new CornerRadius(8),
+            MinHeight = 204,
+            Padding = new Thickness(20),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = ((SolidColorBrush)accent).Color, BlurRadius = 24, ShadowDepth = 0, Opacity = 0.35,
+            },
+        };
         var sp = new StackPanel();
         var tag = new StackPanel { Orientation = Orientation.Horizontal };
         tag.Children.Add(new TextBlock { Text = "🔥 ", FontSize = 14 });
-        tag.Children.Add(new TextBlock { Text = "#1", FontFamily = (FontFamily)FindResource("FontMono"), FontSize = 13, Foreground = (Brush)FindResource("Annotation"), VerticalAlignment = VerticalAlignment.Center });
+        tag.Children.Add(new TextBlock { Text = "#1", FontFamily = (FontFamily)FindResource("FontMono"), FontSize = 13, Foreground = accent, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.Bold });
         sp.Children.Add(tag);
         sp.Children.Add(new TextBlock { Text = e.Name, FontFamily = (FontFamily)FindResource("FontDisplay"), FontSize = 18, Foreground = (Brush)FindResource("InkPrimary"), Margin = new Thickness(0, 10, 0, 0) });
         sp.Children.Add(new TextBlock { Text = PageData.FormatCount(e.RankedWords), FontFamily = (FontFamily)FindResource("FontMono"), FontSize = 40, Foreground = (Brush)FindResource("InkPrimary"), Margin = new Thickness(0, 6, 0, 0) });
@@ -96,7 +112,18 @@ public partial class LeaderboardPage : UserControl
 
     private UIElement Row(PageData.LbEntry e)
     {
-        var bd = new Border { Padding = new Thickness(8, 14, 8, 14), Background = e.You ? (Brush)FindResource("AccentWash") : Brushes.Transparent, CornerRadius = new CornerRadius(8), BorderBrush = (Brush)FindResource("Hairline"), BorderThickness = new Thickness(0, 0, 0, 1) };
+        var accent = (Brush)FindResource("Accent");
+        // "You" row: a visible green left accent bar + a stronger wash than plain AccentWash (which
+        // at ~8% opacity was nearly invisible against Surface1/Canvas — per feedback the sidebar/
+        // rows needed a genuinely visible green treatment, not just a barely-there tint).
+        var bd = new Border
+        {
+            Padding = new Thickness(8, 14, 8, 14),
+            Background = e.You ? (Brush)FindResource("AccentWash") : Brushes.Transparent,
+            CornerRadius = new CornerRadius(8),
+            BorderBrush = e.You ? accent : (Brush)FindResource("Hairline"),
+            BorderThickness = e.You ? new Thickness(2, 0, 0, 1) : new Thickness(0, 0, 0, 1),
+        };
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(52) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });

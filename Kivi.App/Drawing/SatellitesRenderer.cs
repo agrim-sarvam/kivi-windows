@@ -65,10 +65,15 @@ internal static class SatellitesRenderer
         Bubble(g, centerX + sideDX, orbCenterY, sideSize, sideIcon, rightOp, rightScale,
             rightIcon, rightIconColor, rightBg, satBd, forest, null);
 
-        // BELOW — expand
-        double expOp = f.Expanded ? 0 : f.SatExpandOpacity;
+        // BELOW — expand / collapse. Previously forced invisible whenever already expanded
+        // (`f.Expanded ? 0 : f.SatExpandOpacity`), which left no visible way to close the expanded
+        // box — the click routing (FlowRuntime: SatExpand -> CollapseClick()) already worked, only
+        // the affordance was hidden. Now stays visible when expanded, showing "restore" (inward
+        // arrows) instead of "expand" (outward arrows) so it reads as a close/collapse control.
+        double expOp = f.SatExpandOpacity;
+        string expandIcon = f.Expanded ? "restore" : "expand";
         Bubble(g, centerX, expandY, ExpandSize, ExpandSize * 0.62, expOp, f.SatExpandScale,
-            "expand", satFg, satBg, satBd, forest, null);
+            expandIcon, satFg, satBg, satBd, forest, null);
 
         // Hint pills / hover tooltips (§4, §"hint pills"): mono narration above the hovered
         // satellite, gated on Settings.Tooltips. The reference (Satellites.tsx) only defines one

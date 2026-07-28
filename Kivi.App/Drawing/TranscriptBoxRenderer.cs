@@ -105,10 +105,16 @@ internal static class TranscriptBoxRenderer
             using var hb = new SolidBrush(Color.FromArgb((int)(opacity * col.A), col.R, col.G, col.B));
             g.DrawString(text, hf, hb, (float)(headerTextRight - size.Width), (float)contentTop);
         }
-        // app name (left) — "kivi" as the default chip label
+        // app name — "kivi" as the default chip label, centered in the header row's available
+        // width (between the left pad and wherever the state-narration/copy-chip start on the
+        // right) rather than pinned flush-left, per explicit user request.
         using (var af = new Font(Reading, 9.5f, FontStyle.Bold))
         using (var ab = new SolidBrush(Color.FromArgb((int)(opacity * baseCol.A), baseCol.R, baseCol.G, baseCol.B)))
-            g.DrawString("kivi", af, ab, (float)padL, (float)contentTop);
+        {
+            var nameSize = g.MeasureString("kivi", af);
+            double nameLeft = padL + (headerTextRight - padL - nameSize.Width) / 2.0;
+            g.DrawString("kivi", af, ab, (float)nameLeft, (float)contentTop);
+        }
 
         // copy chip (§8b/§8c, header-row top-right, 26x26) — matched to the actual
         // _reference/TranscriptBox.tsx header markup, not the map's inner-card wording (RULE 2: the

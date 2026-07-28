@@ -60,13 +60,54 @@ public sealed class TrayPopover : Window
 
     public void ShowNearCursor()
     {
-        var pos = System.Windows.Forms.Cursor.Position;
-        var source = PresentationSource.FromVisual(this);
-        double dpiScale = source is null ? 1.0 : 1.0; // NotifyIcon click coords are already device px.
-        Left = pos.X - Width;
-        Top = pos.Y - Height - 8;
+        // NotifyIcon MouseUp fires with the cursor at the icon, in physical (device) pixels; WPF
+        // window Left/Top are DIPs. Convert via the screen's DPI so the popover lands exactly at
+        // the tray icon regardless of monitor scaling — a raw physical->DIP 1:1 assumption (the
+        // previous version) drifted the popover off-screen/behind other windows on any DPI != 100%.
+        var cursorPx = System.Windows.Forms.Cursor.Position;
+        double dpiScale = GetDpiScaleForPoint(cursorPx);
+        double cursorDipX = cursorPx.X / dpiScale;
+        double cursorDipY = cursorPx.Y / dpiScale;
+
+        double left = cursorDipX - Width;
+        double top = cursorDipY - Height - 8;
+
+        // Clamp to the containing screen's work area (DIPs) so the popover never renders off-screen
+        // (e.g. a taskbar pinned to the top, or a tray icon near a monitor edge).
+        var screen = System.Windows.Forms.Screen.FromPoint(cursorPx);
+        var wa = screen.WorkingArea; // physical px
+        double waLeft = wa.Left / dpiScale, waTop = wa.Top / dpiScale;
+        double waRight = wa.Right / dpiScale, waBottom = wa.Bottom / dpiScale;
+        left = Math.Max(waLeft + 4, Math.Min(left, waRight - Width - 4));
+        top = Math.Max(waTop + 4, Math.Min(top, waBottom - Height - 4));
+
+        Left = left;
+        Top = top;
+
+        // Show + force to the foreground reliably: a plain Show()/Activate() can lose the race
+        // against the OS's own focus rules for a just-clicked tray icon (the previous version's
+        // popover could show but land BEHIND the always-on-top orb window or simply never receive
+        // activation). Topmost is already set; toggling it re-asserts z-order, and
+        // ShowActivated + a Win32-level foreground nudge make this deterministic.
+        Topmost = false;
+        Topmost = true;
         Show();
         Activate();
+        Focus();
+    }
+
+    private static double GetDpiScaleForPoint(System.Drawing.Point p)
+    {
+        try
+        {
+            var screen = System.Windows.Forms.Screen.FromPoint(p);
+            using var g = System.Drawing.Graphics.FromHwnd(IntPtr.Zero);
+            return g.DpiX / 96.0;
+        }
+        catch
+        {
+            return 1.0;
+        }
     }
 
     private void OnDictateClick(object sender, RoutedEventArgs e)
