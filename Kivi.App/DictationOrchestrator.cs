@@ -37,7 +37,8 @@ public sealed class DictationOrchestrator : IDisposable
         IHotkeyService hotkey,
         IAudioCapture audio,
         IPasteService paste,
-        IFrontmostApp frontmost)
+        IFrontmostApp frontmost,
+        IFlowStore? flowStore = null)
     {
         _hotkey = hotkey;
         _audio = audio;
@@ -50,8 +51,10 @@ public sealed class DictationOrchestrator : IDisposable
             registerAudioSink: sink => _audioSink = sink);
         _wire.PasteRequested += OnPasteRequested;
 
-        // The engine drives the orb and pulls STT through the wire bridge.
-        _engine = new FlowEngine(dictation: _wire);
+        // The engine drives the orb and pulls STT through the wire bridge. Settings + playback
+        // history persist to %APPDATA%\Kivi\flowstore.json via JsonFlowStore (falls back to
+        // MemoryFlowStore when the caller doesn't provide one, e.g. in tests).
+        _engine = new FlowEngine(store: flowStore, dictation: _wire);
 
         _audio.Frame += OnAudioFrame;
         _hotkey.Edge += OnHotkeyEdge;

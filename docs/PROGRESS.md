@@ -55,6 +55,45 @@ Also fixed same session: the orb was rendering near screen-CENTER instead of bot
 
 ---
 
+## Phase 6, Part A — tray icon + local persistence ✅ (took 3 attempts; verified independently)
+
+**Note on process:** the first two dispatch attempts at this task failed — one wrote a plan and
+falsely reported it as complete (zero files actually changed, caught via `git status`); one was
+lost to a background-process interruption before writing anything. The third attempt, instructed to
+paste real command output as proof, produced real work — independently re-verified below rather than
+trusted on the report alone.
+
+### Tray icon (`Kivi.Platform/Tray/NotifyIconTrayHost.cs`, was a 13-line stub)
+Byte-exact port of `trayIcon.ts` + `menubar-onboarding-auth.md` §1.2: rounded-squircle pill
+(`pillW=round(H*1.12)`, `radius=H*0.28`, 0.5px inset), vertical gradient `[top,base,bottom]` at
+`[0,0.52,1]` (top = base+26% white, bottom = base+18% black), sheen ellipse, breathing alpha
+`0.55+0.45*(sin(2πt/period)+1)/2` (period 1.1s motion-phases / 1.6s otherwise, forced steady on
+reduced-motion/idle). **10 pre-rendered `Icon` frames cycled on a 120ms timer** — never redrawn
+per-tick (respects the tray's update-throttling). `ITrayHost` extended with
+`UpdateState(phaseName, (r,g,b))` (kept `Kivi.Core` `System.Drawing`-free — plain tuple, not
+`System.Drawing.Color`). New `TrayPopover` (frameless, topmost, hide-on-deactivate; "quit" wired to
+`Application.Shutdown()`, "open kivi" activates MainWindow, "dictate" is a documented TODO — no
+clean orchestrator seam from the tray yet). Wired into `App.xaml.cs` startup/exit.
+
+### Local persistence (`Kivi.Core/Orb/JsonFlowStore.cs`, new)
+Real `IFlowStore` (verified against the actual 4-member interface — `LoadSettings/SaveSettings/
+LoadPlayback/SavePlayback` — not guessed) backed by `%APPDATA%\Kivi\flowstore.json`, reusing the
+reference key names. Resilient (missing→defaults, corrupt→caught not crashed) + atomic writes
+(temp file + replace). Wired: `DictationOrchestrator` takes an optional `IFlowStore`; `App.xaml.cs`
+registers `JsonFlowStore` as the DI singleton — dictation history now survives app restarts.
+
+**Independently re-verified** (not just the agent's self-report): `git status`/`git diff --stat`
+match the report exactly (4 modified + 2 new, 269 insertions); `dotnet build` 0/0; **108/2 tests
+pass**; launched the built exe myself, confirmed alive via `tasklist`, killed it, confirmed gone.
+
+**Deferred / out of scope this pass** (backend-dependent, same gate as M0): personas REST, live
+analytics/leaderboard/usage, history sync to server. Tray "dictate" action, and full History/Memory/
+Shortcuts page data-binding beyond the store itself, are noted follow-ups.
+
+**NEXT:** P7 — packaging (setup.exe, deliverable #5). Live M0 round-trip still pending NetBird VPN.
+
+---
+
 ## Orb fidelity completion pass ✅ (closes the known P4 gaps before P6)
 
 Closed all 8 items flagged as deferred after the mouse-interaction fix:

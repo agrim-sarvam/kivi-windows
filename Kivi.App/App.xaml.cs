@@ -1,6 +1,7 @@
 using System.Windows;
 using Kivi.App.Drawing;
 using Kivi.Core.Contracts;
+using Kivi.Core.Orb;
 using Kivi.Platform;
 using Kivi.Platform.Overlay;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +28,8 @@ public partial class App : Application
 
         var sc = new ServiceCollection();
         sc.AddKiviPlatform();
+        // Local JSON persistence (%APPDATA%\Kivi\flowstore.json) for settings + playback history.
+        sc.AddSingleton<IFlowStore, JsonFlowStore>();
         sc.AddSingleton<DictationOrchestrator>();
         sc.AddSingleton<MainWindow>();
         _services = sc.BuildServiceProvider();
@@ -35,6 +38,9 @@ public partial class App : Application
 
         // An invisible WPF window owns process lifetime + provides a DPI source for the runtime.
         var main = _services.GetRequiredService<MainWindow>();
+
+        var tray = _services.GetRequiredService<ITrayHost>();
+        tray.Show();
 
         var orchestrator = _services.GetRequiredService<DictationOrchestrator>();
         orchestrator.Start();
@@ -45,6 +51,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        (_services?.GetService<ITrayHost>() as System.IDisposable)?.Dispose();
         _runtime?.Dispose();
         _services?.Dispose();
         base.OnExit(e);

@@ -65,4 +65,10 @@ public interface ITrayHost
 {
     void Show();
     void Hide();
+
+    /// <summary>
+    /// Push a phase change so the tray icon can re-tint + retime its breathing cycle.
+    /// Kivi.Core stays System.Drawing-free: color is a plain (r,g,b) tuple, not System.Drawing.Color.
+    /// </summary>
+    void UpdateState(string phaseName, (byte R, byte G, byte B) baseColor);
 }
