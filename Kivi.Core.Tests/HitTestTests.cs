@@ -161,4 +161,97 @@ public sealed class HitTestTests
         // 20px below the pill's center is far outside a 15px-tall pill (+2px margin).
         Assert.Null(f.InteractiveTarget(0, centerY + 20));
     }
+
+    // --- box-internal chrome: copy chip / footer thumbs / new-session pill ---------------------
+    // These mirror the geometry TranscriptBoxRenderer.cs actually draws (header-row copy chip,
+    // bottom-anchored footer bar) per orb-visual-and-box.md §8b-§8d, added in the ui-fidelity
+    // completion pass. A minimal "expanded box, woken orb, no shift/flip" frame is enough since the
+    // box-internal regions only depend on TxInteractive/BoxW/BoxH/FlipY, not the orb's own geometry.
+    private static FlowFrame ExpandedBox(double boxW = 322, double boxH = 200)
+    {
+        return new FlowFrame
+        {
+            Open = 1,
+            OrbWidth = 61,
+            OrbHeight = 61,
+            OrbRadius = 30.5,
+            Drop = 0,
+            Exp = 1,
+            Expanded = true,
+            TxInteractive = true,
+            TxWrapWidth = boxW,
+            BoxW = boxW,
+            BoxH = boxH,
+        };
+    }
+
+    [Fact]
+    public void CopyChip_HitsOnlyWhenSettledAndNonEmpty()
+    {
+        var f = ExpandedBox();
+        f.TxWordCount = 12;
+        f.TxStage = TxStage.Done;
+        // chip: 26x26 top-right of the header row, inset 16 from the box's right edge, top at
+        // (flipY?0:wedgeH=9)+10 = 19 below the box's own top.
+        var (_, boxTop) = BoxOriginFlowForTest(f);
+        double chipCenterLocalX = f.BoxW - 16 - 13; // right inset(16) - half chip(13)
+        double chipCenterY = boxTop + 19 + 13;
+        Assert.Equal(HoverTarget.CopyChip, f.InteractiveTarget(chipCenterLocalX - f.BoxW / 2.0, chipCenterY));
+
+        // Same point misses once there's no settled content (chip isn't drawn) — falls through to
+        // the generic Box region instead.
+        f.TxWordCount = 0;
+        Assert.Equal(HoverTarget.Box, f.InteractiveTarget(chipCenterLocalX - f.BoxW / 2.0, chipCenterY));
+    }
+
+    [Fact]
+    public void FooterThumbs_OnlyHitWhenTakeRatable()
+    {
+        var f = ExpandedBox();
+        f.TakeRatable = true;
+        var (_, boxTop) = BoxOriginFlowForTest(f);
+        double footerTop = boxTop + f.BoxH - 30;
+        double nsLeftAnchor = f.BoxW - 12 - 92; // NewSessionPad(12) + NewSessionW(92)
+        double upLeftLocal = nsLeftAnchor - 6 - 28 * 2 - 6; // thumbGap/size mirror FlowFrame consts
+        double upCenterLocalX = upLeftLocal + 14;
+        double thumbCenterY = footerTop + 15;
+        Assert.Equal(HoverTarget.ThumbUp, f.InteractiveTarget(upCenterLocalX - f.BoxW / 2.0, thumbCenterY));
+
+        double downCenterLocalX = upLeftLocal + 28 + 6 + 14;
+        Assert.Equal(HoverTarget.ThumbDown, f.InteractiveTarget(downCenterLocalX - f.BoxW / 2.0, thumbCenterY));
+
+        // Not ratable -> the same point is just the generic box region, not a thumb.
+        f.TakeRatable = false;
+        Assert.Equal(HoverTarget.Box, f.InteractiveTarget(upCenterLocalX - f.BoxW / 2.0, thumbCenterY));
+    }
+
+    [Fact]
+    public void NewSessionPill_HitsInFooterRightRegardlessOfRatable()
+    {
+        var f = ExpandedBox();
+        var (_, boxTop) = BoxOriginFlowForTest(f);
+        double footerTop = boxTop + f.BoxH - 30;
+        double nsLeftAnchor = f.BoxW - 12 - 92;
+        double centerLocalX = nsLeftAnchor + 46;
+        double centerY = footerTop + 15;
+        Assert.Equal(HoverTarget.NewSession, f.InteractiveTarget(centerLocalX - f.BoxW / 2.0, centerY));
+    }
+
+    [Fact]
+    public void BoxChrome_MissesFarBelowBox()
+    {
+        var f = ExpandedBox();
+        var (_, boxTop) = BoxOriginFlowForTest(f);
+        Assert.Null(f.InteractiveTarget(0, boxTop + f.BoxH + 5000));
+    }
+
+    /// Mirrors FlowFrame's private BoxOriginFlow() for test purposes (box sits directly under the
+    /// woken orb with the WedgeGap(3) seam, non-flipped, non-shifted).
+    private static (double left, double top) BoxOriginFlowForTest(FlowFrame f)
+    {
+        double orbCenterYFlow = f.Drop + f.OrbHeight / 2.0;
+        double top = f.FlipY ? orbCenterYFlow - 3 - f.BoxH : orbCenterYFlow + f.OrbHeight / 2.0 + 3;
+        double left = -f.BoxW / 2.0 + f.FlowShiftX;
+        return (left, top);
+    }
 }

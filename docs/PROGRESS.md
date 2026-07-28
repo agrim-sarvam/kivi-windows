@@ -55,6 +55,39 @@ Also fixed same session: the orb was rendering near screen-CENTER instead of bot
 
 ---
 
+## Orb fidelity completion pass ✅ (closes the known P4 gaps before P6)
+
+Closed all 8 items flagged as deferred after the mouse-interaction fix:
+1. **Plain orb-body click** — confirmed no-op by design (dictation is hotkey-only, mice never drive
+   PTT in the reference); comment now cites the investigation, not a guess.
+2. **Copy chip** — added `HoverTarget.CopyChip` + hit-test + drawing. **Corrected a stale-doc
+   discrepancy**: the map said 28×28/r5 in the card; the actual running `TranscriptBox.tsx` puts a
+   **26×26/r7 chip in the header row** — followed the code (RULE 2: running code is visual truth),
+   verified by reading the source directly. Wired to `CopyClick()` + real clipboard write + the
+   engine's existing `CopyFlash` wash/checkmark.
+3. **Footer action bar** — voice-slot pill (retry/follow-up/last+keycaps), word count, 28×28 thumbs
+   (gated on `TakeRatable`, wired to the existing `RateTake`), new-session pill with the 1300ms
+   orange sweep. Added the one genuinely NEW engine method needed: `FlowEngine.NewSessionClick()`
+   (per orb-engine-behavior.md §3.4 — void take, clear box, stay expanded+idle).
+4. **Pager dots** — active 16×6 / inactive 6×6 capsules, capped at 10, drawn in the header (fields
+   already existed from P2; only the drawing was missing). Per-dot click NOT wired — the reference
+   itself doesn't wire dot-clicks either (confirmed, not an oversight).
+5. **Hint tooltip** — the reference implements exactly ONE satellite tooltip ("cancel", gated on
+   `Settings.Tooltips`) — implemented that only; did not invent tooltips the source doesn't have.
+6. **Wave sweep** & 7. **Pill-take mic-bar face** — **verified these have ZERO implementation in the
+   current Electron/TS reference** (grep-confirmed empty) — implemented from the docs' byte-exact
+   spec anyway (46%-band sweep 2.6s/2.4s; 7-bar mic face → glowing eyes), since the map still
+   documents them as intended behavior and no richer reference contradicts it.
+8. **Drag-handle visual** — deliberately skipped (not rendered): the shipped drag model is
+   grab-anywhere-on-the-orb (user's explicit choice); a dot-grid affordance implying a second drag
+   entry point would be misleading. Commented in `SatellitesRenderer.cs`.
+
+**Verified independently** (not just agent self-report): no orphaned process after this pass
+(`tasklist` clean), `dotnet build` 0/0, **108 passed / 2 skipped** (7 new tests, zero regressions),
+app launches and was cleanly killed.
+
+---
+
 ## Phase 5 — main window shell + pages ✅ (shell + pages render; data-wiring is P6)
 
 ### The Canon shell + all pages ported to WPF (XAML + MVVM)

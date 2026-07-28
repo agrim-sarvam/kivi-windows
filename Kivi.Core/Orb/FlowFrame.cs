@@ -219,6 +219,18 @@ public sealed class FlowFrame
     private const double SatSideWoken = 32.5, SatSideSmall = 21.5;
     private const double SatExpandSize = 23;
     private const double WedgeGap = 3; // TranscriptBoxRenderer.WedgeGap
+    private const double WedgeH = 9;   // TranscriptBoxRenderer.WedgeH — box content starts below this
+    private const double ContentTopPad = 10; // TranscriptBoxRenderer.contentTop = wedge + 10
+
+    // Box-internal chrome (orb-visual-and-box.md §8b/§8d): copy chip (28x28, offset 8 from the
+    // box's top-right), the footer action bar (height 30, thumbs 28x28 near its left, new-session
+    // pill near its right). Kept private here AND mirrored verbatim in TranscriptBoxRenderer.cs so
+    // hit regions never drift from what's drawn (same discipline as the satellite gap/size consts
+    // above).
+    private const double CopyChipSize = 26, HeaderPadR = 16;
+    private const double FooterH = 30;
+    private const double ThumbSize = 28, ThumbGap = 6;
+    private const double NewSessionW = 92, NewSessionH = 27, NewSessionPad = 12;
 
     private static double Clamp01(double v) => v < 0 ? 0 : v > 1 ? 1 : v;
 
@@ -389,6 +401,54 @@ public sealed class FlowFrame
         {
             double local = BoxLocalX(flowX);
             var (_, top) = BoxOriginFlow();
+
+            // copy chip (§8b/§8c, matched to the actual _reference/TranscriptBox.tsx header-row
+            // markup rather than the map's inner-card wording — the two disagree on placement/size;
+            // per RULE 2 the running Electron code is the visual source of truth): a 26x26 chip in
+            // the HEADER row's top-right, inset from the box's right edge by padR(16), vertically
+            // aligned with the header content top. Only live once there's settled, non-empty
+            // content — a click when the chip isn't drawn falls through to the generic Box region.
+            bool copyChipVisible = TxWordCount > 0 &&
+                (TxStage == TxStage.Done || TxStage == TxStage.Typed || TxStage == TxStage.Pasted);
+            if (copyChipVisible)
+            {
+                double contentTop = (FlipY ? 0 : WedgeH) + ContentTopPad;
+                double chipLeft = BoxW - HeaderPadR - CopyChipSize;
+                double chipTop = top + contentTop;
+                if (local >= chipLeft && local <= chipLeft + CopyChipSize &&
+                    flowY >= chipTop && flowY <= chipTop + CopyChipSize)
+                    return HoverTarget.CopyChip;
+            }
+
+            // footer action bar (§8d, height 30, bottom-anchored inside the box): thumbs near the
+            // left (only when a take is ratable), the "new session" pill near the right.
+            double footerTop = top + BoxH - FooterH;
+            if (flowY >= footerTop && flowY <= top + BoxH)
+            {
+                if (TakeRatable)
+                {
+                    // Thumbs sit AFTER the left voice-slot pill + a flex spacer in the reference
+                    // markup (i.e. they float just left of the new-session pill, not pinned to the
+                    // box's left edge) — anchor them relative to the new-session pill's left edge
+                    // instead of a fixed left offset so they never drift from what's drawn.
+                    double nsLeftAnchor = BoxW - NewSessionPad - NewSessionW;
+                    double upLeft = nsLeftAnchor - ThumbGap - ThumbSize * 2 - ThumbGap;
+                    double upTop = footerTop + (FooterH - ThumbSize) / 2.0;
+                    if (local >= upLeft && local <= upLeft + ThumbSize &&
+                        flowY >= upTop && flowY <= upTop + ThumbSize)
+                        return HoverTarget.ThumbUp;
+                    double downLeft = upLeft + ThumbSize + ThumbGap;
+                    if (local >= downLeft && local <= downLeft + ThumbSize &&
+                        flowY >= upTop && flowY <= upTop + ThumbSize)
+                        return HoverTarget.ThumbDown;
+                }
+                double nsRight = BoxW - NewSessionPad;
+                double nsLeft = nsRight - NewSessionW;
+                double nsTop = footerTop + (FooterH - NewSessionH) / 2.0;
+                if (local >= nsLeft && local <= nsRight && flowY >= nsTop && flowY <= nsTop + NewSessionH)
+                    return HoverTarget.NewSession;
+            }
+
             if (local >= -10 && local <= TxWrapWidth + 10 && flowY >= top - 10 && flowY <= top + BoxH + 10)
                 return HoverTarget.Box;
         }

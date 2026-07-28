@@ -279,3 +279,90 @@ public sealed class MultiRateDeterminismTests
         Assert.True(o60 > 0.99);
     }
 }
+
+/// Footer action bar behaviors (orb-visual-and-box.md §8d, this pass's completion items 3/4):
+/// RateTake (thumbs), CopyClick (copy chip), and NewSessionClick (the "+" pill) — driven against a
+/// settled take exactly like the golden timelines do, then asserted purely against FlowEngine
+/// state/callbacks (no rendering involved).
+public sealed class FooterActionTests
+{
+    private static (FlowEngine e, ScriptedDictationService d) SettledTake()
+    {
+        var d = new ScriptedDictationService();
+        var e = new FlowEngine(store: new MemoryFlowStore(), random: () => 0.5, dictation: d, edit: new ScriptedEditService());
+        e.Apply(FlowSettings.Default());
+        e.SetExpanded(true);
+        e.Step(16);
+        e.OrbPointerDown();
+        d.Emit(new DictationEvent.Opened("t"));
+        e.Step(32);
+        d.Emit(new DictationEvent.SpeechStart());
+        e.Step(48);
+        d.Emit(new DictationEvent.Segment(0, "hello world"));
+        e.Step(64);
+        e.Step(500); // past HOLD_MS from press
+        e.PointerUp(); // -> processing
+        e.Step(516);
+        d.Emit(new DictationEvent.Final(new TakeResult
+        {
+            RawSegments = new() { "hello world" },
+            FinalLines = new() { "Hello, world." },
+        }));
+        // PresentDone is deferred via Later() until processingStartAt + PROCESSING_MIN_DISPLAY_MS
+        // (250ms) has elapsed (FlowEngine.Handle(DictationEvent.Final)) — step well past that
+        // absolute deadline (processing started at 500) so the scheduled callback actually fires
+        // and the take settles to Done/Idle before the footer actions below run against it.
+        e.Step(900);
+        e.Step(1100); // past the further Later(150) inside PresentDone that flips Done -> Idle
+        return (e, d);
+    }
+
+    [Fact]
+    public void RateTake_TogglesAndReportsViaCallback()
+    {
+        var (e, _) = SettledTake();
+        string? ratedText = null; int ratedValue = 0;
+        e.OnTakeRated = (text, rating) => { ratedText = text; ratedValue = rating; };
+
+        e.RateTake(up: true);
+        Assert.Equal(1, ratedValue);
+        Assert.Contains("Hello", ratedText);
+        var f1 = e.Step(1116);
+        Assert.Equal(1, f1.TakeRating);
+
+        // clicking the SAME thumb again toggles it back off (RateTake: `_takeRating == v ? 0 : v`).
+        e.RateTake(up: true);
+        Assert.Equal(0, ratedValue);
+        var f2 = e.Step(1132);
+        Assert.Equal(0, f2.TakeRating);
+
+        e.RateTake(up: false);
+        Assert.Equal(-1, ratedValue);
+        var f3 = e.Step(1148);
+        Assert.Equal(-1, f3.TakeRating);
+    }
+
+    [Fact]
+    public void CopyClick_ReturnsFinalTextAndArmsCopyFlash()
+    {
+        var (e, _) = SettledTake();
+        var text = e.CopyClick();
+        Assert.Equal("Hello, world.", text);
+        var f = e.Step(1116); // still within the 1100ms copyFlash window
+        Assert.True(f.CopyFlash);
+    }
+
+    [Fact]
+    public void NewSessionClick_ClearsBoxAndStaysIdleExpanded()
+    {
+        var (e, _) = SettledTake();
+        var wasExpandedBefore = e.DebugExpanded;
+        e.NewSessionClick();
+        var f = e.Step(1116);
+        Assert.True(wasExpandedBefore); // stayed expanded the whole time (never collapsed)
+        Assert.True(e.DebugExpanded); // "stay expanded" per orb-engine-behavior.md §3.4
+        Assert.Equal(FlowPhase.Idle, f.Phase); // "stay ... idle"
+        Assert.Empty(f.TxLines); // "clear box to empty editable"
+        Assert.False(f.TakeRatable); // a voided take is no longer ratable
+    }
+}

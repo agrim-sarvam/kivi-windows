@@ -291,22 +291,44 @@ public sealed class FlowRuntime : IDisposable
                 Engine.SettingsClick();
                 Nudge();
                 break;
+            case HoverTarget.CopyChip:
+                // Box copy chip (§8b/§8c) — now a dedicated hit region (FlowFrame.InteractiveTarget)
+                // separate from the general Box fallback below. CopyClick() returns the plain text;
+                // the clipboard write + copyFlash visual timing both live where they already did for
+                // the satellite copy path.
+                TrySetClipboard(Engine.CopyClick());
+                Nudge();
+                break;
+            case HoverTarget.ThumbUp:
+                Engine.RateTake(up: true);
+                Nudge();
+                break;
+            case HoverTarget.ThumbDown:
+                Engine.RateTake(up: false);
+                Nudge();
+                break;
+            case HoverTarget.NewSession:
+                Engine.NewSessionClick();
+                Nudge();
+                break;
             case HoverTarget.Box:
-                // Box copy-chip: the hit-test currently resolves the whole box body to `.Box` (the
-                // copy chip's own small hit region isn't separately modeled yet — see
-                // FlowFrame.InteractiveTarget's Box branch), so a dedicated copy-chip click can't be
-                // distinguished from "clicked inside the box" here. Left as a no-op for this pass;
-                // CopyClick() is already reachable via the cancel/copy satellite above when
-                // SatManualCopy is active.
+                // Clicked inside the box body but not on any of its dedicated sub-regions (copy
+                // chip / footer thumbs / new-session — all checked first and would have matched
+                // above) — this is just "focus the box", which the box already gets from being
+                // expanded/interactive; no separate action needed here.
                 break;
             case HoverTarget.Orb:
-                // A plain click on the orb body itself. The source's talk gesture is driven by
-                // OrbPointerDown()/PointerUp() timed around HOLD_MS (420ms) — a *release* here with
-                // no measurable hold is already handled by that pair when wired to real down/up (see
-                // OnHostMouseDown/Up below is intentionally NOT calling these to avoid double-firing
-                // with the hotkey path); left as a no-op FUNCTIONALLY for click-vs-drag disambiguation
-                // in this pass per the task's explicit guidance ("keep click-on-orb-body a no-op
-                // functionally for now"). The orb remains fully draggable and fully hoverable.
+                // A plain click on the orb body itself, with no drag. CONFIRMED DECISION (not an
+                // oversight): investigated whether the reference wires a mouse click on the orb to
+                // anything — it does not. OrbPointerDown()/PointerUp() are the actual talk-gesture
+                // pair (timed around HOLD_MS=420ms) but this port never calls them from the mouse
+                // path (see OnHostMouseDown above and its comment): dictation is PTT-only, driven
+                // exclusively by the global hotkey (FnDown/FnUp in FlowEngine, wired from
+                // Kivi.Platform's low-level keyboard hook), exactly like the reference where a mouse
+                // does not drive push-to-talk. So a bare orb-body click intentionally does nothing
+                // beyond the hover/wake hysteresis it already gets every tick. The orb remains fully
+                // draggable (handled entirely via DragStarted/DragMoved, never reaching this switch)
+                // and fully hoverable.
                 break;
         }
     }

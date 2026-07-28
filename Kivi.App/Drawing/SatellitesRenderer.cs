@@ -13,6 +13,15 @@ namespace Kivi.App.Drawing;
 /// </summary>
 internal static class SatellitesRenderer
 {
+    // Drag-handle visual (orb-visual-and-box.md §4: a 2x3 grid of Ø4 dots in "movable mode") is
+    // DELIBERATELY NOT DRAWN here. This port's shipped drag model is grab-anywhere-on-the-orb-body
+    // (see Kivi.App/Drawing/FlowRuntime.cs's drag comments) — there is no separate handle hit
+    // region (FlowFrame.InteractiveTarget's DragHandle branch only fires when Settings.Movable is
+    // true, which this port never sets). Drawing a dot-grid affordance for a drag entry point that
+    // doesn't exist would be misleading (it would look grabbable in one spot when the whole orb
+    // already is), so it's skipped entirely rather than rendered as a passive, non-interactive
+    // hint. If Settings.Movable is ever wired up as a distinct "handle-only" mode in the future,
+    // revisit this — today it is intentionally dead code that would never render.
     private const double Gap = 6;
     private const double SideWoken = 32.5, SideSmall = 21.5;
     private const double SideIconWoken = 17.5, SideIconSmall = 14.5;
@@ -60,6 +69,36 @@ internal static class SatellitesRenderer
         double expOp = f.Expanded ? 0 : f.SatExpandOpacity;
         Bubble(g, centerX, expandY, ExpandSize, ExpandSize * 0.62, expOp, f.SatExpandScale,
             "expand", satFg, satBg, satBd, forest, null);
+
+        // Hint pills / hover tooltips (§4, §"hint pills"): mono narration above the hovered
+        // satellite, gated on Settings.Tooltips. The reference (Satellites.tsx) only defines one
+        // such tooltip today — "cancel" on the settings/cancel bubble while it's in cancel-mode and
+        // actually hovered (f.hoveredTarget === "satCancel") — reasonable scope per the task
+        // ("don't over-engineer beyond what the engine already computes"): the engine only exposes
+        // hover via f.HoveredTarget with no per-satellite tooltip-text field, so this reproduces
+        // exactly that one reference tooltip rather than inventing text for bubbles the source
+        // doesn't caption (settings/expand/edit have no tooltip in Satellites.tsx either).
+        if (f.Settings.Tooltips && cancelMode && !manualCopy && f.HoveredTarget == HoverTarget.SatCancel)
+            DrawHoverTip(g, centerX + sideDX, orbCenterY - sideSize / 2.0 - 5, "cancel", rightOp);
+    }
+
+    /// A small mono narration pill (radius 6, tooltipBg/tooltipFg) above a hovered satellite —
+    /// "TooltipFlag" per the map, positioned by its bottom-center at (cx, bottomY).
+    private static void DrawHoverTip(Graphics g, double cx, double bottomY, string text, double opacity)
+    {
+        if (opacity <= 0.02) return;
+        using var font = new Font("Consolas", 7.5f);
+        var sz = g.MeasureString(text, font, PointF.Empty, System.Drawing.StringFormat.GenericTypographic);
+        double padH = 7, padV = 4;
+        double w = sz.Width + padH * 2, h = sz.Height + padV * 2;
+        double left = cx - w / 2, top = bottomY - h;
+        var bg = DrawUtil.Hex("#18300F");
+        var fg = DrawUtil.Hex("#EAF0E2");
+        using var bgB = new SolidBrush(Color.FromArgb((int)(opacity * 255), bg.R, bg.G, bg.B));
+        using var path = DrawUtil.RoundedRect(left, top, w, h, 6);
+        g.FillPath(bgB, path);
+        using var fgB = new SolidBrush(Color.FromArgb((int)(opacity * 255), fg.R, fg.G, fg.B));
+        g.DrawString(text, font, fgB, (float)(left + padH), (float)(top + padV), System.Drawing.StringFormat.GenericTypographic);
     }
 
     private static (int r, int g, int b, double a, double radius)? TintGlow(SatTint t)

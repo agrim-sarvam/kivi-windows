@@ -950,6 +950,34 @@ public sealed class FlowEngine
         _holdUntil = Now + 1800;
     }
 
+    /// The footer "new session" ('+') pill click (orb-visual-and-box.md §8d,
+    /// orb-engine-behavior.md §3.4: "void everything, clear box to empty editable, stay
+    /// expanded+idle, hint 'new session'"). Distinct from cancelClick(): cancel restores/discards a
+    /// LIVE take and returns to idle collapsed-eligible; newSessionClick() is only meaningful once
+    /// already settled/idle with an expanded box, and its job is purely to blank that box for a
+    /// fresh turn without touching the expand/collapse state.
+    public void NewSessionClick()
+    {
+        ClearTimers();
+        _takeGeneration += 1;
+        ClearFinalTimeoutBudget();
+        _spokenEditFlushDue = null;
+        ResetExternalEditPreparationState();
+        _externalEditBaseText = null;
+        OnExternalEditCancelled?.Invoke();
+        _dictation.Cancel();
+        _edit.CancelEdit();
+        Tx.StopMorph();
+        _editOpen = false;
+        _canEdit = false;
+        _takeRatable = false;
+        _takeRating = 0;
+        SetPhase(FlowPhase.Idle);
+        if (BoxLive) TxIdle();
+        SetHint("new session", false);
+        FlashHint("new session", 1200);
+    }
+
     // --- hover / pointer (orb-engine-behavior.md §7, §8.2) ---
     //
     // Hover is computed PURELY FROM GEOMETRY every tick — there is no framework .OnHover. The shell

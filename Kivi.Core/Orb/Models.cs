@@ -75,6 +75,12 @@ public enum HoverTarget
     Box,
     DragHandle,
     Field,
+    CopyChip,
+    PagerPrev,
+    PagerNext,
+    ThumbUp,
+    ThumbDown,
+    NewSession,
 }
 
 /// The raw string values used by the Swift enums and the golden JSON.
@@ -176,6 +182,12 @@ public static class RawValues
         HoverTarget.Box => "box",
         HoverTarget.DragHandle => "dragHandle",
         HoverTarget.Field => "field",
+        HoverTarget.CopyChip => "copyChip",
+        HoverTarget.PagerPrev => "pagerPrev",
+        HoverTarget.PagerNext => "pagerNext",
+        HoverTarget.ThumbUp => "thumbUp",
+        HoverTarget.ThumbDown => "thumbDown",
+        HoverTarget.NewSession => "newSession",
         _ => "orb",
     };
 
