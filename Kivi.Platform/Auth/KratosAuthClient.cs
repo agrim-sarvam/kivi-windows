@@ -43,7 +43,30 @@ public sealed class KratosAuthClient
                   $"?return_to={Uri.EscapeDataString(callbackUrl)}&return_session_token_exchange_code=true";
 
         using var resp = await _http.GetAsync(url, ct).ConfigureAwait(false);
-        resp.EnsureSuccessStatusCode();
+
+        if (!resp.IsSuccessStatusCode)
+        {
+            // Confirmed by direct testing (2026-07): Kratos's allowed_return_urls has NO loopback
+            // (127.0.0.1/localhost) pattern registered on this identity instance — it rejects
+            // return_to for ANY host/port combination with 400 self_service_flow_return_to_forbidden.
+            // This is a server-side Kratos config gap, not fixable client-side (no port/host choice
+            // here changes the outcome) — surface a specific, actionable message instead of a raw
+            // HTTP exception dump, so the user knows to escalate rather than retry.
+            if (resp.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                var body = await SafeReadBodyAsync(resp, ct).ConfigureAwait(false);
+                if (body.Contains("return_to_forbidden", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new KratosAuthException(
+                        "Sign-in is blocked by a server config issue: Kratos doesn't allow the " +
+                        "loopback redirect URL this desktop app uses (needed for native OAuth). " +
+                        "Ask whoever administers Kratos to add a 127.0.0.1/localhost pattern to " +
+                        "allowed_return_urls for this identity instance. Use \"skip / use local\" " +
+                        "for now.");
+                }
+            }
+            resp.EnsureSuccessStatusCode(); // any other failure: fall through to the generic exception
+        }
 
         var flow = await resp.Content.ReadFromJsonAsync<KratosLoginFlow>(JsonOpts, ct).ConfigureAwait(false)
                    ?? throw new KratosAuthException("Kratos login flow response was empty.");
@@ -52,6 +75,12 @@ public sealed class KratosAuthClient
         if (string.IsNullOrEmpty(action))
             throw new KratosAuthException("Kratos login flow response had no ui.action URL.");
         return action;
+    }
+
+    private static async Task<string> SafeReadBodyAsync(HttpResponseMessage resp, CancellationToken ct)
+    {
+        try { return await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false); }
+        catch { return string.Empty; }
     }
 
     /// <summary>
