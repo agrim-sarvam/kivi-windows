@@ -78,6 +78,17 @@ public partial class App : Application
         tray.Show();
 
         orchestrator.Start();
+
+        // The transcript box only renders live text when BoxLive (_expanded || _boxHostCount > 0)
+        // is true (FlowEngine.cs) — DefaultExpansion defaults to Collapsed (matches the TS
+        // reference exactly), and nothing was registering a box host, so live dictation text never
+        // appeared until the user manually clicked expand. In the reference, whichever view embeds
+        // a live transcript box (e.g. the main window's RecordPage) calls AddBoxHost()/RemoveBoxHost()
+        // as it mounts/unmounts. This app's orb overlay is the one surface that's always present, so
+        // it registers as a permanent host from launch — live text always shows while dictating,
+        // with no click required.
+        orchestrator.Engine.AddBoxHost();
+
         _runtime = new FlowRuntime(orchestrator.Engine, host);
         main.Show();
         _runtime.Start();
