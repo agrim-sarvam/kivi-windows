@@ -12,9 +12,15 @@ namespace Kivi.Platform.Paste;
 ///   4. ~40 ms settle.
 ///   5. Release any modifiers the user is still holding (PTT means Right-Ctrl is likely down; a stray
 ///      held Ctrl would corrupt the synthesized chord).
-///   6. Synthesize Ctrl+V — or Ctrl+Shift+V when PasteMeta.IsTerminal — via SendInput. We do NOT
-///      re-foreground the target (the orb is non-activating, so focus never left the target).
-///   7. Restore the previous clipboard.
+///   6. If the captured target window is no longer foreground (the user looked at / clicked the orb
+///      box, a satellite, thumbs, etc. while the take was in flight — the box is deliberately visible
+///      now so this is common, not rare), restore it via SetForegroundWindow BEFORE pasting. SendInput
+///      always targets whatever window currently has focus, not whatever was captured at key-down —
+///      without this step, a paste silently lands nowhere (or into whichever Kivi window has focus,
+///      which has no editable field) the moment focus has moved on. When the target is still
+///      foreground (the common/ideal case), this is a no-op.
+///   7. Synthesize Ctrl+V — or Ctrl+Shift+V when PasteMeta.IsTerminal — via SendInput.
+///   8. Restore the previous clipboard.
 ///
 /// Newlines are carried literally in the clipboard payload (a paste inserts a literal line break); we
 /// never synthesize a Return key, which some apps treat as submit.
@@ -22,8 +28,9 @@ namespace Kivi.Platform.Paste;
 public sealed class SendInputPasteService : IPasteService
 {
     private const int ClipboardSettleMs = 40;
+    private const int ForegroundSettleMs = 40;
 
-    public async Task<PasteOutcome> InsertAsync(string text, PasteMeta meta)
+    public async Task<PasteOutcome> InsertAsync(string text, PasteMeta meta, AppTarget? target = null)
     {
         // 1. Secure-field gate — no clipboard write, no paste.
         if (meta.IsSecureField)
@@ -44,13 +51,21 @@ public sealed class SendInputPasteService : IPasteService
             // 5. Release held modifiers (Ctrl/Shift/Alt/Win, both sides).
             ReleaseModifiers();
 
-            // 6. Synthesize the paste chord.
+            // 6. Restore focus to the captured target if it has drifted (see class doc). No-op — and
+            // no visible flicker — when the target is already foreground.
+            if (target is { WindowHandle: not 0 } t && GetForegroundWindow() != t.WindowHandle)
+            {
+                SetForegroundWindow(t.WindowHandle);
+                await Task.Delay(ForegroundSettleMs).ConfigureAwait(false);
+            }
+
+            // 7. Synthesize the paste chord.
             SendPasteChord(meta.IsTerminal);
 
             // Give the target a moment to consume the paste before we restore the clipboard.
             await Task.Delay(ClipboardSettleMs).ConfigureAwait(false);
 
-            // 7. Restore the user's previous clipboard.
+            // 8. Restore the user's previous clipboard.
             if (previous is not null) SetClipboardTextSta(previous);
             else ClearClipboardSta();
 
@@ -193,4 +208,10 @@ public sealed class SendInputPasteService : IPasteService
 
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int vKey);
+
+    [DllImport("user32.dll")]
+    private static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(nint hWnd);
 }

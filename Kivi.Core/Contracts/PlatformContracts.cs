@@ -11,8 +11,13 @@ public enum GestureEdgeKind { Down, Up }
 public readonly record struct GestureEdge(GestureEdgeKind Kind, long TimestampMs);
 
 /// <summary>The frontmost (target) application captured at key-down.
-/// Named AppTarget (not AppContext) to avoid colliding with System.AppContext.</summary>
-public readonly record struct AppTarget(string? AppName, string? ExePath, string? WindowTitle);
+/// Named AppTarget (not AppContext) to avoid colliding with System.AppContext.
+/// WindowHandle is an opaque platform window handle (HWND on Windows, boxed as IntPtr via nint) so
+/// the paste service can restore focus to the actual captured window before pasting — without it,
+/// SendInput targets whatever window happens to have focus AT PASTE TIME, which silently diverges
+/// from the app the user was dictating into the moment they so much as glance at/click any part of
+/// the Kivi UI (the box, a satellite, thumbs) while a take is in flight.</summary>
+public readonly record struct AppTarget(string? AppName, string? ExePath, string? WindowTitle, nint WindowHandle = 0);
 
 public readonly record struct PasteMeta(bool IsTerminal, bool IsSecureField);
 
@@ -29,7 +34,7 @@ public interface IHotkeyService
 /// <summary>Clipboard + synthesized Ctrl+V paste into the frontmost app. See Kivi.Platform.Paste.</summary>
 public interface IPasteService
 {
-    Task<PasteOutcome> InsertAsync(string text, PasteMeta meta);
+    Task<PasteOutcome> InsertAsync(string text, PasteMeta meta, AppTarget? target = null);
 }
 
 /// <summary>The native layered orb overlay host. See Kivi.Platform.Overlay.</summary>

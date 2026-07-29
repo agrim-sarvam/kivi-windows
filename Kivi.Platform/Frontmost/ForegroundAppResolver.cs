@@ -70,7 +70,7 @@ public sealed class ForegroundAppResolver : IFrontmostApp
             : null;
         string? title = TryGetWindowText(hwnd);
 
-        return new AppTarget(appName, exePath, title);
+        return new AppTarget(appName, exePath, title, hwnd);
     }
 
     private static string? TryGetProcessImagePath(uint pid)

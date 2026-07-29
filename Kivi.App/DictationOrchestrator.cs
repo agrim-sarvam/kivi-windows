@@ -137,7 +137,10 @@ public sealed class DictationOrchestrator : IDisposable
     private async void OnPasteRequested(string text)
     {
         var meta = new PasteMeta(IsTerminal: IsTerminal(_target), IsSecureField: false);
-        await _paste.InsertAsync(text, meta).ConfigureAwait(false);
+        // Pass the captured target so the paste service can restore its focus if it has drifted
+        // (e.g. the user looked at / clicked the now-always-visible transcript box while the take
+        // was completing) — see SendInputPasteService's class doc for why this is necessary.
+        await _paste.InsertAsync(text, meta, _target).ConfigureAwait(false);
     }
 
     private static bool IsTerminal(AppTarget? target)

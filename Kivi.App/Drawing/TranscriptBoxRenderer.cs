@@ -140,7 +140,11 @@ internal static class TranscriptBoxRenderer
             DrawPagerDots(g, f, boxW, contentTop + 10, baseCol, ins, opacity);
 
         // --- transcript lines ---
-        double textTop = contentTop + 26;
+        // 26px previously left barely a few px of clearance below the 9.5pt-bold "kivi" label
+        // (glyph height alone is ~13-14px at that size) before the transcript body started —
+        // header and first line read as crowded/touching. 34px gives the header row proper
+        // breathing room while staying compact.
+        double textTop = contentTop + 34;
         double lineX = padL;
         double maxW = boxW - padL - padR;
         double footerTop = boxH - FooterH;
