@@ -112,12 +112,18 @@
 
                 <TextBlock Text="Google sign-in" FontSize="12" Foreground="#6F8A5A"
                            HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                <!-- Genuinely disabled, not just relabeled: previously clickable despite the
+                     "(temporarily unavailable)" label, so clicking it set ErrorText to the
+                     return_to-allowlist message, which then sat under the OTP section reading
+                     as if the OTP flow itself had failed. IsEnabled=False makes it truly inert
+                     and WPF dims it automatically (no separate disabled-style needed). -->
                 <Button x:Name="GoogleButton" Height="40" Click="GoogleButton_Click"
+                        IsEnabled="False"
                         Background="#1B201C" Foreground="#7C8A7A" BorderThickness="0"
                         FontSize="13" Cursor="Hand">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
-                            <Border Background="{TemplateBinding Background}" CornerRadius="10">
+                            <Border Background="{TemplateBinding Background}" CornerRadius="10" Opacity="0.5">
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
                         </ControlTemplate>
