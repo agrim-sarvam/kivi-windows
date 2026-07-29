@@ -167,9 +167,7 @@ public sealed class KratosAuthClient
             return WhoamiResult.Alive(
                 userId: identity?.Id,
                 email: traits?.Email,
-                displayName: traits?.Name?.First is { Length: > 0 } first
-                    ? $"{first} {traits.Name.Last}".Trim()
-                    : traits?.Email);
+                displayName: traits?.Name is { Length: > 0 } name ? name : traits?.Email);
         }
     }
 
@@ -232,11 +230,10 @@ internal sealed class KratosIdentity
 internal sealed class KratosTraits
 {
     [JsonPropertyName("email")] public string? Email { get; set; }
-    [JsonPropertyName("name")] public KratosName? Name { get; set; }
-}
 
-internal sealed class KratosName
-{
-    [JsonPropertyName("first")] public string? First { get; set; }
-    [JsonPropertyName("last")] public string? Last { get; set; }
+    // Live-verified against https://login.sarvam.ai/identity/schemas: the identity schema declares
+    // `traits.name` as {"type":"string","title":"Full Name"} — a plain string, NOT a {first,last}
+    // object. The original {first,last} assumption threw a JsonException deserializing whoami
+    // ("could not be converted to KratosName") the first time a real identity round-tripped.
+    [JsonPropertyName("name")] public string? Name { get; set; }
 }

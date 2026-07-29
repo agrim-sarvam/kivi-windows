@@ -20,9 +20,15 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
+                        <!-- TextElement.Foreground must be set explicitly on the template's root —
+                             PART_ContentHost's inner text adorner does not visibly inherit the
+                             TextBox.Foreground property setter through a custom ControlTemplate,
+                             so typed text rendered near-black-on-black (illegible) until this was
+                             added explicitly. -->
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
+                                TextElement.Foreground="{TemplateBinding Foreground}"
                                 CornerRadius="8">
                             <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"
                                           VerticalAlignment="Center"/>

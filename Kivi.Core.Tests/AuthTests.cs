@@ -119,7 +119,7 @@ public class AuthTests
     public async Task WhoamiAsync_200_ReturnsAliveWithIdentity()
     {
         var handler = new FakeHandler(_ => Json(HttpStatusCode.OK,
-            """{"identity":{"id":"u1","traits":{"email":"a@b.com","name":{"first":"Ada","last":"Lovelace"}}}}"""));
+            """{"identity":{"id":"u1","traits":{"email":"a@b.com","name":"Ada Lovelace"}}}"""));
         var client = new KratosAuthClient(new HttpClient(handler), new Uri("https://login.sarvam.ai/identity/"));
 
         var who = await client.WhoamiAsync("sess", CancellationToken.None);
@@ -446,7 +446,7 @@ public class AuthTests
             if (url.Contains("self-service/login?flow=flow-1"))
                 return Json(HttpStatusCode.OK, """{"session_token":"kratos-otp-session"}""");
             if (url.Contains("sessions/whoami"))
-                return Json(HttpStatusCode.OK, """{"identity":{"id":"u1","traits":{"email":"a@b.com","name":{"first":"Ada","last":"Lovelace"}}}}""");
+                return Json(HttpStatusCode.OK, """{"identity":{"id":"u1","traits":{"email":"a@b.com","name":"Ada Lovelace"}}}""");
             if (url.Contains("api/v2/auth/jwt"))
                 return Json(HttpStatusCode.OK, """{"token":"jwt-otp","expires_at":"2026-07-28T12:15:00Z"}""");
             throw new InvalidOperationException("unexpected URL: " + url);
