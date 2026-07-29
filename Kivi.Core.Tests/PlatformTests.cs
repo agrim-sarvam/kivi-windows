@@ -86,6 +86,19 @@ public class PlatformTests
         Assert.Equal(PasteOutcome.Ok, outcome);
     }
 
+    // --- SendInput INPUT-struct size invariant (THE paste bug) ---
+    // SendInput rejects the whole call with ERROR_INVALID_PARAMETER (87) and injects NOTHING unless
+    // cbSize == the OS sizeof(INPUT). That size is set by the LARGEST union member (MOUSEINPUT, 24 B
+    // on x64 / 20 B on x86 payload), NOT KEYBDINPUT. A union that declares only KEYBDINPUT is 8 bytes
+    // short on x64 (32 vs 40) — every synthesized Ctrl+V paste silently failed because of exactly this.
+    [Fact]
+    public void SendInput_InputStruct_MatchesOsSizeofInput()
+    {
+        // x64: 40 bytes (4 type + 4 pad + 32 union). x86: 28 bytes (4 type + 24 union).
+        int expected = IntPtr.Size == 8 ? 40 : 28;
+        Assert.Equal(expected, SendInputPasteService.InputStructSize);
+    }
+
     // --- DpapiSecretStore: round-trip write → read ---
 
     [Fact]

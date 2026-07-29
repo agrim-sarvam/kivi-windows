@@ -30,6 +30,14 @@ public sealed class SendInputPasteService : IPasteService
     private const int ClipboardSettleMs = 40;
     private const int ForegroundSettleMs = 40;
 
+    /// <summary>
+    /// The byte size we pass to SendInput as <c>cbSize</c>. Win32 rejects the whole call with
+    /// ERROR_INVALID_PARAMETER (87) and injects nothing unless this exactly equals the OS
+    /// <c>sizeof(INPUT)</c> — which is dictated by the LARGEST union member (MOUSEINPUT), not
+    /// KEYBDINPUT. Exposed for a regression test guarding that invariant.
+    /// </summary>
+    internal static int InputStructSize => Marshal.SizeOf<INPUT>();
+
     public async Task<PasteOutcome> InsertAsync(string text, PasteMeta meta, AppTarget? target = null)
     {
         // 1. Secure-field gate — no clipboard write, no paste.
@@ -85,7 +93,13 @@ public sealed class SendInputPasteService : IPasteService
         var inputs = terminal
             ? BuildChord(VK_CONTROL, VK_SHIFT, VK_V)
             : BuildChord(VK_CONTROL, 0, VK_V);
-        SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+        uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+        // One-line confirmation of the actual injection result. injected must equal requested; a 0
+        // with lastError=87 (ERROR_INVALID_PARAMETER) means cbSize != OS sizeof(INPUT) — the bug this
+        // struct fix resolved. Cheap enough to keep as a permanent breadcrumb.
+        if (sent != inputs.Length)
+            PasteDebug.Log($"SendInput UNDER-INJECTED: requested={inputs.Length} injected={sent} " +
+                $"lastError={Marshal.GetLastWin32Error()}");
     }
 
     private static INPUT[] BuildChord(ushort mod1, ushort mod2, ushort key)
@@ -183,14 +197,32 @@ public sealed class SendInputPasteService : IPasteService
     [StructLayout(LayoutKind.Sequential)]
     private struct INPUT
     {
-        public int type;
+        public uint type;
         public InputUnion U;
     }
 
+    // The union MUST declare all three members so sizeof(INPUT) equals the OS's — that size is set by
+    // the LARGEST member, MOUSEINPUT. Declaring only KEYBDINPUT makes the struct 8 bytes short on x64
+    // (32 vs 40); SendInput then rejects every call with ERROR_INVALID_PARAMETER (87) and injects
+    // nothing — which is exactly why synthesized Ctrl+V pasted nothing. Guarded by
+    // PlatformTests.SendInput_InputStruct_MatchesOsSizeofInput.
     [StructLayout(LayoutKind.Explicit)]
     private struct InputUnion
     {
+        [FieldOffset(0)] public MOUSEINPUT mi;
         [FieldOffset(0)] public KEYBDINPUT ki;
+        [FieldOffset(0)] public HARDWAREINPUT hi;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public UIntPtr dwExtraInfo;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -201,6 +233,14 @@ public sealed class SendInputPasteService : IPasteService
         public uint dwFlags;
         public uint time;
         public UIntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct HARDWAREINPUT
+    {
+        public uint uMsg;
+        public ushort wParamL;
+        public ushort wParamH;
     }
 
     [DllImport("user32.dll", SetLastError = true)]
