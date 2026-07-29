@@ -55,6 +55,51 @@ Also fixed same session: the orb was rendering near screen-CENTER instead of bot
 
 ---
 
+## Auth: email-OTP sign-in ✅ (the REAL unblock — sidesteps the Kratos allowlist gap entirely)
+
+### Why: Google OAuth is still blocked; OTP never touches the broken code path
+Per the user's `docs/v2-integration-playbook.md`, confirmed live against `login.sarvam.ai/identity`:
+Kratos's login flow offers **three method groups** — `oidc` (blocked by the `return_to` allowlist
+gap), `password`, and **`code`** (email OTP). Password/OTP are pure API calls with **no browser
+redirect at all** — `return_to` never enters the picture, so the allowlist gap is irrelevant to them.
+Chose OTP (no password to manage, matches the reference SignInScreen's described OTP field).
+
+### What was built
+- **`Kivi.Platform/Auth/KratosOtpAuthClient.cs`** — `StartFlowAsync`/`RequestCodeAsync`/
+  `SubmitCodeAsync` against Kratos's `code` method. **Live-verified behavior** (probed with a
+  nonexistent email before coding): the request-code error case is **400 with the flow envelope
+  still intact** (`ui.messages[]` carrying the real error text, e.g. "account does not exist or
+  has not setup sign in with code") — not a generic HTTP error; the client reads and surfaces that
+  text directly. The success path (`session_token` in the submit-code response) is honest about
+  being un-verified end-to-end (needs a real inbox) — fails loud with a structural error if that
+  field is ever missing, rather than silently mis-parsing.
+- **`AuthController`** extended (not replaced) — `StartEmailOtpAsync`/`SubmitEmailOtpAsync`, one new
+  `SignInOutcome.InvalidCode` case. The existing `SignInWithGoogleAsync` is untouched — Google stays
+  wired for whenever the Kratos allowlist gets fixed by the team.
+- **`SignInScreen`** — email field → send-code → 6-digit code → verify, with resend/change-email
+  links. Google button kept but relabeled "temporarily unavailable," de-emphasized below a divider.
+- **A LIVE gated smoke test** (`KratosOtpLiveSmokeTests.cs`) — confirms the `code` method group is
+  still offered on a fresh flow. **Ran for real** during verification (544ms round-trip against
+  `login.sarvam.ai`, not mocked) and passed.
+- 12 new unit tests (flow parsing, the 400/ui.messages shape, malformed-body fallback, missing
+  session_token structural failure, wrong-code error, AuthController orchestration).
+
+**Independently re-verified**: build clean; **137/2 tests pass** (12 new, zero regressions); the
+live smoke test re-run directly — genuinely hit the real server and passed; no orphaned process
+after launch; spot-checked the 400/ui.messages parsing code directly — matches what was claimed.
+
+### Manual test — try this now
+1. `dotnet run --project Kivi.App` → sign-in screen shows an email field first.
+2. Enter your real Sarvam email → "Send sign-in code" → check that inbox for a 6-digit code.
+3. Enter the code → "Verify code" → on success the window closes, main app appears,
+   `orchestrator.UseHostedEndpoint = true` (dictation now targets `kivi.aws-qa.sarvam.ai`).
+4. Hold hotkey, speak, release — **first genuine live test of the full loop against real infra.**
+
+**NEXT:** the user tries the OTP sign-in for real (needs a real inbox — can't be automated) — this
+is the last step before the very first proof the whole migration produces a working product.
+
+---
+
 ## Auth: Google OAuth → Kratos → JWT ✅ (unblocks the live loop against hosted QA)
 
 ### Why: the VPN's real purpose

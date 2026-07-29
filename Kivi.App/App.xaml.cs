@@ -38,8 +38,13 @@ public partial class App : Application
         var authConfig = AuthConfig.Default;
         sc.AddSingleton(new HttpClient());
         sc.AddSingleton(sp => new KratosAuthClient(sp.GetRequiredService<HttpClient>(), authConfig.KratosUrl));
+        sc.AddSingleton(sp => new KratosOtpAuthClient(sp.GetRequiredService<HttpClient>(), authConfig.KratosUrl));
         sc.AddSingleton(sp => new OrgJwtClient(sp.GetRequiredService<HttpClient>(), authConfig.OrgServiceUrl));
-        sc.AddSingleton<AuthController>();
+        sc.AddSingleton(sp => new AuthController(
+            sp.GetRequiredService<KratosAuthClient>(),
+            sp.GetRequiredService<OrgJwtClient>(),
+            sp.GetRequiredService<ISecretStore>(),
+            kratosOtp: sp.GetRequiredService<KratosOtpAuthClient>()));
 
         sc.AddSingleton<DictationOrchestrator>();
         sc.AddSingleton<MainWindow>();

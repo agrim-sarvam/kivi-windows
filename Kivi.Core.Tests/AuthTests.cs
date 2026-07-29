@@ -304,4 +304,194 @@ public class AuthTests
             Task.FromResult(new OAuthCallbackResult(Code: null, Fragment: null, Error: null));
         public void Dispose() { }
     }
+
+    // ---- KratosOtpAuthClient: email-OTP ("code" login method) ----
+
+    [Fact]
+    public async Task StartFlowAsync_ParsesIdAndActionUrl()
+    {
+        var handler = new FakeHandler(_ => Json(HttpStatusCode.OK,
+            """{"id":"flow-1","ui":{"action":"https://login.sarvam.ai/identity/self-service/login?flow=flow-1"}}"""));
+        var client = new KratosOtpAuthClient(new HttpClient(handler), new Uri("https://login.sarvam.ai/identity/"));
+
+        var flow = await client.StartFlowAsync(CancellationToken.None);
+
+        Assert.Equal("flow-1", flow.FlowId);
+        Assert.Equal("https://login.sarvam.ai/identity/self-service/login?flow=flow-1", flow.ActionUrl);
+        // No return_to at all for the code method's flow-creation GET.
+        Assert.DoesNotContain("return_to", handler.Requests[0].RequestUri!.ToString());
+    }
+
+    [Fact]
+    public async Task RequestCodeAsync_200_ReturnsUpdatedFlow()
+    {
+        var handler = new FakeHandler(req =>
+        {
+            Assert.Contains("self-service/login?flow=flow-1", req.RequestUri!.ToString());
+            return Json(HttpStatusCode.OK,
+                """{"id":"flow-1","state":"sent_email","ui":{"action":"https://login.sarvam.ai/identity/self-service/login?flow=flow-1"}}""");
+        });
+        var client = new KratosOtpAuthClient(new HttpClient(handler), new Uri("https://login.sarvam.ai/identity/"));
+
+        var updated = await client.RequestCodeAsync("flow-1",
+            "https://login.sarvam.ai/identity/self-service/login?flow=flow-1", "a@b.com", CancellationToken.None);
+
+        Assert.Equal("flow-1", updated.FlowId);
+    }
+
+    [Fact]
+    public async Task RequestCodeAsync_400WithUiMessage_ThrowsCleanError()
+    {
+        // Live-confirmed shape (2026-07-29, nonexistent probe email): 400 with the flow envelope
+        // still present and ui.messages[] carrying the actual error text.
+        var handler = new FakeHandler(_ => Json(HttpStatusCode.BadRequest,
+            """{"id":"flow-1","state":"choose_method","ui":{"action":"https://login.sarvam.ai/identity/self-service/login?flow=flow-1","messages":[{"id":4000035,"text":"This account does not exist or has not setup sign in with code.","type":"error"}]}}"""));
+        var client = new KratosOtpAuthClient(new HttpClient(handler), new Uri("https://login.sarvam.ai/identity/"));
+
+        var ex = await Assert.ThrowsAsync<KratosAuthException>(() =>
+            client.RequestCodeAsync("flow-1", "https://login.sarvam.ai/identity/self-service/login?flow=flow-1", "nobody@example.com", CancellationToken.None));
+
+        Assert.Equal("This account does not exist or has not setup sign in with code.", ex.Message);
+    }
+
+    [Fact]
+    public async Task RequestCodeAsync_400WithNoParseableBody_ThrowsWithRawBodyFallback()
+    {
+        var handler = new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent("not json", Encoding.UTF8, "text/plain"),
+        });
+        var client = new KratosOtpAuthClient(new HttpClient(handler), new Uri("https://login.sarvam.ai/identity/"));
+
+        var ex = await Assert.ThrowsAsync<KratosAuthException>(() =>
+            client.RequestCodeAsync("flow-1", "https://login.sarvam.ai/identity/self-service/login?flow=flow-1", "a@b.com", CancellationToken.None));
+
+        Assert.Contains("not json", ex.Message);
+    }
+
+    [Fact]
+    public async Task SubmitCodeAsync_Success_ReturnsSessionToken()
+    {
+        var handler = new FakeHandler(req =>
+        {
+            return Json(HttpStatusCode.OK, """{"session_token":"kratos-session-otp-xyz"}""");
+        });
+        var client = new KratosOtpAuthClient(new HttpClient(handler), new Uri("https://login.sarvam.ai/identity/"));
+
+        var token = await client.SubmitCodeAsync("flow-1",
+            "https://login.sarvam.ai/identity/self-service/login?flow=flow-1", "a@b.com", "123456", CancellationToken.None);
+
+        Assert.Equal("kratos-session-otp-xyz", token);
+    }
+
+    [Fact]
+    public async Task SubmitCodeAsync_MissingSessionTokenField_ThrowsStructuralError()
+    {
+        // A 2xx whose body doesn't match the documented api-flow contract must fail loud, not
+        // silently assume success.
+        var handler = new FakeHandler(_ => Json(HttpStatusCode.OK, """{"unexpected":"shape"}"""));
+        var client = new KratosOtpAuthClient(new HttpClient(handler), new Uri("https://login.sarvam.ai/identity/"));
+
+        var ex = await Assert.ThrowsAsync<KratosAuthException>(() =>
+            client.SubmitCodeAsync("flow-1", "https://login.sarvam.ai/identity/self-service/login?flow=flow-1", "a@b.com", "123456", CancellationToken.None));
+
+        Assert.Contains("session_token", ex.Message);
+    }
+
+    [Fact]
+    public async Task SubmitCodeAsync_WrongCode_ThrowsCleanInvalidCodeError()
+    {
+        var handler = new FakeHandler(_ => Json(HttpStatusCode.BadRequest,
+            """{"id":"flow-1","state":"choose_method","ui":{"action":"https://login.sarvam.ai/identity/self-service/login?flow=flow-1","messages":[{"id":4000006,"text":"The provided authentication code is invalid, please try again.","type":"error"}]}}"""));
+        var client = new KratosOtpAuthClient(new HttpClient(handler), new Uri("https://login.sarvam.ai/identity/"));
+
+        var ex = await Assert.ThrowsAsync<KratosAuthException>(() =>
+            client.SubmitCodeAsync("flow-1", "https://login.sarvam.ai/identity/self-service/login?flow=flow-1", "a@b.com", "000000", CancellationToken.None));
+
+        Assert.Equal("The provided authentication code is invalid, please try again.", ex.Message);
+    }
+
+    // ---- AuthController: email-OTP orchestration ----
+
+    [Fact]
+    public async Task StartEmailOtpAsync_ThreadsFlowThroughToHandle()
+    {
+        var handler = new FakeHandler(req =>
+        {
+            var url = req.RequestUri!.ToString();
+            if (url.Contains("self-service/login/api"))
+                return Json(HttpStatusCode.OK, """{"id":"flow-1","ui":{"action":"https://login.sarvam.ai/identity/self-service/login?flow=flow-1"}}""");
+            if (url.Contains("self-service/login?flow=flow-1"))
+                return Json(HttpStatusCode.OK, """{"id":"flow-1","state":"sent_email","ui":{"action":"https://login.sarvam.ai/identity/self-service/login?flow=flow-1"}}""");
+            throw new InvalidOperationException("unexpected URL: " + url);
+        });
+        var kratos = new KratosAuthClient(new HttpClient(handler), new Uri("https://login.sarvam.ai/identity/"));
+        var otp = new KratosOtpAuthClient(new HttpClient(handler), new Uri("https://login.sarvam.ai/identity/"));
+        var orgJwt = new OrgJwtClient(new HttpClient(new FakeHandler(_ => throw new InvalidOperationException("should not mint"))), new Uri("https://auth.sarvam.ai/"));
+        var secrets = new FakeSecretStore();
+        var controller = new AuthController(kratos, orgJwt, secrets, kratosOtp: otp);
+
+        var handleResult = await controller.StartEmailOtpAsync("a@b.com");
+
+        Assert.Equal("flow-1", handleResult.FlowId);
+        Assert.Equal("a@b.com", handleResult.Email);
+    }
+
+    [Fact]
+    public async Task SubmitEmailOtpAsync_Success_PersistsTokensAndSignsIn()
+    {
+        var handler = new FakeHandler(req =>
+        {
+            var url = req.RequestUri!.ToString();
+            if (url.Contains("self-service/login?flow=flow-1"))
+                return Json(HttpStatusCode.OK, """{"session_token":"kratos-otp-session"}""");
+            if (url.Contains("sessions/whoami"))
+                return Json(HttpStatusCode.OK, """{"identity":{"id":"u1","traits":{"email":"a@b.com","name":{"first":"Ada","last":"Lovelace"}}}}""");
+            if (url.Contains("api/v2/auth/jwt"))
+                return Json(HttpStatusCode.OK, """{"token":"jwt-otp","expires_at":"2026-07-28T12:15:00Z"}""");
+            throw new InvalidOperationException("unexpected URL: " + url);
+        });
+        var kratos = new KratosAuthClient(new HttpClient(handler), new Uri("https://login.sarvam.ai/identity/"));
+        var otp = new KratosOtpAuthClient(new HttpClient(handler), new Uri("https://login.sarvam.ai/identity/"));
+        var orgJwt = new OrgJwtClient(new HttpClient(handler), new Uri("https://auth.sarvam.ai/"));
+        var secrets = new FakeSecretStore();
+        var controller = new AuthController(kratos, orgJwt, secrets, kratosOtp: otp);
+
+        var handle = new OtpFlowHandle("flow-1", "https://login.sarvam.ai/identity/self-service/login?flow=flow-1", "a@b.com");
+        var result = await controller.SubmitEmailOtpAsync(handle, "123456");
+
+        Assert.Equal(SignInOutcome.Success, result.Outcome);
+        Assert.True(controller.IsSignedIn);
+        Assert.Equal("a@b.com", controller.Email);
+        Assert.Equal("kratos-otp-session", secrets.Read("kratosSessionToken"));
+        Assert.Equal("jwt-otp", secrets.Read("orgServiceJWT"));
+    }
+
+    [Fact]
+    public async Task SubmitEmailOtpAsync_WrongCode_ReturnsInvalidCode_NotSignedIn()
+    {
+        var handler = new FakeHandler(_ => Json(HttpStatusCode.BadRequest,
+            """{"id":"flow-1","state":"choose_method","ui":{"action":"https://login.sarvam.ai/identity/self-service/login?flow=flow-1","messages":[{"id":4000006,"text":"The provided authentication code is invalid, please try again.","type":"error"}]}}"""));
+        var kratos = new KratosAuthClient(new HttpClient(handler), new Uri("https://login.sarvam.ai/identity/"));
+        var otp = new KratosOtpAuthClient(new HttpClient(handler), new Uri("https://login.sarvam.ai/identity/"));
+        var orgJwt = new OrgJwtClient(new HttpClient(new FakeHandler(_ => throw new InvalidOperationException("should not mint"))), new Uri("https://auth.sarvam.ai/"));
+        var secrets = new FakeSecretStore();
+        var controller = new AuthController(kratos, orgJwt, secrets, kratosOtp: otp);
+
+        var handle = new OtpFlowHandle("flow-1", "https://login.sarvam.ai/identity/self-service/login?flow=flow-1", "a@b.com");
+        var result = await controller.SubmitEmailOtpAsync(handle, "000000");
+
+        Assert.Equal(SignInOutcome.InvalidCode, result.Outcome);
+        Assert.False(controller.IsSignedIn);
+    }
+
+    [Fact]
+    public async Task StartEmailOtpAsync_WithoutOtpClient_Throws()
+    {
+        var kratos = new KratosAuthClient(new HttpClient(new FakeHandler(_ => throw new InvalidOperationException())), new Uri("https://login.sarvam.ai/identity/"));
+        var orgJwt = new OrgJwtClient(new HttpClient(new FakeHandler(_ => throw new InvalidOperationException())), new Uri("https://auth.sarvam.ai/"));
+        var controller = new AuthController(kratos, orgJwt, new FakeSecretStore());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => controller.StartEmailOtpAsync("a@b.com"));
+    }
 }
