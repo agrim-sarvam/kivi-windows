@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Windows;
 using Kivi.App.Drawing;
+using Kivi.App.Services;
 using Kivi.App.Views.Auth;
 using Kivi.Core.Contracts;
 using Kivi.Core.Orb;
@@ -34,6 +35,13 @@ public partial class App : Application
         // Local JSON persistence (%APPDATA%\Kivi\flowstore.json) for settings + playback history.
         sc.AddSingleton<IFlowStore, JsonFlowStore>();
 
+        // Dictation history (%APPDATA%\Kivi\dictation-history.json) + per-app icon extraction, read
+        // by the Record/History pages. Registering the store here also auto-activates the
+        // orchestrator's optional IDictationHistoryStore? ctor param, so every completed take is
+        // recorded into this same singleton instance.
+        sc.AddSingleton<IDictationHistoryStore, JsonDictationHistoryStore>();
+        sc.AddSingleton<IAppIconResolver, AppIconResolver>();
+
         // Auth (map §3): Kratos + org-JWT mint, pure HTTP clients over a shared HttpClient.
         var authConfig = AuthConfig.Default;
         sc.AddSingleton(new HttpClient());
@@ -49,6 +57,10 @@ public partial class App : Application
         sc.AddSingleton<DictationOrchestrator>();
         sc.AddSingleton<MainWindow>();
         _services = sc.BuildServiceProvider();
+
+        // Bridge the two page-facing singletons to the new()'d workspace pages. Must run before any
+        // page is created (MainWindow is shown later in OnStartup, so this ordering is safe).
+        AppServices.Init(_services);
 
         var host = (LayeredOrbHost)_services.GetRequiredService<IOverlayHost>();
 
@@ -88,6 +100,12 @@ public partial class App : Application
         // it registers as a permanent host from launch — live text always shows while dictating,
         // with no click required.
         orchestrator.Engine.AddBoxHost();
+
+        // Windows hotkey labels for the orb footer keycaps + hint text. Kivi.Core keeps the
+        // reference defaults ("fn" / "⌃") so the golden-frame tests don't regress; the real Windows
+        // app overrides them here to the actual bindings.
+        orchestrator.Engine.HotkeyLabel = "right ctrl";
+        orchestrator.Engine.EditComboLabel = "ctrl";
 
         _runtime = new FlowRuntime(orchestrator.Engine, host);
         main.Show();

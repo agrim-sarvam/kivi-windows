@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Kivi.Installer</RootNamespace>
+    <UseWPF>true</UseWPF>
+    <!-- The published Setup exe is named Kivi-Setup.exe. -->
+    <AssemblyName>Kivi-Setup</AssemblyName>
+    <!-- Icon reused from the app (embeds into the Setup exe's Win32 resources). -->
+    <ApplicationIcon>..\Kivi.App\kivi.ico</ApplicationIcon>
+    <!-- RuntimeIdentifier is intentionally NOT pinned here; the build script passes -r.
+         Plain `dotnet build` compiles this as a portable win project with no payload;
+         the build script's self-contained win-x64 publish governs the shipped Setup exe. -->
+  </PropertyGroup>
+
+  <!-- Brand image shown in the installer window (copied out of _reference; never modified there). -->
+  <ItemGroup>
+    <Resource Include="Assets\icon.png" />
+  </ItemGroup>
+
+  <!-- The published app payload is embedded ONLY when the build script has produced it.
+       Without it, `dotnet build` still succeeds and the UI shows a "dev build, no payload" state. -->
+  <ItemGroup Condition="Exists('payload\payload.zip')">
+    <EmbeddedResource Include="payload\payload.zip" LogicalName="Kivi.payload.zip" />
+  </ItemGroup>
+
+</Project>

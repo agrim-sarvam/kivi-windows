@@ -142,10 +142,10 @@ internal static class OrbIcons
                 case 'A':
                 case 'a':
                 {
-                    double rx = ReadNum(), ry = ReadNum(); ReadNum(); /*rot*/ ReadNum(); /*large*/ double sweep = ReadNum();
+                    double rx = ReadNum(), ry = ReadNum(); ReadNum(); /*rot*/ double large = ReadNum(); double sweep = ReadNum();
                     double nx = ReadNum(), ny = ReadNum();
                     if (cmd == 'a') { nx += curX; ny += curY; }
-                    AddArc(path, curX, curY, rx, ry, sweep >= 0.5, nx, ny);
+                    AddArc(path, curX, curY, rx, ry, large >= 0.5, sweep >= 0.5, nx, ny);
                     curX = nx; curY = ny;
                     break;
                 }
@@ -163,31 +163,45 @@ internal static class OrbIcons
         return results;
     }
 
-    // Approximate an SVG elliptical arc from (curX,curY) to (nx,ny) with radius rx,ry.
-    private static void AddArc(GraphicsPath? path, double x0, double y0, double rx, double ry, bool sweep, double x1, double y1)
+    // Approximate an SVG elliptical arc from (x0,y0) to (x1,y1) with radius rx≈ry.
+    // Honors BOTH SVG flags: `large` (major vs. minor arc) and `sweep` (direction). The two candidate
+    // centers give a minor and a major arc; we pick the one whose swept angle matches `large`. The
+    // previous version discarded `large` and always drew the minor arc, so a near-full-circle path
+    // (e.g. the "playback"/history glyph, and the gear/mic rings) rendered as a tiny broken stub.
+    private static void AddArc(GraphicsPath? path, double x0, double y0, double rx, double ry, bool large, bool sweep, double x1, double y1)
     {
         if (path == null) return;
-        // Center via midpoint + perpendicular offset (assumes rx=ry for these icons).
-        double r = rx;
+        double r = rx; // these icons use rx==ry
         double mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
         double dx = x1 - x0, dy = y1 - y0;
         double dist = Math.Sqrt(dx * dx + dy * dy);
+        if (dist == 0) return;
         double h = Math.Sqrt(Math.Max(0, r * r - dist * dist / 4));
-        double ux = -dy / (dist == 0 ? 1 : dist), uy = dx / (dist == 0 ? 1 : dist);
-        // choose center side by sweep
-        double sign = sweep ? 1 : -1;
-        double cx = mx + sign * h * ux, cy = my + sign * h * uy;
-        double a0 = Math.Atan2(y0 - cy, x0 - cx);
-        double a1 = Math.Atan2(y1 - cy, x1 - cx);
-        double sweepAng = a1 - a0;
-        if (sweep && sweepAng < 0) sweepAng += 2 * Math.PI;
-        if (!sweep && sweepAng > 0) sweepAng -= 2 * Math.PI;
-        int steps = Math.Max(2, (int)(Math.Abs(sweepAng) / (Math.PI / 16)));
+        double ux = -dy / dist, uy = dx / dist; // unit perpendicular
+
+        // Evaluate both candidate centers; keep the one whose (direction-corrected) swept angle is
+        // the major arc when `large` is set, else the minor arc.
+        double bestCx = mx, bestCy = my, bestSweepAng = 0;
+        bool chose = false;
+        foreach (double sign in new[] { 1.0, -1.0 })
+        {
+            double cx = mx + sign * h * ux, cy = my + sign * h * uy;
+            double a0 = Math.Atan2(y0 - cy, x0 - cx);
+            double a1 = Math.Atan2(y1 - cy, x1 - cx);
+            double ang = a1 - a0;
+            if (sweep && ang < 0) ang += 2 * Math.PI;
+            if (!sweep && ang > 0) ang -= 2 * Math.PI;
+            bool isLarge = Math.Abs(ang) > Math.PI;
+            if (!chose || isLarge == large) { bestCx = cx; bestCy = cy; bestSweepAng = ang; chose = true; if (isLarge == large) break; }
+        }
+
+        double bx0 = Math.Atan2(y0 - bestCy, x0 - bestCx);
+        int steps = Math.Max(2, (int)(Math.Abs(bestSweepAng) / (Math.PI / 32)));
         double px = x0, py = y0;
         for (int s = 1; s <= steps; s++)
         {
-            double a = a0 + sweepAng * s / steps;
-            double qx = cx + r * Math.Cos(a), qy = cy + r * Math.Sin(a);
+            double a = bx0 + bestSweepAng * s / steps;
+            double qx = bestCx + r * Math.Cos(a), qy = bestCy + r * Math.Sin(a);
             path.AddLine((float)px, (float)py, (float)qx, (float)qy);
             px = qx; py = qy;
         }

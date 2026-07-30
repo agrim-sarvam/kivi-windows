@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kivi.App", "Kivi.App\Kivi.A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kivi.Core.Tests", "Kivi.Core.Tests\Kivi.Core.Tests.csproj", "{8E078E8A-4DB1-45E2-A20E-BF3EACBC3202}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kivi.Installer", "Kivi.Installer\Kivi.Installer.csproj", "{02023F5E-5DFE-4662-851D-98097E747698}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +38,9 @@ Global
 		{8E078E8A-4DB1-45E2-A20E-BF3EACBC3202}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8E078E8A-4DB1-45E2-A20E-BF3EACBC3202}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8E078E8A-4DB1-45E2-A20E-BF3EACBC3202}.Release|Any CPU.Build.0 = Release|Any CPU
+		{02023F5E-5DFE-4662-851D-98097E747698}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{02023F5E-5DFE-4662-851D-98097E747698}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{02023F5E-5DFE-4662-851D-98097E747698}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{02023F5E-5DFE-4662-851D-98097E747698}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

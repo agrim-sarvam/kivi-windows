@@ -1,0 +1,176 @@
+<Application x:Class="Kivi.Installer.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnMainWindowClose">
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- ============================================================
+                 Canon DARK palette — duplicated verbatim from
+                 Kivi.App/Themes/Dark.xaml (byte-exact hex). This is a
+                 standalone exe, so tokens are copied, not referenced.
+                 ============================================================ -->
+            <Color x:Key="CanvasColor">#0C0E0C</Color>
+            <Color x:Key="Surface1Color">#161616</Color>
+            <Color x:Key="Surface2Color">#1E1E1E</Color>
+            <Color x:Key="InkPrimaryColor">#E9E7DD</Color>
+            <Color x:Key="InkSecondaryColor">#A7A99E</Color>
+            <Color x:Key="InkTertiaryColor">#84887D</Color>
+            <Color x:Key="AccentColor">#8FCE6E</Color>
+            <Color x:Key="AccentWashColor">#148FCE6E</Color>
+            <Color x:Key="HairlineColor">#14FFFFFF</Color>
+            <Color x:Key="StateErrorColor">#B81514</Color>
+
+            <SolidColorBrush x:Key="Canvas" Color="{StaticResource CanvasColor}" />
+            <SolidColorBrush x:Key="Surface1" Color="{StaticResource Surface1Color}" />
+            <SolidColorBrush x:Key="Surface2" Color="{StaticResource Surface2Color}" />
+            <SolidColorBrush x:Key="InkPrimary" Color="{StaticResource InkPrimaryColor}" />
+            <SolidColorBrush x:Key="InkSecondary" Color="{StaticResource InkSecondaryColor}" />
+            <SolidColorBrush x:Key="InkTertiary" Color="{StaticResource InkTertiaryColor}" />
+            <SolidColorBrush x:Key="Accent" Color="{StaticResource AccentColor}" />
+            <SolidColorBrush x:Key="AccentWash" Color="{StaticResource AccentWashColor}" />
+            <SolidColorBrush x:Key="Hairline" Color="{StaticResource HairlineColor}" />
+            <SolidColorBrush x:Key="StateError" Color="{StaticResource StateErrorColor}" />
+
+            <!-- Fonts: Space Grotesk is the Canon display face; Segoe UI is the
+                 documented shippable fallback (Space Grotesk is not embedded here). -->
+            <FontFamily x:Key="FontDisplay">Space Grotesk, Segoe UI Semibold, Segoe UI, sans-serif</FontFamily>
+            <FontFamily x:Key="FontBody">Segoe UI, system-ui, sans-serif</FontFamily>
+
+            <!-- Canon radii (tokens.ts radius scale: xs4 sm8 md12 lg20 xl28). -->
+            <CornerRadius x:Key="RadiusMd">12</CornerRadius>
+            <CornerRadius x:Key="RadiusLg">20</CornerRadius>
+            <CornerRadius x:Key="RadiusFull">9999</CornerRadius>
+
+            <!-- Canon EaseSoft cubic-bezier(0.16,1,0.3,1) for fade/slide transitions. -->
+            <KeySpline x:Key="EaseSoftSpline" ControlPoint1="0.16,1" ControlPoint2="0.3,1" />
+
+            <!-- ===== Primary (accent-filled) button ===== -->
+            <Style x:Key="PrimaryButton" TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource Accent}" />
+                <Setter Property="Foreground" Value="{StaticResource Canvas}" />
+                <Setter Property="FontFamily" Value="{StaticResource FontDisplay}" />
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Height" Value="44" />
+                <Setter Property="Padding" Value="28,0" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                    CornerRadius="12" SnapsToDevicePixels="True">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  Margin="{TemplateBinding Padding}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bd" Property="Opacity" Value="0.88" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="bd" Property="Opacity" Value="0.75" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="bd" Property="Opacity" Value="0.4" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- ===== Ghost / secondary button (hairline outline) ===== -->
+            <Style x:Key="GhostButton" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{StaticResource InkSecondary}" />
+                <Setter Property="FontFamily" Value="{StaticResource FontBody}" />
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="Height" Value="44" />
+                <Setter Property="Padding" Value="24,0" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                    BorderBrush="{StaticResource Hairline}" BorderThickness="1"
+                                    CornerRadius="12" SnapsToDevicePixels="True">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  Margin="{TemplateBinding Padding}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface2}" />
+                                    <Setter Property="Foreground" Value="{StaticResource InkPrimary}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- ===== Window chrome button (min / close) ===== -->
+            <Style x:Key="ChromeButton" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{StaticResource InkTertiary}" />
+                <Setter Property="Width" Value="34" />
+                <Setter Property="Height" Value="30" />
+                <Setter Property="FontFamily" Value="Segoe UI" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  Margin="{TemplateBinding Padding}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bd" Property="Background" Value="{StaticResource Surface2}" />
+                                    <Setter Property="Foreground" Value="{StaticResource InkPrimary}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- ===== Canon checkbox ===== -->
+            <Style x:Key="KiviCheckBox" TargetType="CheckBox">
+                <Setter Property="Foreground" Value="{StaticResource InkSecondary}" />
+                <Setter Property="FontFamily" Value="{StaticResource FontBody}" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="CheckBox">
+                            <StackPanel Orientation="Horizontal" Background="Transparent">
+                                <Border x:Name="box" Width="18" Height="18" CornerRadius="5"
+                                        Background="{StaticResource Surface2}"
+                                        BorderBrush="{StaticResource Hairline}" BorderThickness="1"
+                                        VerticalAlignment="Center">
+                                    <Path x:Name="check" Data="M 3,8 L 7,12 L 14,4"
+                                          Stroke="{StaticResource Canvas}" StrokeThickness="2"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          Visibility="Collapsed" />
+                                </Border>
+                                <ContentPresenter Margin="10,0,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="box" Property="Background" Value="{StaticResource Accent}" />
+                                    <Setter TargetName="box" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                    <Setter TargetName="check" Property="Visibility" Value="Visible" />
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource InkPrimary}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

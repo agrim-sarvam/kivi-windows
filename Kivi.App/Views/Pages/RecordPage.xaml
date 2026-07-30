@@ -53,7 +53,7 @@
                                                Foreground="{DynamicResource InkTertiary}" />
                                     <Border Background="{DynamicResource Surface2}" CornerRadius="4"
                                             BorderBrush="{DynamicResource Hairline}" BorderThickness="1" Padding="6,1">
-                                        <TextBlock Text="fn" FontFamily="{DynamicResource FontBody}"
+                                        <TextBlock Text="right ctrl" FontFamily="{DynamicResource FontBody}"
                                                    FontWeight="Medium" FontSize="11" Foreground="{DynamicResource InkSecondary}" />
                                     </Border>
                                     <TextBlock Text=" anywhere to talk" VerticalAlignment="Center"
@@ -91,7 +91,7 @@
                                    Foreground="{DynamicResource InkPrimary}" />
                         <TextBlock Text="words took flight today" Margin="0,4,0,0"
                                    FontFamily="{DynamicResource FontBody}" FontSize="13" Foreground="{DynamicResource InkSecondary}" />
-                        <TextBlock Text="from slack, notes, mail" Margin="0,4,0,0"
+                        <TextBlock x:Name="AppSpread" Text="from slack, notes, mail" Margin="0,4,0,0"
                                    FontFamily="{DynamicResource FontMono}" FontSize="11"
                                    Foreground="{DynamicResource InkTertiary}" Opacity="0.6" />
                     </StackPanel>

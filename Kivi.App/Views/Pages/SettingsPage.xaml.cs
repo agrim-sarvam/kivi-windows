@@ -87,7 +87,7 @@ public partial class SettingsPage : UserControl
                 Foreground = sel ? (Brush)FindResource("InkPrimary") : (Brush)FindResource("InkSecondary"),
             },
         };
-        var btn = new Button { Content = bd, Background = Brushes.Transparent, BorderThickness = new Thickness(0), Cursor = System.Windows.Input.Cursors.Hand, Margin = new Thickness(0, 1, 0, 1) };
+        var btn = new Button { Content = bd, Background = Brushes.Transparent, BorderThickness = new Thickness(0), Cursor = System.Windows.Input.Cursors.Hand, Margin = new Thickness(0, 1, 0, 1), FocusVisualStyle = null };
         btn.Template = Passthrough();
         btn.Click += (_, _) => { _selected = p.Id; BuildRail(Search.Text); ShowPane(p.Id); };
         return btn;
@@ -133,7 +133,7 @@ public partial class SettingsPage : UserControl
         "general" => new[]
         {
             Section("general", Row("appearance", AppearanceControl(), true), Row("language", MenuPill("auto-detect"), false), Row("welcome demo", Ghost("replay"), false)),
-            Section("shortcuts", Row("kivi key", HotkeyField("fn"), true), Row("cancel take", Keycap("esc"), false), Row("paste last", Keycap("⌃⇧v"), false)),
+            Section("shortcuts", Row("kivi key", HotkeyField("right ctrl"), true), Row("cancel take", Keycap("esc"), false), Row("paste last", Keycap("Ctrl+Shift+V"), false)),
             Section("privacy", Row("code-mix (hinglish)", Switch(true), true), Row("retry failed dictations", Switch(true), false), Row("personalization", Value("on"), false)),
         },
         "orb" => new[]
@@ -212,7 +212,9 @@ public partial class SettingsPage : UserControl
 
     private UIElement Switch(bool on)
     {
-        var toggle = new ToggleButton { IsChecked = on, Width = 30, Height = 18, Cursor = System.Windows.Input.Cursors.Hand };
+        // FocusVisualStyle=null: the custom-templated toggle must not also draw WPF's default dotted
+        // focus rectangle (it rendered as a stray "- -" dashed artifact near the row on load).
+        var toggle = new ToggleButton { IsChecked = on, Width = 30, Height = 18, Cursor = System.Windows.Input.Cursors.Hand, FocusVisualStyle = null };
         toggle.Template = SwitchTemplate();
         return toggle;
     }

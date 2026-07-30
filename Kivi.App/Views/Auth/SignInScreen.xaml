@@ -8,31 +8,65 @@
         Background="#0F1210">
     <Window.Resources>
         <Style x:Key="OtpTextBox" TargetType="TextBox">
-            <Setter Property="Height" Value="40"/>
+            <Setter Property="Height" Value="44"/>
             <Setter Property="Background" Value="#1B201C"/>
             <Setter Property="Foreground" Value="#E9F2E3"/>
             <Setter Property="CaretBrush" Value="#E9F2E3"/>
             <Setter Property="BorderBrush" Value="#2A2F2A"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Padding" Value="12,0"/>
             <Setter Property="FontSize" Value="14"/>
+            <Setter Property="AcceptsReturn" Value="False"/>
+            <Setter Property="TextWrapping" Value="NoWrap"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
-                        <!-- TextElement.Foreground must be set explicitly on the template's root —
-                             PART_ContentHost's inner text adorner does not visibly inherit the
-                             TextBox.Foreground property setter through a custom ControlTemplate,
-                             so typed text rendered near-black-on-black (illegible) until this was
-                             added explicitly. -->
+                        <!-- Canonical single-line TextBox template. Border.Padding insets the content
+                             (do NOT also put Margin on PART_ContentHost — combining Padding-margin
+                             with VerticalAlignment + a Disabled vertical scrollbar previously scrolled
+                             the single line up out of view, clipping typed text at the top edge).
+                             VerticalContentAlignment=Center + a stretched content host with both
+                             scrollbars Hidden = text stays vertically centred and fully visible, and
+                             the field is not a scroll container.
+                             TextElement.Foreground must be set explicitly on the root — the inner text
+                             adorner does not visibly inherit TextBox.Foreground through a custom
+                             template (text rendered near-black-on-black until this was added). -->
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 TextElement.Foreground="{TemplateBinding Foreground}"
-                                CornerRadius="8">
-                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"
-                                          VerticalAlignment="Center"/>
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <!-- Placeholder (from Tag): shown only while the field is empty. The
+                                     Tag values were set but never drawn before, so the fields looked
+                                     blank/broken. -->
+                                <TextBlock x:Name="Placeholder"
+                                           Text="{TemplateBinding Tag}"
+                                           Foreground="#6F7A6A"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Left"
+                                           IsHitTestVisible="False"
+                                           Visibility="Collapsed"/>
+                                <ScrollViewer x:Name="PART_ContentHost"
+                                              Focusable="False"
+                                              VerticalAlignment="Center"
+                                              HorizontalScrollBarVisibility="Hidden"
+                                              VerticalScrollBarVisibility="Hidden"/>
+                            </Grid>
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <!-- Placeholder shows only when empty AND unfocused: the Text="" trigger
+                                 turns it on, and the focus trigger (later, so it wins when both are
+                                 active) turns it off the moment the field is clicked/focused. -->
+                            <Trigger Property="Text" Value="">
+                                <Setter TargetName="Placeholder" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Placeholder" Property="Visibility" Value="Collapsed"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>

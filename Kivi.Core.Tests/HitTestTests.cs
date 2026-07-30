@@ -210,11 +210,11 @@ public sealed class HitTestTests
         var f = ExpandedBox();
         f.TakeRatable = true;
         var (_, boxTop) = BoxOriginFlowForTest(f);
-        double footerTop = boxTop + f.BoxH - 30;
-        double nsLeftAnchor = f.BoxW - 12 - 92; // NewSessionPad(12) + NewSessionW(92)
+        double footerTop = boxTop + f.BoxH - 48;            // FooterH
+        double nsLeftAnchor = f.BoxW - 12 - 118;            // NewSessionPad(12) + NewSessionW(118)
         double upLeftLocal = nsLeftAnchor - 6 - 28 * 2 - 6; // thumbGap/size mirror FlowFrame consts
         double upCenterLocalX = upLeftLocal + 14;
-        double thumbCenterY = footerTop + 15;
+        double thumbCenterY = footerTop + 24;               // FooterH/2
         Assert.Equal(HoverTarget.ThumbUp, f.InteractiveTarget(upCenterLocalX - f.BoxW / 2.0, thumbCenterY));
 
         double downCenterLocalX = upLeftLocal + 28 + 6 + 14;
@@ -230,10 +230,10 @@ public sealed class HitTestTests
     {
         var f = ExpandedBox();
         var (_, boxTop) = BoxOriginFlowForTest(f);
-        double footerTop = boxTop + f.BoxH - 30;
-        double nsLeftAnchor = f.BoxW - 12 - 92;
-        double centerLocalX = nsLeftAnchor + 46;
-        double centerY = footerTop + 15;
+        double footerTop = boxTop + f.BoxH - 48;   // FooterH
+        double nsLeftAnchor = f.BoxW - 12 - 118;   // NewSessionPad(12) + NewSessionW(118)
+        double centerLocalX = nsLeftAnchor + 59;   // NewSessionW/2
+        double centerY = footerTop + 24;           // FooterH/2
         Assert.Equal(HoverTarget.NewSession, f.InteractiveTarget(centerLocalX - f.BoxW / 2.0, centerY));
     }
 

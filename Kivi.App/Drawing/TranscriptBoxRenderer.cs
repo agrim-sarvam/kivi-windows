@@ -30,9 +30,15 @@ internal static class TranscriptBoxRenderer
     // FooterH/ThumbSize/ThumbGap/NewSessionW/H/Pad constants verbatim so the drawn chips and their
     // hit regions never drift apart.
     private const double CopyChipSize = 26, HeaderPadR = 16;
-    private const double FooterH = 30;
+    // Footer STRIP height. The reference footer is a 30px content row wrapped in 8px/10px padding
+    // (~48px total, boxSizing:content-box) — that padding is what gives the 27-28px pills room to
+    // breathe. At 30px the pills nearly touched the strip edges and read as oversized ("out of
+    // proportion"), so the strip is 48 to match the reference's effective height. Kept identical to
+    // FlowFrame.FooterH (hit-test) and BoxContentFit.FooterH (box sizing).
+    private const double FooterH = 48;
     private const double ThumbSize = 28, ThumbGap = 6;
-    private const double NewSessionW = 92, NewSessionH = 27, NewSessionPad = 12;
+    // 92px cramped "new session" (icon + 11-char label + pads ≈ 116px). Widened to fit it snugly.
+    private const double NewSessionW = 118, NewSessionH = 27, NewSessionPad = 12;
 
     public static void Draw(Graphics g, FlowFrame f, double centerX, double orbCenterYBase, bool forest)
     {

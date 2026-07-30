@@ -1,4 +1,5 @@
 using System;
+using Kivi.App.Services;
 using Kivi.Core.Contracts;
 using Kivi.Core.Orb;
 using Kivi.Core.Wire;
@@ -39,6 +40,10 @@ public sealed class DictationOrchestrator : IDisposable
     // default). Read once per take at FnDown, mirroring how _target is captured at key-down.
     private readonly AuthController? _auth;
 
+    // Persists every completed take (text + captured app + timestamp) for the History/Record pages.
+    // Optional so the app still builds/runs before DI registration is added (a later integration step).
+    private readonly IDictationHistoryStore? _history;
+
     /// <summary>True once the user has completed Google sign-in this session (vs. skipped/anonymous).</summary>
     public bool UseHostedEndpoint { get; set; }
 
@@ -48,13 +53,15 @@ public sealed class DictationOrchestrator : IDisposable
         IPasteService paste,
         IFrontmostApp frontmost,
         IFlowStore? flowStore = null,
-        AuthController? auth = null)
+        AuthController? auth = null,
+        IDictationHistoryStore? history = null)
     {
         _hotkey = hotkey;
         _audio = audio;
         _paste = paste;
         _frontmost = frontmost;
         _auth = auth;
+        _history = history;
 
         // The wire bridge creates one KiviServiceClient per take. Endpoint/bearer are resolved at
         // connect time (per the AuthController's current sign-in state), not baked in at startup.
@@ -141,6 +148,10 @@ public sealed class DictationOrchestrator : IDisposable
         // (e.g. the user looked at / clicked the now-always-visible transcript box while the take
         // was completing) — see SendInputPasteService's class doc for why this is necessary.
         await _paste.InsertAsync(text, meta, _target).ConfigureAwait(false);
+
+        // Record the completed take for the History/Record pages. Optional store (may be unwired
+        // pre-DI); AppName/ExePath come through null when no target was captured — the page handles that.
+        _history?.Add(new DictationHistoryEntry(text, RawText: null, _target?.AppName, _target?.ExePath, DateTime.UtcNow));
     }
 
     private static bool IsTerminal(AppTarget? target)

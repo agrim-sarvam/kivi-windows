@@ -19,13 +19,16 @@ using UniformGrid = System.Windows.Controls.Primitives.UniformGrid;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using VerticalAlignment = System.Windows.VerticalAlignment;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using Kivi.App.Services;
 using Kivi.App.Themes;
 using Kivi.App.ViewModels;
 
@@ -36,6 +39,7 @@ public partial class RecordPage : UserControl
     private static readonly Regex Marker = new(
         "(bird|words?|morning(?:'s)?|afternoon|evening|home|listening)", RegexOptions.IgnoreCase);
     private static readonly Regex Word = new("[a-z']+", RegexOptions.IgnoreCase);
+    private static readonly CultureInfo EnUs = CultureInfo.GetCultureInfo("en-US");
 
     private string[] _lines = Array.Empty<string>();
     private int _index;
@@ -52,16 +56,88 @@ public partial class RecordPage : UserControl
         _index = new Random().Next(_lines.Length);
         RenderGreeting();
 
-        var latest = PageData.RecentTakes[0];
-        LatestText.Text = latest.Text;
-        LatestApp.Text = latest.App;
-        LatestTime.Text = DateTime.Now.ToString("h:mmtt", CultureInfo.GetCultureInfo("en-US"))
-            .ToLowerInvariant().Replace(" ", "");
-        TakesSummary.Text = PageData.TakesSummary;
-        BirdCount.Text = PageData.FormatCount(PageData.TodayWordCount);
+        AppServices.History.Changed += OnHistoryChanged;
+        Unloaded += (_, _) => AppServices.History.Changed -= OnHistoryChanged;
 
-        for (int i = 0; i < PageData.RecentTakes.Length; i++)
-            TakesList.Children.Add(BuildTakeRow(PageData.RecentTakes[i], i > 0));
+        RefreshData();
+    }
+
+    private void OnHistoryChanged()
+    {
+        // Add() raises Changed on the dictation thread — marshal back to the UI thread.
+        Dispatcher.BeginInvoke(new Action(RefreshData));
+    }
+
+    /// <summary>Recomputes every real-data surface (latest take, recent list, today's word count +
+    /// app spread) from the shared history store. Greeting is left untouched.</summary>
+    private void RefreshData()
+    {
+        var all = AppServices.History.All();
+
+        // Latest take.
+        if (all.Count > 0)
+        {
+            var latest = all[0];
+            LatestText.Text = latest.Text;
+            LatestApp.Text = latest.AppName ?? "";
+            LatestTime.Text = FormatTime(latest.TimestampUtc);
+        }
+        else
+        {
+            LatestText.Text = "your last take shows up here";
+            LatestApp.Text = "";
+            LatestTime.Text = "";
+        }
+
+        // Recent takes list (3 most recent).
+        TakesList.Children.Clear();
+        var recent = all.Take(3).ToArray();
+        for (int i = 0; i < recent.Length; i++)
+            TakesList.Children.Add(BuildTakeRow(recent[i].Text, recent[i].AppName ?? "", i > 0));
+
+        // Today (local) rollups: word count + distinct app spread.
+        var today = DateTime.Now.Date;
+        var todays = all.Where(e => e.TimestampUtc.ToLocalTime().Date == today).ToArray();
+
+        long words = todays.Sum(e => WordCount(e.Text));
+        BirdCount.Text = PageData.FormatCount(words);
+
+        var apps = todays
+            .Select(e => e.AppName)
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Select(a => a!.ToLowerInvariant())
+            .Distinct()
+            .Take(3)
+            .ToArray();
+
+        if (todays.Length == 0)
+        {
+            TakesSummary.Text = "no takes yet today";
+            AppSpread.Text = "no takes yet today";
+        }
+        else
+        {
+            string spread = apps.Length > 0 ? "from " + string.Join(", ", apps) : "";
+            string takeWord = todays.Length == 1 ? "take" : "takes";
+            TakesSummary.Text = apps.Length > 0
+                ? $"{todays.Length} {takeWord} today · {spread}"
+                : $"{todays.Length} {takeWord} today";
+            AppSpread.Text = apps.Length > 0 ? spread : "";
+        }
+    }
+
+    private static int WordCount(string? text) =>
+        string.IsNullOrWhiteSpace(text)
+            ? 0
+            : text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+
+    private static string FormatTime(DateTime utc)
+    {
+        var local = utc.ToLocalTime();
+        var date = local.Date;
+        bool recent = date == DateTime.Now.Date || date == DateTime.Now.Date.AddDays(-1);
+        string fmt = recent ? "h:mm tt" : "ddd h:mm tt";
+        return local.ToString(fmt, EnUs).ToLowerInvariant();
     }
 
     private void RenderGreeting()
@@ -105,7 +181,7 @@ public partial class RecordPage : UserControl
         return border;
     }
 
-    private UIElement BuildTakeRow(PageData.Take t, bool hasRule)
+    private UIElement BuildTakeRow(string takeText, string app, bool hasRule)
     {
         var outer = new StackPanel();
         if (hasRule)
@@ -117,13 +193,13 @@ public partial class RecordPage : UserControl
 
         var dot = new Rectangle { Width = 4, Height = 4, Fill = (Brush)FindResource("InkPrimary"), Opacity = 0.55, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
         Grid.SetColumn(dot, 0);
-        var text = new TextBlock { Text = t.Text, FontFamily = (FontFamily)FindResource("FontBody"), FontSize = 15, Foreground = (Brush)FindResource("InkSecondary"), TextTrimming = TextTrimming.CharacterEllipsis };
+        var text = new TextBlock { Text = takeText, FontFamily = (FontFamily)FindResource("FontBody"), FontSize = 15, Foreground = (Brush)FindResource("InkSecondary"), TextTrimming = TextTrimming.CharacterEllipsis };
         Grid.SetColumn(text, 1);
-        var app = new TextBlock { Text = t.App, FontFamily = (FontFamily)FindResource("FontMono"), FontSize = 12, Foreground = (Brush)FindResource("InkTertiary"), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(app, 2);
+        var appText = new TextBlock { Text = app, FontFamily = (FontFamily)FindResource("FontMono"), FontSize = 12, Foreground = (Brush)FindResource("InkTertiary"), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(appText, 2);
         grid.Children.Add(dot);
         grid.Children.Add(text);
-        grid.Children.Add(app);
+        grid.Children.Add(appText);
         outer.Children.Add(grid);
         return outer;
     }

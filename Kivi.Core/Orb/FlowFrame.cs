@@ -228,9 +228,12 @@ public sealed class FlowFrame
     // hit regions never drift from what's drawn (same discipline as the satellite gap/size consts
     // above).
     private const double CopyChipSize = 26, HeaderPadR = 16;
-    private const double FooterH = 30;
+    // Footer STRIP height — MUST equal TranscriptBoxRenderer.FooterH (and BoxContentFit.FooterH).
+    // 48 (not 30) so the footer pills sit in a strip with the reference's 8/10 padding breathing room.
+    private const double FooterH = 48;
     private const double ThumbSize = 28, ThumbGap = 6;
-    private const double NewSessionW = 92, NewSessionH = 27, NewSessionPad = 12;
+    // MUST equal TranscriptBoxRenderer.NewSessionW — 118 fits the "new session" label snugly.
+    private const double NewSessionW = 118, NewSessionH = 27, NewSessionPad = 12;
 
     private static double Clamp01(double v) => v < 0 ? 0 : v > 1 ? 1 : v;
 

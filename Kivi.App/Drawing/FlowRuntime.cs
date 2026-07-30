@@ -39,6 +39,11 @@ public sealed class FlowRuntime : IDisposable
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly DispatcherTimer _timer;
     private readonly DispatcherTimer _heartbeat;
+    // While parked (render idle), this cheap ~60Hz watch polls the cursor and wakes the moment it
+    // enters an interactive region — so hover feels instant instead of waiting up to 1s for the next
+    // 1Hz heartbeat. It does NOT render; it only unparks on a hit, then the normal loop takes over.
+    private readonly DispatcherTimer _watch;
+    private const double WatchHz = 60;
 
     private double _lastStepMs = -1;
     private bool _parked;
@@ -46,6 +51,9 @@ public sealed class FlowRuntime : IDisposable
     private Tier _tier = Tier.Rest;
     private double[] _prevSig = Array.Empty<double>();
     private Action<double>? _driver;
+
+    // Last transcript content "fit key" — see Step(): when it changes we remeasure + refit the box.
+    private string _lastFitKey = "";
 
     private double _dpiScale = 1.0;
 
@@ -79,6 +87,8 @@ public sealed class FlowRuntime : IDisposable
         _timer.Tick += (_, _) => Loop();
         _heartbeat = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(HeartbeatMs) };
         _heartbeat.Tick += (_, _) => Heartbeat();
+        _watch = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(1000.0 / WatchHz) };
+        _watch.Tick += (_, _) => WatchForWake();
     }
 
     public void SetDriver(Action<double>? driver) => _driver = driver;
@@ -99,6 +109,7 @@ public sealed class FlowRuntime : IDisposable
     {
         _timer.Stop();
         _heartbeat.Stop();
+        _watch.Stop();
     }
 
     /// Render NOW in the same pass as an input edge (unpark + step). Marshalled to the UI thread.
@@ -137,6 +148,19 @@ public sealed class FlowRuntime : IDisposable
         _driver?.Invoke(now);
 
         var f = Engine.Step(now);
+
+        // Content-driven box sizing — port of OrbApp.tsx's fitKey-gated fitBoxToContent() effect.
+        // When the transcript text / stage / surface mode changes, remeasure the display text and ask
+        // the engine to grow the box to fit (it clamps + eases over subsequent frames). Gated on a
+        // cheap change-key so we don't remeasure every frame. Without this call the box stayed frozen
+        // at BOX_DEFAULT (108 px) and long transcripts spilled past the bottom edge into the footer.
+        string fitKey = BoxContentFit.FitKey(f);
+        if (fitKey != _lastFitKey)
+        {
+            _lastFitKey = fitKey;
+            var (fitW, fitH) = BoxContentFit.Request(f);
+            Engine.FitBoxToContent(fitW, fitH);
+        }
 
         if (f.MarkOpacity > 0.001)
         {
@@ -484,6 +508,7 @@ public sealed class FlowRuntime : IDisposable
         _parked = true;
         _timer.Stop();
         _heartbeat.Start();
+        _watch.Start(); // keep watching the cursor cheaply so hover wakes instantly
     }
 
     private void Unpark()
@@ -491,6 +516,7 @@ public sealed class FlowRuntime : IDisposable
         _parked = false;
         _settledTicks = 0;
         _heartbeat.Stop();
+        _watch.Stop();
     }
 
     private void Heartbeat()
@@ -498,6 +524,23 @@ public sealed class FlowRuntime : IDisposable
         Step(NowMs());
         if (_parked) { /* heartbeat timer keeps firing */ }
         else { _heartbeat.Stop(); EnsureLoop(); }
+    }
+
+    /// While parked, cheaply poll the cursor (no render) and wake the instant it enters an
+    /// interactive region — this is what makes hover feel snappy instead of lagging up to a full
+    /// heartbeat second. On a hit we Unpark + Step immediately; the normal per-tick PollPointer then
+    /// owns hover/click-through from there.
+    private void WatchForWake()
+    {
+        if (!_parked) return;
+        if (!GetCursorPos(out int cx, out int cy)) return;
+        var (flowX, flowY) = ScreenToFlow(cx, cy);
+        if (FlowEngine.IsInteractiveAt(Frame, flowX, flowY))
+        {
+            Unpark();
+            Step(NowMs());
+            EnsureLoop();
+        }
     }
 
     public bool IsParked => _parked;
