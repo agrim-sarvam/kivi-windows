@@ -88,6 +88,9 @@ public sealed class FlowEngine
     private double _exp = 0;
 
     private double _holdUntil = 0;
+    // While Now < this, a minimize (CollapseClick) has just fired and the orb must NOT re-wake from
+    // the lingering hover of the very click that minimized it. Cleared naturally once it elapses.
+    private double _minimizeSuppressUntil = 0;
     private double _botHideAt = 0;
     private double _editHideAt = 0;
     private double _cancelHideAt = 0;
@@ -1171,10 +1174,24 @@ public sealed class FlowEngine
         if (!wasExpanded && _expanded) OnFocusBoxRequested?.Invoke();
     }
 
+    /// The orb's minimize/compress control (the satellite bubble's "restore" glyph while expanded).
+    /// "Minimize" here means: collapse the transcript box AND shrink the orb all the way back to its
+    /// resting pill — get it out of the way, still on screen. Distinct from merely closing the box:
+    /// we must actively drop the orb to rest, which the wake model won't do on its own while the
+    /// cursor is still sitting on the orb (you just clicked it, so _hovered is true and would
+    /// immediately re-wake it). So we (1) close the box, (2) clear the auto-wake hold instead of
+    /// extending it (the old behavior set _holdUntil = Now+1200, which kept it AWAKE — the opposite
+    /// of minimizing), and (3) arm a short suppression window during which lingering hover cannot
+    /// re-open it. Once the cursor leaves and re-enters, wake works normally again.
     public void CollapseClick()
     {
         SetExpanded(false);
-        _holdUntil = Now + 1200;
+        _holdUntil = 0;                          // drop auto-wake now (was: extend it — the bug)
+        _minimizeSuppressUntil = Now + 700;      // ignore the click's own lingering hover briefly
+        _hovered = false;
+        _orbNear = false;
+        _groupHover = false;
+        _groupLeaveAt = null;
     }
 
     public void HintCloseClick() => DisableTooltips();
@@ -1439,6 +1456,25 @@ public sealed class FlowEngine
         EmitCue(CueEventKind.Copied);
         return Tx.FinalText();
     }
+    /// Footer "last" pill (playback icon): recall the most-recent completed take back into the box
+    /// and enter history-browsing so the prev/next stepper appears. Mirrors NewSessionClick's shape
+    /// (ensures the box is expanded, then mutates Tx) and PrevClick's Tx.Browsing gate. A no-op with a
+    /// shake/hint when there is no history to recall. Never hijacks a live take — the caller only
+    /// routes here when not actively dictating (see FlowFrame.InteractiveTarget's SlotLast gate).
+    public void RecallLastClick()
+    {
+        if (Tx.History.Count == 0)
+        {
+            _histShakeUntil = Now + 420;
+            FlashHint("no earlier takes yet", 1400);
+            return;
+        }
+        if (!_expanded) SetExpanded(true);
+        Tx.StopMorph();
+        Tx.RecallLast(); // sets Browsing=true, restores History[last] -> BandHistOn/Can{Prev,Next} compute
+        RequestScroll(ScrollTarget.Top);
+    }
+
     public void PrevClick()
     {
         if (Tx.Browsing) Tx.HistoryStep(-1);
@@ -1966,7 +2002,13 @@ public sealed class FlowEngine
             _holdUntil = Math.Max(_holdUntil, Now + Constants.EDIT_REVIEW_HOLD);
         var autoWake =
             PhaseHelpers.PhaseIsActive(_phase) || Now < _holdUntil || _expanded || Now < _manualCopySatUntil;
+        // A just-minimized orb stays shrunk even if the cursor is still on it (see CollapseClick):
+        // suppress wake until the window elapses OR the user genuinely re-triggers dictation
+        // (PhaseIsActive) — never trap an active take collapsed.
+        var minimizeSuppressed = Now < _minimizeSuppressUntil && !PhaseHelpers.PhaseIsActive(_phase) && !_expanded;
         var wantOpen = hardPill
+            ? false
+            : minimizeSuppressed
             ? false
             : Settings.OrbSize == OrbSize.Pill
             ? _expanded
@@ -2166,7 +2208,11 @@ public sealed class FlowEngine
         var setShow = geo * _setFade;
         var expShow = geo * _expFade;
         f.SatSettingsOpacity = setShow;
-        f.SatExpandOpacity = _expanded ? 0 : expShow;
+        // The expand/collapse bubble STAYS visible while expanded (previously forced to 0), because
+        // it is now the ONLY way to close the box (click-outside-to-collapse was removed) — hiding it
+        // would leave no close affordance. The renderer swaps the glyph (expand -> restore/compress)
+        // based on f.Expanded so it reads as a "collapse" control while open.
+        f.SatExpandOpacity = expShow;
         f.SatSettingsScale = 0.4 + 0.6 * Math.Min(1, setShow / 0.6);
         f.SatExpandScale = 0.4 + 0.6 * Math.Min(1, expShow / 0.6);
         f.SatBottomInteractive = _open > 0.6 || pillMode;
@@ -2405,6 +2451,7 @@ public sealed class FlowEngine
         // side band
         var histOn = (_expanded || _boxHostCount > 0) && Tx.Stage == TxStage.Idle && !Tx.Browsing;
         f.BandHistOn = histOn;
+        f.BandBrowsing = Tx.Browsing;
         f.BandHistDim = histOn && Tx.History.Count == 0;
         f.BandHistShake = Now < _histShakeUntil;
         f.BandNoSteps =

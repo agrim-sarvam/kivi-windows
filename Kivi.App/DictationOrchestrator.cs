@@ -114,7 +114,10 @@ public sealed class DictationOrchestrator : IDisposable
                 // as before this auth work landed.
                 if (UseHostedEndpoint && _auth is { IsSignedIn: true })
                 {
-                    _takeEndpoint = Endpoints.Qa;
+                    // Prod (kivi.sarvam.ai) — the public launch service. Was Qa (internal test env);
+                    // an external/colleague hand-off must ride the real prod service, which is now
+                    // reachable over the public internet (no VPN) and mints against a @sarvam.ai JWT.
+                    _takeEndpoint = Endpoints.Prod;
                     _takeBearer = await _auth.GetCurrentBearerAsync().ConfigureAwait(true);
                 }
                 else

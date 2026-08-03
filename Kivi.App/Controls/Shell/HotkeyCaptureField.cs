@@ -1,3 +1,4 @@
+
 // WPF/WinForms type disambiguation (project enables both UseWPF and UseWindowsForms).
 using UserControl = System.Windows.Controls.UserControl;
 using Button = System.Windows.Controls.Button;

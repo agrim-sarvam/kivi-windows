@@ -81,6 +81,9 @@ public enum HoverTarget
     ThumbUp,
     ThumbDown,
     NewSession,
+    SlotLast,
+    HistPrev,
+    HistNext,
 }
 
 /// The raw string values used by the Swift enums and the golden JSON.
@@ -188,6 +191,9 @@ public static class RawValues
         HoverTarget.ThumbUp => "thumbUp",
         HoverTarget.ThumbDown => "thumbDown",
         HoverTarget.NewSession => "newSession",
+        HoverTarget.SlotLast => "slotLast",
+        HoverTarget.HistPrev => "histPrev",
+        HoverTarget.HistNext => "histNext",
         _ => "orb",
     };
 

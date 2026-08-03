@@ -226,29 +226,10 @@ public sealed class FlowRuntime : IDisposable
         Engine.SetPointer(flowX, flowY, f);
         bool interactive = FlowEngine.IsInteractiveAt(f, flowX, flowY);
         SetClickThroughIfChanged(!interactive);
-        PollOutsideClickToCollapse(f, interactive);
-    }
-
-    private bool _leftButtonWasDown;
-
-    /// <summary>
-    /// Click-outside-to-collapse: while the box is expanded, a left-click anywhere that is NOT an
-    /// interactive orb/box/satellite region collapses it — matching the common "popover" convention
-    /// (per user request). The orb window is click-through outside its interactive regions (that's
-    /// the whole point of the per-tick hit-test), so a click on the desktop or another app never
-    /// reaches OnHostClick/WM_LBUTTONDOWN at all; global button-state polling (already ticking here
-    /// every frame for the hover/click-through mechanism) is the only way to observe it without a
-    /// separate low-level mouse hook. Edge-detected (down-transition only) so a held button doesn't
-    /// fire repeatedly.
-    /// </summary>
-    private void PollOutsideClickToCollapse(FlowFrame f, bool cursorIsInteractive)
-    {
-        bool leftDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
-        bool justPressed = leftDown && !_leftButtonWasDown;
-        _leftButtonWasDown = leftDown;
-
-        if (justPressed && f.Expanded && !cursorIsInteractive)
-            Engine.CollapseClick();
+        // NOTE: click-outside-to-collapse was intentionally removed (per user request). The expanded
+        // box now closes ONLY by clicking the expand/compress satellite bubble again (which stays
+        // visible while expanded and shows a compress glyph) — see OnHostClick's SatExpand case and
+        // FlowFrame.ExpandGeometry's hit gate.
     }
 
     private void SetClickThroughIfChanged(bool clickThrough)
@@ -358,6 +339,20 @@ public sealed class FlowRuntime : IDisposable
                 Engine.NewSessionClick();
                 Nudge();
                 break;
+            case HoverTarget.SlotLast:
+                // Footer "last" pill — recall the previous completed take back into the box and enter
+                // history-browsing (which surfaces the prev/next stepper).
+                Engine.RecallLastClick();
+                Nudge();
+                break;
+            case HoverTarget.HistPrev:
+                Engine.PrevClick();
+                Nudge();
+                break;
+            case HoverTarget.HistNext:
+                Engine.NextClick();
+                Nudge();
+                break;
             case HoverTarget.Box:
                 // Clicked inside the box body but not on any of its dedicated sub-regions (copy
                 // chip / footer thumbs / new-session — all checked first and would have matched
@@ -405,11 +400,6 @@ public sealed class FlowRuntime : IDisposable
         if (GetCursorPos(out System.Drawing.Point pt)) { x = pt.X; y = pt.Y; return true; }
         x = 0; y = 0; return false;
     }
-
-    private const int VK_LBUTTON = 0x01;
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern short GetAsyncKeyState(int vKey);
 
     // Bottom-center of the primary work area, orb center anchored per the reference
     // (docs/maps/orb-visual-and-box.md: "Orb sits at window horizontal centre"; orbEdgeInset near

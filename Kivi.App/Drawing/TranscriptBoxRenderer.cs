@@ -39,6 +39,10 @@ internal static class TranscriptBoxRenderer
     private const double ThumbSize = 28, ThumbGap = 6;
     // 92px cramped "new session" (icon + 11-char label + pads ≈ 116px). Widened to fit it snugly.
     private const double NewSessionW = 118, NewSessionH = 27, NewSessionPad = 12;
+    // Left "last" pill + recall history stepper. MUST mirror FlowFrame's SlotLeft/SlotLastW/SlotH/
+    // StepSize/StepGap/StepGap2 verbatim so drawn pill+chevrons match their hit regions exactly.
+    private const double SlotLeft = 12, SlotLastW = 62, SlotH = 26;
+    private const double StepSize = 24, StepGap = 6, StepGap2 = 4;
 
     public static void Draw(Graphics g, FlowFrame f, double centerX, double orbCenterYBase, bool forest)
     {
@@ -249,23 +253,48 @@ internal static class TranscriptBoxRenderer
         using (var hp = new Pen(Color.FromArgb((int)(barOpacity * outline.A), outline.R, outline.G, outline.B), 1f))
             g.DrawLine(hp, 0, (float)footerTop, (float)boxW, (float)footerTop);
 
-        double slotLeft = 12;
+        double slotLeft = SlotLeft;
         double slotCenterY = footerTop + FooterH / 2.0;
-
-        // left voice slot pill (retry / follow-up / last / follow-up+keycaps)
-        string? slotIcon = null, slotLabel = null;
-        Color slotAccent = baseCol; double slotWashA = 0; bool slotFlow = false; string[]? slotKeys = null;
-        if (f.RetryOffered) { slotIcon = "playback"; slotLabel = "retry"; slotAccent = accListen; slotWashA = 0.12; }
-        else if (editingNow) { slotIcon = "sparkles"; slotLabel = "ask follow up"; slotAccent = ins; slotWashA = 0.18 + 0.14 * f.Breath; }
-        else if (dictatingNow) { slotIcon = "playback"; slotLabel = "last"; slotAccent = DrawUtil.Argb(0.7, baseCol.R, baseCol.G, baseCol.B); slotFlow = true; }
-        else if (hasSettled) { slotIcon = "sparkles"; slotLabel = "ask follow up"; slotAccent = ins; slotWashA = 0.12; slotKeys = new[] { f.HotkeyLabel, f.EditComboLabel }; }
-        else if (f.BandHistOn) { slotIcon = "playback"; slotLabel = "last"; slotAccent = DrawUtil.Argb(0.7, baseCol.R, baseCol.G, baseCol.B); }
-
         double slotRight = slotLeft;
-        if (slotIcon != null)
+
+        // The recall "last" affordance (clickable): shown either while browsing a recalled take, or
+        // when there's history to recall (BandHistOn). Drawn at a FIXED width (SlotLastW) so it lines
+        // up exactly with its hit region in FlowFrame.InteractiveTarget. When browsing, a prev/next
+        // chevron stepper follows it. This takes precedence over the generic variable-width slot pill
+        // below for these states.
+        bool recallSlot = !dictatingNow && !editingNow && !f.RetryOffered &&
+                          (f.BandBrowsing || f.BandHistOn);
+        if (recallSlot)
         {
-            slotRight = DrawSlotPill(g, slotLeft, slotCenterY, slotIcon, slotLabel!, slotAccent, slotWashA, slotKeys,
-                slotFlow ? f.Now : (double?)null, barOpacity);
+            var slotAccentR = DrawUtil.Argb(0.7, baseCol.R, baseCol.G, baseCol.B);
+            DrawFixedSlotPill(g, slotLeft, slotCenterY, SlotLastW, SlotH, "playback", "last", slotAccentR, barOpacity);
+            slotRight = slotLeft + SlotLastW;
+
+            if (f.BandBrowsing)
+            {
+                double stepTop = slotCenterY - StepSize / 2.0;
+                double prevLeft = slotLeft + SlotLastW + StepGap;
+                DrawStepChevron(g, prevLeft, stepTop, StepSize, leftArrow: true, enabled: f.BandCanPrev, baseCol, barOpacity);
+                double nextLeft = prevLeft + StepSize + StepGap2;
+                DrawStepChevron(g, nextLeft, stepTop, StepSize, leftArrow: false, enabled: f.BandCanNext, baseCol, barOpacity);
+                slotRight = nextLeft + StepSize;
+            }
+        }
+        else
+        {
+            // left voice slot pill (retry / follow-up / live "last" / follow-up+keycaps)
+            string? slotIcon = null, slotLabel = null;
+            Color slotAccent = baseCol; double slotWashA = 0; bool slotFlow = false; string[]? slotKeys = null;
+            if (f.RetryOffered) { slotIcon = "playback"; slotLabel = "retry"; slotAccent = accListen; slotWashA = 0.12; }
+            else if (editingNow) { slotIcon = "sparkles"; slotLabel = "ask follow up"; slotAccent = ins; slotWashA = 0.18 + 0.14 * f.Breath; }
+            else if (dictatingNow) { slotIcon = "playback"; slotLabel = "last"; slotAccent = DrawUtil.Argb(0.7, baseCol.R, baseCol.G, baseCol.B); slotFlow = true; }
+            else if (hasSettled) { slotIcon = "sparkles"; slotLabel = "ask follow up"; slotAccent = ins; slotWashA = 0.12; slotKeys = new[] { f.HotkeyLabel, f.EditComboLabel }; }
+
+            if (slotIcon != null)
+            {
+                slotRight = DrawSlotPill(g, slotLeft, slotCenterY, slotIcon, slotLabel!, slotAccent, slotWashA, slotKeys,
+                    slotFlow ? f.Now : (double?)null, barOpacity);
+            }
         }
 
         // word count (mono 10) when settled
@@ -367,6 +396,38 @@ internal static class TranscriptBoxRenderer
         return left + w;
     }
 
+    /// Fixed-width "last" recall pill (icon + label), drawn at the exact width its hit region uses so
+    /// the two never drift. Same visual style as DrawSlotPill but with a caller-fixed width.
+    private static void DrawFixedSlotPill(Graphics g, double left, double centerY, double w, double h,
+        string icon, string label, Color accent, double opacity)
+    {
+        double top = centerY - h / 2;
+        using var pillPath = DrawUtil.RoundedRect(left, top, w, h, 9);
+        using var pen = new Pen(DrawUtil.Argb(opacity * 0.30, accent.R, accent.G, accent.B), 1f);
+        g.DrawPath(pen, pillPath);
+
+        var iconCol = Color.FromArgb((int)(opacity * 255), accent.R, accent.G, accent.B);
+        double pad = 9, gap = 6, iconSize = 13;
+        OrbIcons.Draw(g, icon, left + pad + iconSize / 2, centerY, iconSize, iconCol);
+        using var df = new Font(Display, 9f);
+        using var lb = new SolidBrush(iconCol);
+        var labelSz = g.MeasureString(label, df, PointF.Empty, StringFormat.GenericTypographic);
+        g.DrawString(label, df, lb, (float)(left + pad + iconSize + gap), (float)(centerY - labelSz.Height / 2), StringFormat.GenericTypographic);
+    }
+
+    /// A square chevron stepper button (prev/next take navigation while browsing history). Dims when
+    /// !enabled (no further take in that direction).
+    private static void DrawStepChevron(Graphics g, double left, double top, double size, bool leftArrow,
+        bool enabled, Color baseCol, double opacity)
+    {
+        double borderA = enabled ? 0.30 : 0.14;
+        using var pen = new Pen(DrawUtil.Argb(opacity * borderA, baseCol.R, baseCol.G, baseCol.B), 1f);
+        using var path = DrawUtil.RoundedRect(left, top, size, size, 7);
+        g.DrawPath(pen, path);
+        var iconCol = DrawUtil.Argb(opacity * (enabled ? 0.85 : 0.30), baseCol.R, baseCol.G, baseCol.B);
+        OrbIcons.Draw(g, leftArrow ? "chevronLeft" : "chevronRight", left + size / 2, top + size / 2, 14, iconCol);
+    }
+
     private static void DrawThumb(Graphics g, double left, double top, bool up, bool active, Color baseCol, Color ins, double opacity)
     {
         var bg = active ? DrawUtil.Argb(opacity * 0.12, ins.R, ins.G, ins.B) : Color.FromArgb(0, 0, 0, 0);
@@ -433,7 +494,10 @@ internal static class TranscriptBoxRenderer
                 using var it = new Font(body.FontFamily, body.Size, FontStyle.Italic);
                 var c = Color.FromArgb((int)(opacity * listen.A), listen.R, listen.G, listen.B);
                 using var b = new SolidBrush(c);
-                g.DrawString("listening…", it, b, (float)x, (float)y);
+                // Draw with GenericTypographic (as DrawTokens does) so the glyph top sits flush at
+                // `y` with no extra GDI+ top leading — the default StringFormat pads above the
+                // glyphs, which made the placeholder hang low relative to a real first line.
+                g.DrawString("listening…", it, b, (float)x, (float)y, System.Drawing.StringFormat.GenericTypographic);
                 return y + body.GetHeight(g);
             }
             case TxLineRole.Tokens when line.Tokens != null:

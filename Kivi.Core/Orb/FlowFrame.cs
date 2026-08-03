@@ -178,6 +178,10 @@ public sealed class FlowFrame
     public bool BandStepsDim = true;
     public bool BandCanPrev = false;
     public bool BandCanNext = false;
+    // True while the box is showing a recalled history take (Tx.Browsing). Drives the footer's
+    // prev/next take-stepper + keeps the "last" pill lit. Default false so golden frames (which
+    // omit it) decode to the same value.
+    public bool BandBrowsing = false;
     public int TxPagerIndex = 0;
     public int TxPagerCount = 0;
     public string? TakeHostAppBundleID = null;
@@ -234,6 +238,13 @@ public sealed class FlowFrame
     private const double ThumbSize = 28, ThumbGap = 6;
     // MUST equal TranscriptBoxRenderer.NewSessionW — 118 fits the "new session" label snugly.
     private const double NewSessionW = 118, NewSessionH = 27, NewSessionPad = 12;
+    // Left "last" / voice-slot pill + the recall history stepper. MUST mirror
+    // TranscriptBoxRenderer's SlotLeft/SlotLastW/SlotH/StepSize/StepGap verbatim so the drawn pill +
+    // chevron buttons and their hit regions never drift. The "last" pill uses a FIXED width here
+    // (rather than a text-measured one) precisely so the pure hit-test can reproduce it without a
+    // Graphics context; the renderer draws the same fixed width for this specific affordance.
+    private const double SlotLeft = 12, SlotLastW = 62, SlotH = 26;
+    private const double StepSize = 24, StepGap = 6, StepGap2 = 4;
 
     private static double Clamp01(double v) => v < 0 ? 0 : v > 1 ? 1 : v;
 
@@ -450,6 +461,36 @@ public sealed class FlowFrame
                 double nsTop = footerTop + (FooterH - NewSessionH) / 2.0;
                 if (local >= nsLeft && local <= nsRight && flowY >= nsTop && flowY <= nsTop + NewSessionH)
                     return HoverTarget.NewSession;
+
+                // Left "last" voice-slot pill + recall history stepper. The pill recalls the last
+                // completed take (HoverTarget.SlotLast); once browsing, a prev/next chevron stepper
+                // appears just to its right (HistPrev/HistNext). Geometry mirrors
+                // TranscriptBoxRenderer.DrawFooter exactly. The "last" pill is only hittable when it
+                // is actually drawn as the recall affordance: while a settled take is showing history
+                // is available (BandHistOn), or while already browsing — but NOT while actively
+                // dictating (we must never hijack a live take). Checked BEFORE the generic Box
+                // fallback below.
+                double slotCenterY = footerTop + FooterH / 2.0;
+                bool lastPillActive = !BandBrowsing ? BandHistOn : true;
+                if (lastPillActive)
+                {
+                    double slotTop = slotCenterY - SlotH / 2.0;
+                    if (local >= SlotLeft && local <= SlotLeft + SlotLastW &&
+                        flowY >= slotTop && flowY <= slotTop + SlotH)
+                        return HoverTarget.SlotLast;
+                }
+                if (BandBrowsing)
+                {
+                    double stepTop = slotCenterY - StepSize / 2.0;
+                    double prevLeft = SlotLeft + SlotLastW + StepGap;
+                    if (local >= prevLeft && local <= prevLeft + StepSize &&
+                        flowY >= stepTop && flowY <= stepTop + StepSize)
+                        return HoverTarget.HistPrev;
+                    double nextLeft = prevLeft + StepSize + StepGap2;
+                    if (local >= nextLeft && local <= nextLeft + StepSize &&
+                        flowY >= stepTop && flowY <= stepTop + StepSize)
+                        return HoverTarget.HistNext;
+                }
             }
 
             if (local >= -10 && local <= TxWrapWidth + 10 && flowY >= top - 10 && flowY <= top + BoxH + 10)

@@ -78,9 +78,30 @@ public partial class App : Application
         }
         else
         {
-            var signIn = new SignInScreen(auth);
-            signIn.ShowDialog();
-            orchestrator.UseHostedEndpoint = signIn.SignedIn && auth.IsSignedIn;
+            // Sign-in is MANDATORY in this build. The hosted (prod) endpoint requires a real
+            // @sarvam.ai org JWT — there is no anonymous fallback that works on a recipient's
+            // machine (the old "skip" path pointed at ws://127.0.0.1:8788, a local kivi-service
+            // they won't be running, so dictation silently did nothing). So we loop the sign-in
+            // dialog until they actually sign in, and quit if they dismiss it entirely — never
+            // proceed into the dead local-anonymous state on a hand-off build.
+            while (!auth.IsSignedIn)
+            {
+                var signIn = new SignInScreen(auth);
+                signIn.ShowDialog();
+                if (auth.IsSignedIn) break;
+
+                var retry = System.Windows.MessageBox.Show(
+                    "You must sign in with your Sarvam account to use Kivi.\n\nTry again?",
+                    "Sign in required",
+                    System.Windows.MessageBoxButton.OKCancel,
+                    System.Windows.MessageBoxImage.Information);
+                if (retry != System.Windows.MessageBoxResult.OK)
+                {
+                    Shutdown();
+                    return;
+                }
+            }
+            orchestrator.UseHostedEndpoint = true;
         }
 
         // An invisible WPF window owns process lifetime + provides a DPI source for the runtime.
