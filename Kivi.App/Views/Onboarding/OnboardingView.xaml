@@ -1,0 +1,168 @@
+<UserControl x:Class="Kivi.App.Views.Onboarding.OnboardingView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:Kivi.App.Controls.Shell"
+        Background="#0F1210">
+    <UserControl.Resources>
+        <!-- Canon-dark tokens, matched to SignInScreen so the two surfaces feel like one product. -->
+        <SolidColorBrush x:Key="Ground" Color="#0F1210"/>
+        <SolidColorBrush x:Key="Surface" Color="#171B18"/>
+        <SolidColorBrush x:Key="SurfaceHi" Color="#1E241F"/>
+        <SolidColorBrush x:Key="Hair" Color="#2A2F2A"/>
+        <SolidColorBrush x:Key="Ink" Color="#E9F2E3"/>
+        <SolidColorBrush x:Key="Ink2" Color="#A7B0A2"/>
+        <SolidColorBrush x:Key="Ink3" Color="#6F7A6A"/>
+        <SolidColorBrush x:Key="Green" Color="#8FD06A"/>
+        <SolidColorBrush x:Key="GreenWash" Color="#1F8FD06A"/>
+        <SolidColorBrush x:Key="Warn" Color="#E6A11B"/>
+        <SolidColorBrush x:Key="Danger" Color="#F0716F"/>
+
+        <Style x:Key="ChoicePill" TargetType="ToggleButton">
+            <Setter Property="Background" Value="{StaticResource Surface}"/>
+            <Setter Property="Foreground" Value="{StaticResource Ink2}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Hair}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Padding" Value="14,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Margin" Value="0,0,8,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="b" CornerRadius="17"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource SurfaceHi}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource GreenWash}"/>
+                                <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Green}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource Green}"/>
+            <Setter Property="Foreground" Value="#0F1210"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Height" Value="46"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="b" CornerRadius="12" Background="{TemplateBinding Background}">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SectionLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource Green}"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+    </UserControl.Resources>
+
+    <!-- Centered card so the onboarding reads as a focused first-run panel inside the big window. -->
+    <Grid Background="{StaticResource Ground}">
+        <Border Width="620" MaxHeight="720" VerticalAlignment="Center" HorizontalAlignment="Center"
+                Background="{StaticResource Ground}" CornerRadius="16" BorderBrush="{StaticResource Hair}"
+                BorderThickness="1">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Margin="34,32,34,8">
+                    <TextBlock Text="Welcome to Kivi" FontSize="27" FontWeight="Bold" Foreground="{StaticResource Ink}"/>
+                    <TextBlock Text="A couple of quick things, then you're dictating."
+                               FontSize="14" Foreground="{StaticResource Ink2}" Margin="0,6,0,0"/>
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="34,12,34,12">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionLabel}" Text="WHAT WILL YOU DICTATE MOST?"/>
+                        <WrapPanel x:Name="Q1Panel" Margin="0,0,0,20">
+                            <ToggleButton Style="{StaticResource ChoicePill}" Content="Messages &amp; chat"/>
+                            <ToggleButton Style="{StaticResource ChoicePill}" Content="Email"/>
+                            <ToggleButton Style="{StaticResource ChoicePill}" Content="Docs &amp; notes"/>
+                            <ToggleButton Style="{StaticResource ChoicePill}" Content="Code &amp; terminals"/>
+                            <ToggleButton Style="{StaticResource ChoicePill}" Content="A bit of everything"/>
+                        </WrapPanel>
+
+                        <TextBlock Style="{StaticResource SectionLabel}" Text="HOW DID YOU HEAR ABOUT KIVI?"/>
+                        <WrapPanel x:Name="Q2Panel" Margin="0,0,0,24">
+                            <ToggleButton Style="{StaticResource ChoicePill}" Content="A colleague"/>
+                            <ToggleButton Style="{StaticResource ChoicePill}" Content="Slack"/>
+                            <ToggleButton Style="{StaticResource ChoicePill}" Content="Twitter / X"/>
+                            <ToggleButton Style="{StaticResource ChoicePill}" Content="Just found it"/>
+                        </WrapPanel>
+
+                        <Border Height="1" Background="{StaticResource Hair}" Margin="0,4,0,20"/>
+
+                        <TextBlock Style="{StaticResource SectionLabel}" Text="PICK YOUR TALK KEY"/>
+                        <TextBlock FontSize="14" Foreground="{StaticResource Ink2}" TextWrapping="Wrap" Margin="0,0,0,4">
+                            Hold it to talk, release to drop your words in. Pick a combo you won't press by accident.
+                        </TextBlock>
+                        <TextBlock FontSize="12" Foreground="{StaticResource Ink3}" TextWrapping="Wrap" Margin="0,0,0,14">
+                            Good picks: Right&#160;Ctrl · Left&#160;Ctrl · Right&#160;Alt · Left&#160;Alt · Ctrl&#160;+&#160;Space.
+                        </TextBlock>
+
+                        <ItemsControl x:Name="PresetGrid" Margin="0,0,0,16">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="2"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+
+                        <TextBlock FontSize="12" Foreground="{StaticResource Ink3}" Margin="0,4,0,8"
+                                   Text="…or record your own — any combo, even modifier-only:"/>
+                        <shell:HotkeyCaptureField x:Name="Capture"/>
+
+                        <TextBlock x:Name="VerdictText" FontSize="12.5" TextWrapping="Wrap" Margin="2,10,0,0"
+                                   Foreground="{StaticResource Warn}" Visibility="Collapsed"/>
+
+                        <Border Background="{StaticResource Surface}" CornerRadius="10" Padding="16,12" Margin="0,16,0,0"
+                                BorderBrush="{StaticResource Hair}" BorderThickness="1">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Your talk key: " FontSize="13" Foreground="{StaticResource Ink2}" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="CurrentChord" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Green}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Border Grid.Row="2" Background="{StaticResource Ground}" Padding="34,16,34,24" CornerRadius="0,0,16,16">
+                    <Button x:Name="StartButton" Style="{StaticResource PrimaryButton}" Content="Start dictating"/>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

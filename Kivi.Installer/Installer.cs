@@ -73,6 +73,10 @@ public sealed class Installer
         WriteUninstallRegistry();
         SetLaunchAtLogin(launchAtLogin);
 
+        progress.Report((92, "setting up logs command…"));
+        WriteLogsCommand();
+        AddTargetDirToUserPath();
+
         progress.Report((100, "done"));
     }
 
@@ -192,6 +196,28 @@ public sealed class Installer
             key.DeleteValue(RegRunValue, throwOnMissingValue: false);
     }
 
+    // ---- Observation logs command (`kivi-logs`) ----------------------------
+
+    private const string LogsCmdName = "kivi-logs.cmd";
+    private static string LogsCmdPath => Path.Combine(TargetDir, LogsCmdName);
+
+    /// <summary>
+    /// Write the tiny <c>kivi-logs.cmd</c> next to the app. Typing <c>kivi-logs</c> in any terminal
+    /// runs the installed app in snapshot mode (<c>--logs</c>), which prints the observation summary
+    /// to that terminal and exits. Non-technical users need no path — the .cmd resolves it.
+    /// </summary>
+    private static void WriteLogsCommand()
+    {
+        // %~dp0 = the folder this .cmd lives in (the app dir), so it always finds the exe next to it.
+        var lines = new[]
+        {
+            "@echo off",
+            "rem Kivi observation snapshot — prints CPU / memory / TTFT / latency for the running app.",
+            "\"%~dp0Kivi.App.exe\" --logs %*",
+        };
+        try { File.WriteAllLines(LogsCmdPath, lines); } catch { /* best effort */ }
+    }
+
     public static void LaunchApp()
     {
         Process.Start(new ProcessStartInfo(AppExe)
@@ -199,6 +225,65 @@ public sealed class Installer
             UseShellExecute = true,
             WorkingDirectory = TargetDir,
         });
+    }
+
+    // ---- User PATH (so `kivi-logs` resolves in any new terminal) -----------
+
+    /// <summary>
+    /// Add the app dir to the USER PATH (HKCU\Environment) so <c>kivi-logs</c> resolves from any
+    /// terminal. Idempotent (never duplicates the entry). Reads/writes the raw registry value as
+    /// REG_EXPAND_SZ WITHOUT expanding it (so existing tokens like %USERPROFILE% are preserved — the
+    /// classic PATH-corruption footgun is expanding on read then writing back as a plain string).
+    /// Broadcasts WM_SETTINGCHANGE so newly-launched terminals pick it up (already-open ones won't).
+    /// </summary>
+    private static void AddTargetDirToUserPath()
+    {
+        try
+        {
+            using var env = Registry.CurrentUser.OpenSubKey("Environment", writable: true)
+                            ?? Registry.CurrentUser.CreateSubKey("Environment");
+            var current = env.GetValue("Path", "", RegistryValueOptions.DoNotExpandEnvironmentNames) as string ?? "";
+
+            var parts = current.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var p in parts)
+                if (string.Equals(p.TrimEnd('\\'), TargetDir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                    return; // already present
+
+            var updated = current.Length == 0 ? TargetDir : current.TrimEnd(';') + ";" + TargetDir;
+            env.SetValue("Path", updated, RegistryValueKind.ExpandString);
+            BroadcastEnvChange();
+        }
+        catch { /* best effort — PATH is a convenience, not required for the app to work */ }
+    }
+
+    private static void RemoveTargetDirFromUserPath()
+    {
+        try
+        {
+            using var env = Registry.CurrentUser.OpenSubKey("Environment", writable: true);
+            if (env?.GetValue("Path", "", RegistryValueOptions.DoNotExpandEnvironmentNames) is not string current) return;
+            var kept = current.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(p => !string.Equals(p.TrimEnd('\\'), TargetDir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            env.SetValue("Path", string.Join(";", kept), RegistryValueKind.ExpandString);
+            BroadcastEnvChange();
+        }
+        catch { /* best effort */ }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+    private static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, IntPtr wParam, string lParam,
+        uint fuFlags, uint uTimeout, out IntPtr lpdwResult);
+
+    private static void BroadcastEnvChange()
+    {
+        // HWND_BROADCAST=0xffff, WM_SETTINGCHANGE=0x1A, SMTO_ABORTIFHUNG=0x2. Tells shells to reload
+        // the environment block so a NEW terminal sees the updated PATH without a logoff.
+        try
+        {
+            SendMessageTimeout(new IntPtr(0xffff), 0x1A, IntPtr.Zero, "Environment", 0x2, 3000, out _);
+        }
+        catch { /* best effort */ }
     }
 
     // ---- Uninstall ---------------------------------------------------------
@@ -215,6 +300,7 @@ public sealed class Installer
         progress.Report((55, "cleaning registry…"));
         RemoveRunValue();
         RemoveUninstallRegistry();
+        RemoveTargetDirFromUserPath();
 
         progress.Report((80, "removing files…"));
         // Delete the app dir now; the Kivi root + uninstall.exe (which is running)

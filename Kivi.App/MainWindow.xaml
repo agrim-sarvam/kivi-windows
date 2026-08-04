@@ -70,5 +70,10 @@
             <!-- page host (hard-cut) -->
             <ContentControl x:Name="PageHost" Panel.ZIndex="1" />
         </Grid>
+
+        <!-- First-run onboarding overlay: spans BOTH columns (covers the rail too) so the user can't
+             navigate away mid-onboarding. Hidden by default; MainWindow.ShowOnboarding() fills it. -->
+        <ContentControl x:Name="OnboardingHost" Grid.Column="0" Grid.ColumnSpan="2"
+                        Panel.ZIndex="50" Visibility="Collapsed" />
     </Grid>
 </Window>

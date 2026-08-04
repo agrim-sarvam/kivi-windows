@@ -26,6 +26,13 @@ public sealed class WireDictationService : IDictationService
     /// <summary>Raised when a take produces a final result to paste (formatted_text, fallback raw).</summary>
     public event Action<string>? PasteRequested;
 
+    /// <summary>Raised on each interim/segment from the service — used by the observation recorder to
+    /// stamp TTFT (first interim after key-release). Carries the segment text.</summary>
+    public event Action<string>? InterimReceived;
+
+    /// <summary>Raised when a take fails, with the wire error code — used to record errored takes.</summary>
+    public event Action<string>? TakeFailed;
+
     /// <param name="clientFactory">Creates a fresh KiviServiceClient per take (loopback/anonymous for MVP).</param>
     /// <param name="registerAudioSink">
     /// Called on Begin with a delegate the orchestrator routes each captured PCM frame into
@@ -48,7 +55,7 @@ public sealed class WireDictationService : IDictationService
         // Wire events → engine DictationEvents (generation-guarded: a stale take's events are dropped).
         client.Ack += sessionId => Emit(gen, new DictationEvent.Opened(sessionId));
         client.SpeechStart += () => Emit(gen, new DictationEvent.SpeechStart());
-        client.Interim += a => Emit(gen, new DictationEvent.Segment(a.SegmentIdx, a.Text));
+        client.Interim += a => { Emit(gen, new DictationEvent.Segment(a.SegmentIdx, a.Text)); if (gen == _generation) InterimReceived?.Invoke(a.Text); };
         client.EosAck += a => Emit(gen, new DictationEvent.FormattingBudget(a.RawWords, a.ExpectedFormatMs ?? 0));
         client.FormattingProgress += a => Emit(gen, new DictationEvent.FormattingProgress(a.ElapsedMs, a.ExpectedFormatMs ?? 0));
         client.Final += payload =>
@@ -62,7 +69,7 @@ public sealed class WireDictationService : IDictationService
             if (!string.IsNullOrEmpty(payload.PasteText))
                 PasteRequested?.Invoke(payload.PasteText);
         };
-        client.Error += e => Emit(gen, new DictationEvent.Failure(MapError(e.Code)));
+        client.Error += e => { Emit(gen, new DictationEvent.Failure(MapError(e.Code))); if (gen == _generation) TakeFailed?.Invoke(e.Code); };
         client.Closed += _ => { /* engine already has final/failure; nothing to do for MVP */ };
 
         // Let audio start flowing; frames sent before the handshake are buffered + flushed in order.

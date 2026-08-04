@@ -92,6 +92,28 @@ public partial class MainWindow : Window
         _ => new RecordPage(),
     };
 
+    /// <summary>
+    /// Show the first-run onboarding IN-WINDOW as a full-cover overlay (not a separate window). The
+    /// host wires the live-rebind callback; when the user finishes we hide the overlay, invoke
+    /// <paramref name="onDone"/> (persist the flag/chord), and reveal the normal shell underneath.
+    /// </summary>
+    public void ShowOnboarding(
+        Kivi.Core.Hotkey.HotkeyChord? initial,
+        System.Action<Kivi.Core.Hotkey.HotkeyChord> onChordChosen,
+        System.Action<Kivi.Core.Hotkey.HotkeyChord> onDone)
+    {
+        var view = new Views.Onboarding.OnboardingView(initial);
+        view.ChordChosen += (_, chord) => onChordChosen(chord);
+        view.Completed += (_, chord) =>
+        {
+            OnboardingHost.Visibility = Visibility.Collapsed;
+            OnboardingHost.Content = null;
+            onDone(chord);
+        };
+        OnboardingHost.Content = view;
+        OnboardingHost.Visibility = Visibility.Visible;
+    }
+
     private void CollapseToggle_Click(object sender, RoutedEventArgs e) => Nav.ToggleCollapse();
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
     private void MaxRestore_Click(object sender, RoutedEventArgs e)

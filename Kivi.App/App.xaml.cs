@@ -3,7 +3,9 @@ using System.Windows;
 using Kivi.App.Drawing;
 using Kivi.App.Services;
 using Kivi.App.Views.Auth;
+using Kivi.App.Controls.Shell;
 using Kivi.Core.Contracts;
+using Kivi.Core.Observability;
 using Kivi.Core.Orb;
 using Kivi.Platform;
 using Kivi.Platform.Auth;
@@ -30,6 +32,16 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // ---- Observation snapshot mode (`kivi-logs`): print the readable summary to the terminal
+        // that launched us, then exit WITHOUT starting the GUI/orb. Attaches to the parent console so
+        // output lands in the user's own terminal (a WPF app has no console by default). ----
+        if (e.Args.Any(a => string.Equals(a, "--logs", StringComparison.OrdinalIgnoreCase)
+                         || string.Equals(a, "/logs", StringComparison.OrdinalIgnoreCase)))
+        {
+            PrintObservationsAndExit();
+            return;
+        }
+
         var sc = new ServiceCollection();
         sc.AddKiviPlatform();
         // Local JSON persistence (%APPDATA%\Kivi\flowstore.json) for settings + playback history.
@@ -41,6 +53,15 @@ public partial class App : Application
         // recorded into this same singleton instance.
         sc.AddSingleton<IDictationHistoryStore, JsonDictationHistoryStore>();
         sc.AddSingleton<IAppIconResolver, AppIconResolver>();
+
+        // App-level settings (%APPDATA%\Kivi\app-settings.json): chosen global hotkey chord +
+        // onboarding-seen flag. Separate from the engine's IFlowStore (those feed golden-tested state).
+        sc.AddSingleton<IAppSettingsStore, JsonAppSettingsStore>();
+
+        // Observation center: background CPU/mem sampler + per-take TTFT/latency recorder → writes
+        // %APPDATA%\Kivi\observations.json, which the `kivi-logs` command reads. Registering it here
+        // auto-injects it into DictationOrchestrator's optional ctor param.
+        sc.AddSingleton<ObservationRecorder>();
 
         // Auth (map §3): Kratos + org-JWT mint, pure HTTP clients over a shared HttpClient.
         var authConfig = AuthConfig.Default;
@@ -104,7 +125,19 @@ public partial class App : Application
             orchestrator.UseHostedEndpoint = true;
         }
 
-        // An invisible WPF window owns process lifetime + provides a DPI source for the runtime.
+        // ---- Global talk-key: apply the saved chord. First-run onboarding is shown IN-WINDOW below
+        // (after main.Show()), not as a separate modal window. ----
+        var settings = _services.GetRequiredService<IAppSettingsStore>();
+        var savedChord =
+            Kivi.Core.Hotkey.HotkeyChord.TryParse(settings.HotkeyChord, out var sc0) && sc0 is not null
+                ? sc0
+                : HotkeyCatalog.Default;
+        orchestrator.SetHotkeyChord(savedChord);
+        bool needsOnboarding = !settings.HasOnboarded;
+
+        // The main window owns process lifetime + provides a DPI source for the runtime. It's normally
+        // created hidden (resident-agent style), but on first run we show it to host the onboarding
+        // screen in-window.
         var main = _services.GetRequiredService<MainWindow>();
 
         var tray = _services.GetRequiredService<ITrayHost>();
@@ -131,6 +164,79 @@ public partial class App : Application
         _runtime = new FlowRuntime(orchestrator.Engine, host);
         main.Show();
         _runtime.Start();
+
+        // First run: show onboarding IN-WINDOW (over the shell). Live-rebinds + persists each pick;
+        // on "Start dictating" it hides itself, flips HasOnboarded, and reveals the normal shell.
+        if (needsOnboarding)
+        {
+            main.ShowOnboarding(
+                initial: savedChord,
+                onChordChosen: chord =>
+                {
+                    orchestrator.SetHotkeyChord(chord);
+                    settings.HotkeyChord = chord.ToStorageString();
+                },
+                onDone: chord =>
+                {
+                    orchestrator.SetHotkeyChord(chord);
+                    settings.HotkeyChord = chord.ToStorageString();
+                    settings.HasOnboarded = true;
+                });
+        }
+    }
+
+    // --- `kivi-logs` snapshot mode ---
+
+    private const int ATTACH_PARENT_PROCESS = -1;
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AttachConsole(int dwProcessId);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AllocConsole();
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GetStdHandle(int nStdHandle);
+    private const int STD_OUTPUT_HANDLE = -11;
+
+    private void PrintObservationsAndExit()
+    {
+        // Attach to the launching terminal so the summary prints there; if there is no parent console
+        // (e.g. double-clicked), allocate one so the output is still visible.
+        // If stdout is already a valid handle (the user redirected `kivi-logs > file.txt`, or a
+        // pipe), leave it alone and write there. Otherwise attach to the launching terminal (or
+        // allocate a console) and rebind Console.Out to the console device (CONOUT$) — a WPF WinExe
+        // starts with detached streams, so plain Console.Out writes would otherwise go nowhere.
+        bool stdoutValid = GetStdHandle(STD_OUTPUT_HANDLE) is var h && h != IntPtr.Zero && h != new IntPtr(-1);
+        if (!stdoutValid)
+        {
+            bool attached = AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole();
+            if (attached)
+            {
+                try
+                {
+                    var stdout = new System.IO.StreamWriter(
+                        System.IO.File.Open("CONOUT$", System.IO.FileMode.Open, System.IO.FileAccess.Write, System.IO.FileShare.Write))
+                    { AutoFlush = true };
+                    Console.SetOut(stdout);
+                }
+                catch { /* fall through — best effort */ }
+            }
+        }
+
+        try
+        {
+            var snap = ObservationJson.TryLoad();
+            Console.Out.Write(ObservationPrinter.Render(snap));
+            Console.Out.Flush();
+        }
+        catch (Exception ex)
+        {
+            try { Console.Error.WriteLine("kivi-logs: " + ex.Message); } catch { }
+        }
+
+        // Exit immediately — no GUI, no orb, no DI graph.
+        Shutdown(0);
     }
 
     protected override void OnExit(ExitEventArgs e)

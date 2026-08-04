@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Kivi.Core.Contracts;
+using Kivi.Core.Hotkey;
 
 namespace Kivi.Platform.Hotkey;
 
@@ -10,9 +11,15 @@ namespace Kivi.Platform.Hotkey;
 /// a busy thread — especially the UI thread — makes Windows silently drop the hook, so the hook must
 /// own an otherwise-idle thread whose only job is pumping messages.
 ///
-/// Emits raw key-down / key-up <see cref="GestureEdge"/>s for the configured trigger key (default
-/// Right-Ctrl). The pure GestureClassifier (Kivi.Core, the 420/450/600 ms logic) turns these edges
-/// into tap/hold/double in the orchestrator — this layer only reports the raw physical edges.
+/// Emits raw key-down / key-up <see cref="GestureEdge"/>s for the configured trigger CHORD (default
+/// Right-Ctrl). A chord is one key OR a modifier-only combo (Ctrl+Win, both Ctrls, both Alts,
+/// Ctrl+Space) — matched by the pure <see cref="ChordMatcher"/>. The Down edge fires the instant the
+/// whole chord is held; the Up edge the instant any chord key releases. The pure GestureClassifier
+/// (Kivi.Core, the 420/450/600 ms logic) then turns these edges into tap/hold/double in the
+/// orchestrator — this layer only reports the raw physical edges.
+///
+/// Rebindable live via <see cref="Rebind"/> (no re-hook): the matcher is swapped under a lock the
+/// hook callback also takes. Key events are infrequent, so the lock is uncontended in practice.
 ///
 /// Rebuilt from scratch to the Electron/OpenWhispr Windows pattern (windows-key-listener.c). Not lifted.
 /// </summary>
@@ -32,8 +39,13 @@ public sealed class LowLevelKeyboardHookService : IHotkeyService, IDisposable
 
     public event Action<GestureEdge>? Edge;
 
-    private readonly int _triggerVk;
     private readonly object _gate = new();
+
+    // The chord matcher — the pure state machine that decides Down/Up edges. Guarded by _matcherGate
+    // because the hook callback (hook thread) and Rebind (any thread) both touch it; ChordMatcher is
+    // not thread-safe on its own. Key events are rare, so the lock is effectively uncontended.
+    private readonly object _matcherGate = new();
+    private ChordMatcher _matcher;
 
     private Thread? _hookThread;
     private uint _hookThreadId;
@@ -42,21 +54,17 @@ public sealed class LowLevelKeyboardHookService : IHotkeyService, IDisposable
     // Keep the delegate alive for the lifetime of the hook — if it is GC'd the hook crashes the app.
     private LowLevelKeyboardProc? _proc;
 
-    // Whether to swallow the trigger key so the host app never sees it. Read on the hook thread,
-    // written from any thread — a plain volatile bool is sufficient (single writer semantics fine here).
+    // Whether to swallow the trigger chord's keys so the host app never sees them. Read on the hook
+    // thread, written from any thread — a plain volatile bool is sufficient.
     private volatile bool _consume;
-
-    // Debounces auto-repeat: WH_KEYBOARD_LL delivers repeated WM_KEYDOWN while a key is physically held.
-    // We only emit ONE Down edge per physical press and ONE Up edge per release.
-    private volatile bool _triggerDown;
 
     private volatile bool _started;
     private volatile bool _disposed;
 
-    public LowLevelKeyboardHookService() : this(VK_RCONTROL) { }
+    public LowLevelKeyboardHookService() : this(new HotkeyChord(VK_RCONTROL)) { }
 
-    /// <summary>Construct with a custom trigger virtual-key (for rebinding / tests).</summary>
-    public LowLevelKeyboardHookService(int triggerVirtualKey) => _triggerVk = triggerVirtualKey;
+    /// <summary>Construct with a custom trigger chord (for rebinding / tests).</summary>
+    public LowLevelKeyboardHookService(HotkeyChord chord) => _matcher = new ChordMatcher(chord);
 
     public void Start()
     {
@@ -80,6 +88,16 @@ public sealed class LowLevelKeyboardHookService : IHotkeyService, IDisposable
     }
 
     public void Consume(bool on) => _consume = on;
+
+    public void Rebind(HotkeyChord chord)
+    {
+        lock (_matcherGate)
+        {
+            // SetChord adopts the current held-key state without emitting an edge, so rebinding while
+            // keys happen to be down can't start a spurious take.
+            _matcher.SetChord(chord);
+        }
+    }
 
     private void HookThreadMain(ManualResetEventSlim ready)
     {
@@ -117,28 +135,32 @@ public sealed class LowLevelKeyboardHookService : IHotkeyService, IDisposable
             int msg = (int)wParam;
             var data = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
             int vk = (int)data.vkCode;
+            bool isDown = msg is WM_KEYDOWN or WM_SYSKEYDOWN;
+            bool isUp = msg is WM_KEYUP or WM_SYSKEYUP;
 
-            if (vk == _triggerVk)
+            bool isChordKey;
+            ChordEdge edge = ChordEdge.None;
+            lock (_matcherGate)
             {
-                bool isDown = msg is WM_KEYDOWN or WM_SYSKEYDOWN;
-                bool isUp = msg is WM_KEYUP or WM_SYSKEYUP;
-                long ts = Environment.TickCount64;
-
-                if (isDown && !_triggerDown)
+                isChordKey = _matcher.IsChordKey(vk);
+                if (isChordKey)
                 {
-                    _triggerDown = true;
-                    RaiseEdge(new GestureEdge(GestureEdgeKind.Down, ts));
+                    if (isDown) edge = _matcher.KeyDown(vk);
+                    else if (isUp) edge = _matcher.KeyUp(vk);
                 }
-                else if (isUp && _triggerDown)
-                {
-                    _triggerDown = false;
-                    RaiseEdge(new GestureEdge(GestureEdgeKind.Up, ts));
-                }
-
-                // Swallow the key when consuming so the host never sees the trigger keystroke.
-                if (_consume)
-                    return (IntPtr)1;
             }
+
+            if (edge == ChordEdge.Engaged)
+                RaiseEdge(new GestureEdge(GestureEdgeKind.Down, Environment.TickCount64));
+            else if (edge == ChordEdge.Released)
+                RaiseEdge(new GestureEdge(GestureEdgeKind.Up, Environment.TickCount64));
+
+            // Swallow a chord key while consuming so the host never sees the trigger keystroke.
+            // NOTE: only swallow keys that are part of the active chord — never generic keys.
+            // For a modifier-only chord (e.g. Ctrl+Win) this does mean those modifiers are hidden
+            // from the host while consuming; that's intended (the whole point of a PTT trigger).
+            if (isChordKey && _consume)
+                return (IntPtr)1;
         }
 
         return CallNextHookEx(_hookHandle, nCode, wParam, lParam);

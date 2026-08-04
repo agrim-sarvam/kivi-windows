@@ -29,6 +29,14 @@ public interface IHotkeyService
     event Action<GestureEdge>? Edge;
     void Start();
     void Consume(bool on);
+
+    /// <summary>
+    /// Rebind the trigger to a new chord live, without tearing down the hook. The chord is a set of
+    /// Windows virtual-key codes that must all be held (a single key, or a modifier-only combo like
+    /// Ctrl+Win / both Ctrls). Takes effect on the next physical press; never fires a spurious Down
+    /// on rebind. The storage form is <c>Kivi.Core.Hotkey.HotkeyChord.ToStorageString()</c>.
+    /// </summary>
+    void Rebind(Kivi.Core.Hotkey.HotkeyChord chord);
 }
 
 /// <summary>Clipboard + synthesized Ctrl+V paste into the frontmost app. See Kivi.Platform.Paste.</summary>
